@@ -2,6 +2,14 @@ package configs
 
 import "gopkg.in/yaml.v3"
 
+type User struct {
+	UserID     string `yaml:"user_id"`
+	SessionID  string `yaml:"session_id"`
+	Pin        string `yaml:"pin"`
+	PinToken   string `yaml:"pin_token"`
+	PrivateKey string `yaml:"private_key"`
+}
+
 type Option struct {
 	HTTP struct {
 		Host string `yaml:"host"`
@@ -15,12 +23,13 @@ type Option struct {
 		Name     string `yaml:"name"`
 	} `yaml:"database"`
 	Mixin struct {
-		AppID      string `yaml:"app_id"`
-		SessionID  string `yaml:"session_id"`
-		Secret     string `yaml:"secret"`
-		Pin        string `yaml:"pin"`
-		PinToken   string `yaml:"pin_token"`
-		PrivateKey string `yaml:"private_key"`
+		AppID      string  `yaml:"app_id"`
+		SessionID  string  `yaml:"session_id"`
+		Secret     string  `yaml:"secret"`
+		Pin        string  `yaml:"pin"`
+		PinToken   string  `yaml:"pin_token"`
+		PrivateKey string  `yaml:"private_key"`
+		Users      []*User `yaml:"users"`
 	} `yaml:"mixin"`
 	Environment string
 }
