@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS payments (
   memo                     VARCHAR(256) NOT NULL DEFAULT '',
   status                   VARCHAR(128) NOT NULL DEFAULT '',
   code_id                  VARCHAR(36) NOT NULL DEFAULT '',
+  transaction_hash         VARCHAR(512) NOT NULL DEFAULT '',
+  raw_transaction          TEXT NOT NULL DEFAULT '',
   created_at               TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
