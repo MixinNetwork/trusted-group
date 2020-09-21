@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/bot-api-go-client"
-	"github.com/gofrs/uuid"
 	"github.com/gorilla/websocket"
 )
 
@@ -67,6 +66,7 @@ type MessageContext struct {
 }
 
 func (service *MessageService) Run(ctx context.Context) error {
+	go models.LoopingPaidTransfers(ctx)
 	go models.LoopingPendingPayments(ctx)
 	go models.LoopingPaidPayments(ctx)
 
@@ -310,7 +310,7 @@ func sendAppButton(ctx context.Context, mc *MessageContext, msg MessageView, app
 	btns, err := json.Marshal([]interface{}{
 		map[string]string{
 			"label":  "Transfer 1 CNB, will be refunded later",
-			"action": fmt.Sprintf("https://mixin.one/pay?recipient=%s&asset=%s&amount=1&trace=%s&memo=%s", appID, models.CNBAssetID, uuid.Must(uuid.NewV4()).String()),
+			"action": fmt.Sprintf("https://mixin.one/pay?recipient=%s&asset=%s&amount=1&trace=%s&memo=", appID, models.CNBAssetID, bot.UuidNewV4().String()),
 			"color":  "#FF5733",
 		},
 	})
