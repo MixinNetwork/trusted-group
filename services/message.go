@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"multisig/configs"
 	"multisig/models"
 	"multisig/session"
@@ -126,6 +127,7 @@ func (service *MessageService) loop(ctx context.Context) error {
 			}
 			if msg.Category == "PLAIN_TEXT" {
 				if err := sendAppButton(ctx, mc, msg, mixin.AppID); err != nil {
+					log.Println(err)
 					return err
 				}
 			}
@@ -309,7 +311,7 @@ func (m *tmap) set(key string, t mixinTransaction) {
 func sendAppButton(ctx context.Context, mc *MessageContext, msg MessageView, appID string) error {
 	btns, err := json.Marshal([]interface{}{
 		map[string]string{
-			"label":  "Transfer 1 CNB, will be refunded later",
+			"label":  "Transfer 1 CNB, will be refunded",
 			"action": fmt.Sprintf("https://mixin.one/pay?recipient=%s&asset=%s&amount=1&trace=%s&memo=", appID, models.CNBAssetID, bot.UuidNewV4().String()),
 			"color":  "#FF5733",
 		},
@@ -323,6 +325,5 @@ func sendAppButton(ctx context.Context, mc *MessageContext, msg MessageView, app
 		"category":        "APP_BUTTON_GROUP",
 		"data":            base64.StdEncoding.EncodeToString(btns),
 	}
-	err = writeMessageAndWait(ctx, mc, "CREATE_MESSAGE", params)
-	return err
+	return writeMessageAndWait(ctx, mc, "CREATE_MESSAGE", params)
 }

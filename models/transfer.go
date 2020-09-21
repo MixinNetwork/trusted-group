@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	TransferStatePaid   = "paid"
-	TransferStateRefund = "refund"
+	TransferStatePaid    = "paid"
+	TransferStateMainnet = "mainnet"
+	TransferStateRefund  = "refund"
 )
 
 type Transfer struct {
@@ -136,6 +137,13 @@ func LoopingPaidTransfers(ctx context.Context) error {
 			if err != nil {
 				time.Sleep(time.Second)
 				session.Logger(ctx).Errorf("CreatedPayment %#v", err)
+				continue
+			}
+			query := "UPDATE transfers SET state='mainnet' WHERE transfer_id=$1"
+			_, err = session.Database(ctx).ExecContext(ctx, query, transfer.TransferID)
+			if err != nil {
+				time.Sleep(time.Second)
+				session.Logger(ctx).Errorf("Updated transfers %#v", err)
 				continue
 			}
 		}
