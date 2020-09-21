@@ -3,7 +3,6 @@ package services
 import (
 	"compress/gzip"
 	"context"
-	"crypto/md5"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -109,55 +108,34 @@ func (service *MessageService) loop(ctx context.Context) error {
 		case <-mc.ReadDone:
 			return nil
 		case msg := <-mc.ReadBuffer:
-			om := struct {
-				Receivers []string `json:"receivers"`
-				Threshold int64    `json:"threshold"`
-			}{
-				[]string{"8ea075a6-1592-4ca1-892f-244195412fc4", "7a4aa538-de15-3203-b79b-a920f166c0d0", "51286f81-2854-37f9-9b9a-61bbcf9fc883"}, 2,
-			}
-			pr := &bot.PaymentRequest{
-				AssetId:          "965e5c6e-434c-3fa9-b780-c50f43cd955c",
-				Amount:           "1",
-				TraceId:          bot.UuidNewV4().String(),
-				OpponentMultisig: om,
-			}
 			mixin := configs.AppConfig.Mixin
-			botPayment, err := bot.CreatePaymentRequest(ctx, pr, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
-			if err != nil {
-				return err
+			if msg.Category == "SYSTEM_ACCOUNT_SNAPSHOT" && msg.UserID != mixin.AppID {
+				data, err := base64.StdEncoding.DecodeString(msg.Data)
+				if err != nil {
+					return err
+				}
+				var transfer TransferView
+				err = json.Unmarshal(data, &transfer)
+				if err != nil {
+					return err
+				}
+				_, err = models.CreateTransfer(ctx, transfer.SnapshotID, msg.UserID, transfer.AssetId, transfer.Amount, transfer.Memo, transfer.TraceID, models.TransferStatePaid, transfer.CreatedAt)
+				if err != nil {
+					return err
+				}
 			}
-			payment, err := models.CreatedPayment(ctx, botPayment)
-			if err != nil {
-				return err
+			if msg.Category == "PLAIN_TEXT" {
+				if err := sendAppButton(ctx, mc, msg, mixin.AppID); err != nil {
+					return err
+				}
 			}
-			params := map[string]interface{}{
-				"conversation_id": msg.ConversationID,
-				"message_id":      uuid.Must(uuid.NewV4()).String(),
-				"category":        "PLAIN_TEXT",
-				"data":            base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("mixin://codes/%s", payment.CodeID))),
-			}
-			err = writeMessageAndWait(ctx, mc, "CREATE_MESSAGE", params)
-			if err != nil {
-				return err
-			}
-			params = map[string]interface{}{"message_id": msg.MessageID, "status": "READ"}
+			params := map[string]interface{}{"message_id": msg.MessageID, "status": "READ"}
 			err = writeMessageAndWait(ctx, mc, "ACKNOWLEDGE_MESSAGE_RECEIPT", params)
 			if err != nil {
 				return err
 			}
 		}
 	}
-}
-
-func generateRefundId(snapshotId string) (string, error) {
-	h := md5.New()
-	io.WriteString(h, snapshotId)
-	io.WriteString(h, "REFUND")
-	sum := h.Sum(nil)
-	sum[6] = (sum[6] & 0x0f) | 0x30
-	sum[8] = (sum[8] & 0x3f) | 0x80
-	id, err := uuid.FromBytes(sum)
-	return id.String(), err
 }
 
 func readPump(ctx context.Context, conn *websocket.Conn, mc *MessageContext) error {
@@ -326,4 +304,25 @@ func (m *tmap) set(key string, t mixinTransaction) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	m.m[key] = t
+}
+
+func sendAppButton(ctx context.Context, mc *MessageContext, msg MessageView, appID string) error {
+	btns, err := json.Marshal([]interface{}{
+		map[string]string{
+			"label":  "Transfer 1 CNB, will be refunded later",
+			"action": fmt.Sprintf("https://mixin.one/pay?recipient=%s&asset=%s&amount=1&trace=%s&memo=%s", appID, models.CNBAssetID, uuid.Must(uuid.NewV4()).String()),
+			"color":  "#FF5733",
+		},
+	})
+	if err != nil {
+		return err
+	}
+	params := map[string]interface{}{
+		"conversation_id": msg.ConversationID,
+		"message_id":      bot.UuidNewV4().String(),
+		"category":        "APP_BUTTON_GROUP",
+		"data":            base64.StdEncoding.EncodeToString(btns),
+	}
+	err = writeMessageAndWait(ctx, mc, "CREATE_MESSAGE", params)
+	return err
 }

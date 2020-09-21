@@ -18,9 +18,11 @@ import (
 )
 
 const (
-	PaymentStatusPending = "pending"
-	PaymentStatusPaid    = "paid"
-	PaymentStatusRefund  = "refund"
+	PaymentStatePending = "pending"
+	PaymentStatePaid    = "paid"
+	PaymentStateRefund  = "refund"
+
+	CNBAssetID = "965e5c6e-434c-3fa9-b780-c50f43cd955c"
 )
 
 type Payment struct {
@@ -30,16 +32,17 @@ type Payment struct {
 	Threshold       int64          `db:"threshold"`
 	Receivers       pq.StringArray `db:"receivers"`
 	Memo            string         `db:"memo"`
-	Status          string         `db:"status"`
+	State           string         `db:"state"`
 	CodeID          string         `db:"code_id"`
 	TransactionHash string         `db:"transaction_hash"`
 	RawTransaction  string         `db:"raw_transaction"`
+	UserID          string         `db:"user_id"`
 	CreatedAt       time.Time      `db:"created_at"`
 }
 
-var paymentsColumnsFull = []string{"payment_id", "asset_id", "amount", "threshold", "receivers", "memo", "status", "code_id", "transaction_hash", "raw_transaction", "created_at"}
+var paymentsColumnsFull = []string{"payment_id", "asset_id", "amount", "threshold", "receivers", "memo", "state", "code_id", "transaction_hash", "raw_transaction", "user_id", "created_at"}
 
-func CreatedPayment(ctx context.Context, payment *bot.Payment) (*Payment, error) {
+func CreatedPayment(ctx context.Context, payment *bot.Payment, userID string) (*Payment, error) {
 	p := &Payment{
 		PaymentID: payment.TraceId,
 		AssetID:   payment.AssetId,
@@ -47,8 +50,9 @@ func CreatedPayment(ctx context.Context, payment *bot.Payment) (*Payment, error)
 		Threshold: payment.Threshold,
 		Receivers: payment.Receivers,
 		Memo:      payment.Memo,
-		Status:    payment.Status,
+		State:     payment.Status,
 		CodeID:    payment.CodeId,
+		UserID:    userID,
 		CreatedAt: payment.CreatedAt,
 	}
 
@@ -82,7 +86,7 @@ func findPaymentByID(ctx context.Context, tx *sqlx.Tx, paymentID string) (*Payme
 
 func FindPaymentsByState(ctx context.Context, state string, limit int64) ([]*Payment, error) {
 	var payments []*Payment
-	query := fmt.Sprintf("SELECT %s FROM payments WHERE status=$1 LIMIT $2", strings.Join(paymentsColumnsFull, ","))
+	query := fmt.Sprintf("SELECT %s FROM payments WHERE state=$1 LIMIT $2", strings.Join(paymentsColumnsFull, ","))
 	err := session.Database(ctx).SelectContext(ctx, &payments, query, state, limit)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -94,7 +98,7 @@ func FindPaymentsByState(ctx context.Context, state string, limit int64) ([]*Pay
 
 func LoopingPendingPayments(ctx context.Context) error {
 	for {
-		payments, err := FindPaymentsByState(ctx, PaymentStatusPending, 100)
+		payments, err := FindPaymentsByState(ctx, PaymentStatePending, 100)
 		if err != nil {
 			time.Sleep(time.Second)
 			session.Logger(ctx).Errorf("FindPaymentsByState %#v", err)
@@ -107,8 +111,8 @@ func LoopingPendingPayments(ctx context.Context) error {
 				session.Logger(ctx).Errorf("ReadPaymentByCode %#v", err)
 				continue
 			}
-			if botPayment.Status == PaymentStatusPaid {
-				query := "UPDATE payments SET status='paid' WHERE payment_id=$1"
+			if botPayment.Status == PaymentStatePaid {
+				query := "UPDATE payments SET state='paid' WHERE payment_id=$1"
 				_, err = session.Database(ctx).ExecContext(ctx, query, payment.PaymentID)
 				if err != nil {
 					time.Sleep(time.Second)
@@ -128,7 +132,7 @@ func LoopingPaidPayments(ctx context.Context) error {
 	network := NewMixinNetwork("http://35.234.74.25:8239")
 	mixin := configs.AppConfig.Mixin
 	for {
-		payments, err := FindPaymentsByState(ctx, PaymentStatusPaid, 100)
+		payments, err := FindPaymentsByState(ctx, PaymentStatePaid, 100)
 		if err != nil {
 			time.Sleep(time.Second)
 			session.Logger(ctx).Errorf("FindPaymentsByState %#v", err)
@@ -217,7 +221,7 @@ func LoopingPaidPayments(ctx context.Context) error {
 				session.Logger(ctx).Errorf("SendRawTransaction  %#v", err)
 				continue
 			}
-			query := "UPDATE payments SET (status, transaction_hash)=('refund',$1) WHERE payment_id=$2"
+			query := "UPDATE payments SET (state, transaction_hash)=('refund',$1) WHERE payment_id=$2"
 			_, err = session.Database(ctx).ExecContext(ctx, query, hash, payment.PaymentID)
 			if err != nil {
 				time.Sleep(time.Second)
