@@ -14,7 +14,7 @@ func TestPaymentCRUD(t *testing.T) {
 	defer teardownTestContext(ctx)
 	assert := assert.New(t)
 
-	payments, err := FindPendingPayments(ctx, 100)
+	payments, err := FindPaymentsByState(ctx, PaymentStatePending, 100)
 	assert.Nil(err)
 	assert.Len(payments, 0)
 	p := &bot.Payment{
@@ -24,14 +24,14 @@ func TestPaymentCRUD(t *testing.T) {
 		Threshold: 2,
 		Receivers: pq.StringArray{bot.UuidNewV4().String(), bot.UuidNewV4().String()},
 		Memo:      "",
-		Status:    PaymentStatusPending,
+		Status:    PaymentStatePending,
 		CodeId:    bot.UuidNewV4().String(),
 		CreatedAt: time.Now(),
 	}
-	payment, err := CreatedPayment(ctx, p)
+	payment, err := CreatedPayment(ctx, p, bot.UuidNewV4().String())
 	assert.Nil(err)
 	assert.NotNil(payment)
-	payments, err = FindPendingPayments(ctx, 100)
+	payments, err = FindPaymentsByState(ctx, PaymentStatePending, 100)
 	assert.Nil(err)
 	assert.Len(payments, 1)
 }
