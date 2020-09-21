@@ -146,7 +146,7 @@ func LoopingPaidPayments(ctx context.Context) error {
 					session.Logger(ctx).Errorf("ReadMultisig %#v", err)
 					continue
 				}
-				key, err := bot.ReadGhostKeys(ctx, []string{input.UserId}, 0, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
+				key, err := bot.ReadGhostKeys(ctx, []string{payment.UserID}, 0, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
 				if err != nil {
 					time.Sleep(time.Second)
 					session.Logger(ctx).Errorf("ReadGhostKeys %#v", err)
