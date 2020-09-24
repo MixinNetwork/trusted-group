@@ -2,7 +2,7 @@ module multisig
 
 go 1.15
 
-replace github.com/MixinNetwork/bot-api-go-client => ../bot-api-go-client
+replace github.com/MixinNetwork/bot-api-go-client => ../../bot-api-go-client
 
 require (
 	cloud.google.com/go/logging v1.1.0
