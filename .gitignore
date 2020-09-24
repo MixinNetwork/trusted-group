@@ -1,4 +1,4 @@
 multisig
-configs/yml.go
-configs/doc
+sample/configs/yml.go
+sample/configs/doc
 .DS_Store
