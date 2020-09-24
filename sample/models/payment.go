@@ -236,7 +236,6 @@ func LoopingPaidPayments(ctx context.Context) error {
 			time.Sleep(10 * time.Second)
 		}
 	}
-	return nil
 }
 
 type MixinNetwork struct {

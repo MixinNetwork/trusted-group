@@ -15,13 +15,15 @@ const (
 )
 
 const (
-	dropPaymentsDDL = `DROP TABLE IF EXISTS payments;`
-	dropUsersDDL    = `DROP TABLE IF EXISTS users;`
+	dropPaymentsDDL  = `DROP TABLE IF EXISTS payments;`
+	dropTransfersDDL = `DROP TABLE IF EXISTS transfers;`
+	dropUsersDDL     = `DROP TABLE IF EXISTS users;`
 )
 
 func teardownTestContext(ctx context.Context) {
 	tables := []string{
 		dropPaymentsDDL,
+		dropTransfersDDL,
 		dropUsersDDL,
 	}
 	for _, t := range tables {
