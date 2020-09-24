@@ -125,7 +125,6 @@ func LoopingPendingPayments(ctx context.Context) error {
 			time.Sleep(10 * time.Second)
 		}
 	}
-	return nil
 }
 
 func LoopingPaidPayments(ctx context.Context) error {
@@ -184,17 +183,19 @@ func LoopingPaidPayments(ctx context.Context) error {
 				session.Logger(ctx).Errorf("CreateMultisig %s %#v", mixin.AppID, err)
 				continue
 			}
-			pin, err := bot.EncryptPIN(ctx, mixin.Pin, mixin.PinToken, mixin.SessionID, mixin.PrivateKey, uint64(time.Now().UnixNano()))
-			if err != nil {
-				time.Sleep(time.Second)
-				session.Logger(ctx).Errorf("EncryptPIN %s %#v", mixin.AppID, err)
-				continue
-			}
-			request, err = bot.SignMultisig(ctx, request.RequestId, pin, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
-			if err != nil {
-				time.Sleep(time.Second)
-				session.Logger(ctx).Errorf("SignMultisig %s %#v", mixin.AppID, err)
-				continue
+			if request.State == "initial" {
+				pin, err := bot.EncryptPIN(ctx, mixin.Pin, mixin.PinToken, mixin.SessionID, mixin.PrivateKey, uint64(time.Now().UnixNano()))
+				if err != nil {
+					time.Sleep(time.Second)
+					session.Logger(ctx).Errorf("EncryptPIN %s %#v", mixin.AppID, err)
+					continue
+				}
+				request, err = bot.SignMultisig(ctx, request.RequestId, pin, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
+				if err != nil {
+					time.Sleep(time.Second)
+					session.Logger(ctx).Errorf("SignMultisig %s %#v", mixin.AppID, err)
+					continue
+				}
 			}
 			user := mixin.Users[0]
 			request, err = bot.CreateMultisig(ctx, "sign", request.RawTransaction, user.UserID, user.SessionID, user.PrivateKey)
@@ -203,17 +204,19 @@ func LoopingPaidPayments(ctx context.Context) error {
 				session.Logger(ctx).Errorf("CreateMultisig %s %#v", mixin.AppID, err)
 				continue
 			}
-			pin, err = bot.EncryptPIN(ctx, user.Pin, user.PinToken, user.SessionID, user.PrivateKey, uint64(time.Now().UnixNano()))
-			if err != nil {
-				time.Sleep(time.Second)
-				session.Logger(ctx).Errorf("EncryptPIN %s %#v", user.UserID, err)
-				continue
-			}
-			request, err = bot.SignMultisig(ctx, request.RequestId, pin, user.UserID, user.SessionID, user.PrivateKey)
-			if err != nil {
-				time.Sleep(time.Second)
-				session.Logger(ctx).Errorf("SignMultisig %s %#v", user.UserID, err)
-				continue
+			if request.State == "initial" {
+				pin, err := bot.EncryptPIN(ctx, user.Pin, user.PinToken, user.SessionID, user.PrivateKey, uint64(time.Now().UnixNano()))
+				if err != nil {
+					time.Sleep(time.Second)
+					session.Logger(ctx).Errorf("EncryptPIN %s %#v", user.UserID, err)
+					continue
+				}
+				request, err = bot.SignMultisig(ctx, request.RequestId, pin, user.UserID, user.SessionID, user.PrivateKey)
+				if err != nil {
+					time.Sleep(time.Second)
+					session.Logger(ctx).Errorf("SignMultisig %s %#v", user.UserID, err)
+					continue
+				}
 			}
 			hash, err := network.SendRawTransaction(request.RawTransaction)
 			if err != nil {
