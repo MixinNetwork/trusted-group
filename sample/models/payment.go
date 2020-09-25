@@ -88,9 +88,7 @@ func FindPaymentsByState(ctx context.Context, state string, limit int64) ([]*Pay
 	var payments []*Payment
 	query := fmt.Sprintf("SELECT %s FROM payments WHERE state=$1 LIMIT $2", strings.Join(paymentsColumnsFull, ","))
 	err := session.Database(ctx).SelectContext(ctx, &payments, query, state, limit)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	} else if err != nil {
+	if err != nil {
 		return nil, session.TransactionError(ctx, err)
 	}
 	return payments, nil

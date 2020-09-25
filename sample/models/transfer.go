@@ -34,7 +34,7 @@ type Transfer struct {
 var transfersColumnsFull = []string{"transfer_id", "user_id", "asset_id", "amount", "memo", "trace_id", "state", "created_at"}
 
 func CreateTransfer(ctx context.Context, sid, uid, aid, amount, memo, traceID, state string, create time.Time) (*Transfer, error) {
-	if aid != "965e5c6e-434c-3fa9-b780-c50f43cd955c" || !number.FromString(amount).Equal(number.FromString("1")) {
+	if aid != CNBAssetID || !number.FromString(amount).Equal(number.FromString("1")) {
 		return nil, nil
 	}
 	t := &Transfer{
@@ -95,7 +95,7 @@ func LoopingPaidTransfers(ctx context.Context) error {
 		[]string{"8ea075a6-1592-4ca1-892f-244195412fc4", "7a4aa538-de15-3203-b79b-a920f166c0d0", "51286f81-2854-37f9-9b9a-61bbcf9fc883"}, 2,
 	}
 	pr := &bot.PaymentRequest{
-		AssetId:          "965e5c6e-434c-3fa9-b780-c50f43cd955c",
+		AssetId:          CNBAssetID,
 		Amount:           "1",
 		OpponentMultisig: om,
 	}
