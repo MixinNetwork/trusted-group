@@ -192,12 +192,13 @@ func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error
 		if err != nil {
 			return err
 		}
-		payment.RawTransaction = request.RawTransaction
-		query := "UPDATE payments SET raw_transaction=$1 WHERE payment_id=$2"
-		_, err = session.Database(ctx).ExecContext(ctx, query, payment.RawTransaction, payment.PaymentID)
-		if err != nil {
-			return err
-		}
+	}
+	payment.TransactionHash = request.TransactionHash
+	payment.RawTransaction = request.RawTransaction
+	query := "UPDATE payments SET (transaction_hash,raw_transaction)=($1,$2) WHERE payment_id=$3"
+	_, err = session.Database(ctx).ExecContext(ctx, query, payment.TransactionHash, payment.RawTransaction, payment.PaymentID)
+	if err != nil {
+		return err
 	}
 	user := mixin.Users[0]
 	request, err = bot.CreateMultisig(ctx, "sign", request.RawTransaction, user.UserID, user.SessionID, user.PrivateKey)
@@ -213,19 +214,23 @@ func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error
 		if err != nil {
 			return err
 		}
-		payment.RawTransaction = request.RawTransaction
-		query := "UPDATE payments SET raw_transaction=$1 WHERE payment_id=$2"
-		_, err = session.Database(ctx).ExecContext(ctx, query, payment.RawTransaction, payment.PaymentID)
+	}
+	payment.TransactionHash = request.TransactionHash
+	payment.RawTransaction = request.RawTransaction
+	query = "UPDATE payments SET (transaction_hash,raw_transaction)=($1,$2) WHERE payment_id=$3"
+	_, err = session.Database(ctx).ExecContext(ctx, query, payment.TransactionHash, payment.RawTransaction, payment.PaymentID)
+	if err != nil {
+		return err
+	}
+	tx, _ := network.GetTransaction(payment.TransactionHash)
+	if tx != nil {
+		_, err := network.SendRawTransaction(request.RawTransaction)
 		if err != nil {
 			return err
 		}
 	}
-	hash, err := network.SendRawTransaction(request.RawTransaction)
-	if err != nil {
-		return err
-	}
-	query := "UPDATE payments SET (state, transaction_hash)=('refund',$1) WHERE payment_id=$2"
-	_, err = session.Database(ctx).ExecContext(ctx, query, hash, payment.PaymentID)
+	query = "UPDATE payments SET state='refund' WHERE payment_id=$1"
+	_, err = session.Database(ctx).ExecContext(ctx, query, payment.PaymentID)
 	return err
 }
 
@@ -249,6 +254,19 @@ func (m *MixinNetwork) SendRawTransaction(raw string) (string, error) {
 	var tx Transaction
 	err = json.Unmarshal(body, &tx)
 	return tx.Hash, err
+}
+
+func (m *MixinNetwork) GetTransaction(hash string) (*Transaction, error) {
+	body, err := m.callRPC("gettransaction", []interface{}{hash})
+	if err != nil {
+		return nil, err
+	}
+	var tx Transaction
+	err = json.Unmarshal(body, &tx)
+	if err != nil || tx.Hash == "" {
+		return nil, err
+	}
+	return &tx, err
 }
 
 func (m *MixinNetwork) callRPC(method string, params []interface{}) ([]byte, error) {
