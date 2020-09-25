@@ -155,22 +155,28 @@ func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error
 		if err != nil {
 			return err
 		}
-		key, err := bot.ReadGhostKeys(ctx, []string{payment.UserID}, 0, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
-		if err != nil {
-			return err
+		var raw = ""
+		if input.State == "signed" {
+			raw = input.SignedTx
 		}
-		tx := &Transaction{
-			Inputs:  []*Input{&Input{Hash: input.TransactionHash, Index: input.OutputIndex}},
-			Outputs: []*Output{&Output{Mask: key.Mask, Keys: key.Keys, Amount: payment.Amount, Script: "fffe01"}},
-			Asset:   "b9f49cf777dc4d03bc54cd1367eebca319f8603ea1ce18910d09e2c540c630d8",
-		}
-		data, err := json.Marshal(tx)
-		if err != nil {
-			return err
-		}
-		raw, err := buildTransaction(data)
-		if err != nil {
-			return err
+		if raw == "" {
+			key, err := bot.ReadGhostKeys(ctx, []string{payment.UserID}, 0, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
+			if err != nil {
+				return err
+			}
+			tx := &Transaction{
+				Inputs:  []*Input{&Input{Hash: input.TransactionHash, Index: input.OutputIndex}},
+				Outputs: []*Output{&Output{Mask: key.Mask, Keys: key.Keys, Amount: payment.Amount, Script: "fffe01"}},
+				Asset:   "b9f49cf777dc4d03bc54cd1367eebca319f8603ea1ce18910d09e2c540c630d8",
+			}
+			data, err := json.Marshal(tx)
+			if err != nil {
+				return err
+			}
+			raw, err = buildTransaction(data)
+			if err != nil {
+				return err
+			}
 		}
 		payment.RawTransaction = raw
 		query := "UPDATE payments SET raw_transaction=$1 WHERE payment_id=$2"
@@ -222,8 +228,8 @@ func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error
 	if err != nil {
 		return err
 	}
-	tx, _ := network.GetTransaction(payment.TransactionHash)
-	if tx != nil {
+	tx, err := network.GetTransaction(payment.TransactionHash)
+	if tx == nil {
 		_, err := network.SendRawTransaction(request.RawTransaction)
 		if err != nil {
 			return err
