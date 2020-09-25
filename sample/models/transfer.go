@@ -88,18 +88,22 @@ func FindTransfersByState(ctx context.Context, state string, limit int64) ([]*Tr
 }
 
 func LoopingPaidTransfers(ctx context.Context) error {
+	mixin := configs.AppConfig.Mixin
+	receivers := []string{mixin.AppID}
+	for _, user := range mixin.Users {
+		receivers = append(receivers, user.UserID)
+	}
 	om := struct {
 		Receivers []string `json:"receivers"`
 		Threshold int64    `json:"threshold"`
 	}{
-		[]string{"8ea075a6-1592-4ca1-892f-244195412fc4", "7a4aa538-de15-3203-b79b-a920f166c0d0", "51286f81-2854-37f9-9b9a-61bbcf9fc883"}, 2,
+		receivers, 2,
 	}
 	pr := &bot.PaymentRequest{
 		AssetId:          CNBAssetID,
 		Amount:           "1",
 		OpponentMultisig: om,
 	}
-	mixin := configs.AppConfig.Mixin
 	for {
 		transfers, err := FindTransfersByState(ctx, TransferStatePaid, 100)
 		if err != nil {

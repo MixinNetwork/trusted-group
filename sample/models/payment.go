@@ -127,7 +127,6 @@ func LoopingPendingPayments(ctx context.Context) error {
 
 func LoopingPaidPayments(ctx context.Context) error {
 	network := NewMixinNetwork("http://35.234.74.25:8239")
-	mixin := configs.AppConfig.Mixin
 	for {
 		payments, err := FindPaymentsByState(ctx, PaymentStatePaid, 100)
 		if err != nil {
@@ -136,97 +135,10 @@ func LoopingPaidPayments(ctx context.Context) error {
 			continue
 		}
 		for _, payment := range payments {
-			if payment.RawTransaction == "" {
-				input, err := ReadMultisig(ctx, payment.Amount)
-				if err != nil {
-					time.Sleep(time.Second)
-					session.Logger(ctx).Errorf("ReadMultisig %#v", err)
-					continue
-				}
-				key, err := bot.ReadGhostKeys(ctx, []string{payment.UserID}, 0, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
-				if err != nil {
-					time.Sleep(time.Second)
-					session.Logger(ctx).Errorf("ReadGhostKeys %#v", err)
-					continue
-				}
-				tx := &Transaction{
-					Inputs:  []*Input{&Input{Hash: input.TransactionHash, Index: input.OutputIndex}},
-					Outputs: []*Output{&Output{Mask: key.Mask, Keys: key.Keys, Amount: payment.Amount, Script: "fffe01"}},
-					Asset:   "b9f49cf777dc4d03bc54cd1367eebca319f8603ea1ce18910d09e2c540c630d8",
-				}
-				data, err := json.Marshal(tx)
-				if err != nil {
-					time.Sleep(time.Second)
-					session.Logger(ctx).Errorf("json Marshal %#v", err)
-					continue
-				}
-				raw, err := buildTransaction(data)
-				if err != nil {
-					time.Sleep(time.Second)
-					session.Logger(ctx).Errorf("buildTransaction %#v", err)
-					continue
-				}
-				payment.RawTransaction = raw
-				query := "UPDATE payments SET raw_transaction=$1 WHERE payment_id=$2"
-				_, err = session.Database(ctx).ExecContext(ctx, query, payment.RawTransaction, payment.PaymentID)
-				if err != nil {
-					time.Sleep(time.Second)
-					session.Logger(ctx).Errorf("Updated payment %#v", err)
-					continue
-				}
-			}
-			request, err := bot.CreateMultisig(ctx, "sign", payment.RawTransaction, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
+			err = payment.refund(ctx, network)
 			if err != nil {
 				time.Sleep(time.Second)
-				session.Logger(ctx).Errorf("CreateMultisig %s %#v", mixin.AppID, err)
-				continue
-			}
-			if request.State == "initial" {
-				pin, err := bot.EncryptPIN(ctx, mixin.Pin, mixin.PinToken, mixin.SessionID, mixin.PrivateKey, uint64(time.Now().UnixNano()))
-				if err != nil {
-					time.Sleep(time.Second)
-					session.Logger(ctx).Errorf("EncryptPIN %s %#v", mixin.AppID, err)
-					continue
-				}
-				request, err = bot.SignMultisig(ctx, request.RequestId, pin, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
-				if err != nil {
-					time.Sleep(time.Second)
-					session.Logger(ctx).Errorf("SignMultisig %s %#v", mixin.AppID, err)
-					continue
-				}
-			}
-			user := mixin.Users[0]
-			request, err = bot.CreateMultisig(ctx, "sign", request.RawTransaction, user.UserID, user.SessionID, user.PrivateKey)
-			if err != nil {
-				time.Sleep(time.Second)
-				session.Logger(ctx).Errorf("CreateMultisig %s %#v", mixin.AppID, err)
-				continue
-			}
-			if request.State == "initial" {
-				pin, err := bot.EncryptPIN(ctx, user.Pin, user.PinToken, user.SessionID, user.PrivateKey, uint64(time.Now().UnixNano()))
-				if err != nil {
-					time.Sleep(time.Second)
-					session.Logger(ctx).Errorf("EncryptPIN %s %#v", user.UserID, err)
-					continue
-				}
-				request, err = bot.SignMultisig(ctx, request.RequestId, pin, user.UserID, user.SessionID, user.PrivateKey)
-				if err != nil {
-					time.Sleep(time.Second)
-					session.Logger(ctx).Errorf("SignMultisig %s %#v", user.UserID, err)
-					continue
-				}
-			}
-			hash, err := network.SendRawTransaction(request.RawTransaction)
-			if err != nil {
-				time.Sleep(time.Second)
-				session.Logger(ctx).Errorf("SendRawTransaction  %#v", err)
-				continue
-			}
-			query := "UPDATE payments SET (state, transaction_hash)=('refund',$1) WHERE payment_id=$2"
-			_, err = session.Database(ctx).ExecContext(ctx, query, hash, payment.PaymentID)
-			if err != nil {
-				time.Sleep(time.Second)
-				session.Logger(ctx).Errorf("Update Payment %#v", err)
+				session.Logger(ctx).Errorf("refund %#v", err)
 				continue
 			}
 		}
@@ -234,6 +146,87 @@ func LoopingPaidPayments(ctx context.Context) error {
 			time.Sleep(10 * time.Second)
 		}
 	}
+}
+
+func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error {
+	mixin := configs.AppConfig.Mixin
+	if payment.RawTransaction == "" {
+		input, err := ReadMultisig(ctx, payment.Amount)
+		if err != nil {
+			return err
+		}
+		key, err := bot.ReadGhostKeys(ctx, []string{payment.UserID}, 0, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
+		if err != nil {
+			return err
+		}
+		tx := &Transaction{
+			Inputs:  []*Input{&Input{Hash: input.TransactionHash, Index: input.OutputIndex}},
+			Outputs: []*Output{&Output{Mask: key.Mask, Keys: key.Keys, Amount: payment.Amount, Script: "fffe01"}},
+			Asset:   "b9f49cf777dc4d03bc54cd1367eebca319f8603ea1ce18910d09e2c540c630d8",
+		}
+		data, err := json.Marshal(tx)
+		if err != nil {
+			return err
+		}
+		raw, err := buildTransaction(data)
+		if err != nil {
+			return err
+		}
+		payment.RawTransaction = raw
+		query := "UPDATE payments SET raw_transaction=$1 WHERE payment_id=$2"
+		_, err = session.Database(ctx).ExecContext(ctx, query, payment.RawTransaction, payment.PaymentID)
+		if err != nil {
+			return err
+		}
+	}
+	request, err := bot.CreateMultisig(ctx, "sign", payment.RawTransaction, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
+	if err != nil {
+		return err
+	}
+	if request.State == "initial" {
+		pin, err := bot.EncryptPIN(ctx, mixin.Pin, mixin.PinToken, mixin.SessionID, mixin.PrivateKey, uint64(time.Now().UnixNano()))
+		if err != nil {
+			return err
+		}
+		request, err = bot.SignMultisig(ctx, request.RequestId, pin, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
+		if err != nil {
+			return err
+		}
+		payment.RawTransaction = request.RawTransaction
+		query := "UPDATE payments SET raw_transaction=$1 WHERE payment_id=$2"
+		_, err = session.Database(ctx).ExecContext(ctx, query, payment.RawTransaction, payment.PaymentID)
+		if err != nil {
+			return err
+		}
+	}
+	user := mixin.Users[0]
+	request, err = bot.CreateMultisig(ctx, "sign", request.RawTransaction, user.UserID, user.SessionID, user.PrivateKey)
+	if err != nil {
+		return err
+	}
+	if request.State == "initial" {
+		pin, err := bot.EncryptPIN(ctx, user.Pin, user.PinToken, user.SessionID, user.PrivateKey, uint64(time.Now().UnixNano()))
+		if err != nil {
+			return err
+		}
+		request, err = bot.SignMultisig(ctx, request.RequestId, pin, user.UserID, user.SessionID, user.PrivateKey)
+		if err != nil {
+			return err
+		}
+		payment.RawTransaction = request.RawTransaction
+		query := "UPDATE payments SET raw_transaction=$1 WHERE payment_id=$2"
+		_, err = session.Database(ctx).ExecContext(ctx, query, payment.RawTransaction, payment.PaymentID)
+		if err != nil {
+			return err
+		}
+	}
+	hash, err := network.SendRawTransaction(request.RawTransaction)
+	if err != nil {
+		return err
+	}
+	query := "UPDATE payments SET (state, transaction_hash)=('refund',$1) WHERE payment_id=$2"
+	_, err = session.Database(ctx).ExecContext(ctx, query, hash, payment.PaymentID)
+	return err
 }
 
 type MixinNetwork struct {
