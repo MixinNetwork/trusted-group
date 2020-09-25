@@ -1,0 +1,48 @@
+package configs
+
+var dataInYML = `
+default: &default
+  http:
+    host: http://localhost
+    port: 4000
+  database:
+    user: li 
+    password: ""
+    host: localhost
+    port: 5432
+  mixin:
+    app_id: 8ea075a6-1592-4....92f-244195412fc4
+    session_id: 841c0206-0d38-41...a15c-df9d96276fa9
+    secret: c44a3f75c1c07dc71eb8cc120c16c.....9cfc985d655ea8fec80702262f
+    pin: 825584
+    pin_token: ikEvEew8f5D+8mTXh20x90.....0EGwOqT87l6+Czzl+MnuHLSrBH0obv/1eQ5wOjzlweswdgkbEBd3+1YfrQlgoEtfpD25C1qicw0WBXfsilNr9adPvrAv8oK3qXyRrTbg7hqpW/P91eobc=
+    private_key: "-----BEGIN RSA PRIVATE KEY-----\r\nMIICXgIBAAKBgQDs7ISFqopROidMbzU/KFFhXlR6hnwsOVOCUBpDpMjBMzBc/wj+.....Ox1RVDyx18JR823G7pR7WKqjSaxdpe6l070wyYXr+LMwwbqV7L/sHSg\r\npzHwOTEJpZYIQ0q5QsV547/s8XvQ7/a5lIEmoSo4//T6aKqGQ6vykvPq9QIDAQAB\r\nAoGBAOQVvm7AA3C3P2YCGYy3z8ChA0sBdUFN3usxGlfMp8f287RTgeDTcrtWM82h\r\n8ZAIB6HzkkOZWgHNOpNeV8W4mc+ZvCcPRYM9tOo/zSVt9EUnmasM95rfXeuOFW/l\r\nPqewSBkc2CLyE7RCTmS0KK+ANPxH109WXNrCSTknnAu9iGuBAkEA/c6L9teX/NZD\r\nQKKuIVpV3O+mEicBvOkejbWD3UgfXI+Z7rv8uevMamtnrXu4bTuoiI\r\nq9l9FaKPjQJBAO74n6zI/qBFjsi9o7kvVas/Z0ov64a1Yz01xenf2Tonx0JO/N7R\r\nW8KJiqpf7z/sAjZb2/lEYtVDlurA/3C9GwkCQB5onMRaWE9mrHAWDZ7ZX+g0nkUW\r\nf1LO62Y3FTFx7q/8VIkR5NmxsrAdZjKl/IzjUqAUGxT8tmlm6lkMmbv52hECQQCD\r\ncozaTSEKZdh5gR7a0TetX83gF+XVDldNJxP7Zl8lxxWq2qnront30ZJNz0FaBubc\r\nocCpJz26E1ijPpADonGJAkEA+3+HpTiyIpq7vLhIfV9hJmisqhsxDxrwQcTBdIsz\r\nrFcCJNSnaYeUC87HjXfgI+EYCXFQfNeYiDHPRTLnC4vmBA==\r\n-----END RSA PRIVATE KEY-----\r\n"
+    users:
+      - user_id: 7a4aa538-d.....03-b79b-aa20f1660
+        session_id: d9b8f7.....57-474e-bdba-25017d0f
+        pin: 321311
+        pin_token: brfeHb+Qs7k0FIfSMYNysb4uJTTXoCr2scz0zyxrxr......60pWo3X1GER0VyV7spjpMi6sga4Nu/ZSRkT9fftYsYf3uWzXq6P7FN617qATwfoMno/Wr4acFI9ZrqLEmVXRCcb0uUoQ2xMBPDFDTcX/QvNPbs+nEusg=
+        private_key: "-----BEGIN RSA PRIVATE KEY-----\r\nMIICXAIBAAKBgQCmpTEcL3F8Ruugm......CCpLIdwxqyjBU9GUHUOfsPI\r\nm26ny1GkcE2lV1XE7BRr9B17jioau1xq4XaiW8FOOrJm0VzoggtK9epl4IVRtQ97\r\nGtwFJXHfTGJGddcurjIG0o60hKrhYAeptDIiRZ0IYdQBLS1RwNpaUasqFQIDAQAB\r\nAoGAUJpoJZzhBF59S+IeSvkfGMM4mKWE2q76F9dQ200PKhByff9cjWR44loadDIJ\r\nrGaQyr3xpsGdnQyHWwSyz9OcAGYO/6/t5f+TM+oWPHnLWE+VMoAkI3LX4hcpia+T\r\n4/NO6qakXm/4c6pnt/IvwvajzHfhqreBXlPskgNFsECQQDKooYgA6xCSPuS\r\nduW4YCPQtFgzhDGL5/qRAZKSIdhwnLJisul2FZp49V9g6GOyichJnITbmixSsXQd\r\nnVrFskNFAkEA0ohHsFuURmaOCnq/7ufl5DGkrGHFqXKmFQkGh8Ogkxipn9E4IFRW\r\n3P6nx5SOba9OaBwsbfvu0pR6grT4UA/QkQJAITzzf0Da+qx6B5ZVLB8pAMz0Qs8G\r\nSYqtwSde4XWHyUEKycHLJcF5aynkkULNR7XuEpUH/fWWG6JcB5eOEiuheQJAH9q2\r\n3hw9JxnFTBieictUoV5RiDOS8LyEHJKtBkW3Ogp1P9UsJNgd/HobcLstgbMQrff1\r\nUP7Zd8s3bidrmtGJwQJBALbQNyHwsAbxf0B7Jkxo7yh8NZO/Md22Ippimwq/gohX\r\n5hOP3BY9NOEmw8k1iCrFhrYvFAnKhzqvba8dCyL14BI=\r\n-----END RSA PRIVATE KEY-----\r\n"
+      - user_id: 51286f81-285.....-9b9a-61bbcf9f3
+        session_id: 2a0bdb4b-29c0-4676-9232-6b6ac7bfe
+        pin: 321311
+        pin_token: FksmXk3HNVgK......CP2Tn8pTE/qCFlsQM74yVWwSVB8nc+VLV6QyMUVE4IOyQHMFInNwo9O+oU4I2HZGUY7QyrqqjfCreS2bdTV0Yk4W8WsAU82kx9tt6GCPhq0BlmGQ1ocwJ+ke7OnvSSmpcJSi4MWtRti1gg=
+        private_key: "-----BEGIN RSA PRIVATE KEY-----\r\nMIICXQIBAAKBgQD1QnzDufwpb72GZtBygx7MptFf5hy............DSC\r\nT/qFN64fPxTCvjEg4I4zQ2N6mM4JvS5AO26xipAzlOExaHeSbDbnUuIUKrmp32Z9\r\nh0Jmb4z3vAaU24Y16jV6QnuGyA0Cwe7y6zk8uYDPdGXBaVw/YMhg1XfkVwIDAQAB\r\nAoGAPs6jAsCLKdVatKN5uAmKDookzi6b9CmQtlvR71qjJqEpn5DTlZeDsT/cEFZo\r\nK6LnE+NNpyUXwZqGEQpoYLyXkNFzqMGBfP9NFaYMVv63RyE3ycIE2xMqswh3RA9D\r\n+BKQrD2mwzS46brgdau3muDIlwjzAk6jo1z6RSz6mEo+ajECQQD5s5sjj8U+C8hg\r\nmHb/pr6LfkWcC8b02WK896cK2XzvARNicbQtH8dw77QUwu5yVVMKfy/8hNQxd5dj\r\nqA5crTzZAkEA+3Iy7YoBZOrGkMhLNmIYlcasCK4OmYWUzUmiaZNc+9anGARvhwqH\r\n3czd+w1hGdqI4GGf7mY+EWI0py0V04YsrwJBAIp2Wt+0WIaYWAugX9RRrTWC1qy6\r\nJyAc71Cj71/nzAxoR0x+io+/IIPyl6Qvl7OUttCKSJy5N0Ua8LrVNOmVMrkCQQC7\r\nfAEhQP+dIbmBBvedyzMNqp9nsXDNY9752uew1OJGHV1l+Ri3llCMP09c/DLkth/N\r\nPr2jYrTw/UrJREK7/AkA/YuMCoUrsUoazKgqgJO/qqxIQiEI3mCjSvh26Wg8K\r\nxu87adhKsmtp8cH3/HyO6YLaTulSL6b0rXwOHIGLD+CT\r\n-----END RSA PRIVATE KEY-----\r\n"
+
+development:
+  <<: *default
+  database:
+    name: multisig_dev
+
+test:
+  <<: *default
+  database:
+    name: multisig_test
+
+production:
+  <<: *default
+  database:
+    user: postgres
+    name: multisig_production
+    password: pas....ord
+`
