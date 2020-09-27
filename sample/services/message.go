@@ -7,14 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
-	"multisig/configs"
 	"multisig/models"
 	"multisig/session"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/MixinNetwork/bot-api-go-client"
+	"github.com/gofrs/uuid"
 	"github.com/gorilla/websocket"
 )
 
@@ -109,25 +109,20 @@ func (service *MessageService) loop(ctx context.Context) error {
 		case <-mc.ReadDone:
 			return nil
 		case msg := <-mc.ReadBuffer:
-			mixin := configs.AppConfig.Mixin
-			if msg.Category == "SYSTEM_ACCOUNT_SNAPSHOT" && msg.UserID != mixin.AppID {
-				data, err := base64.StdEncoding.DecodeString(msg.Data)
+			if strings.Contains(msg.Category, "PLAIN_") {
+				codeID, err := models.HandleMessage(ctx, msg.UserID)
 				if err != nil {
 					return err
 				}
-				var transfer TransferView
-				err = json.Unmarshal(data, &transfer)
-				if err != nil {
-					return err
+				data := fmt.Sprintf("CNB will be refund: mixin://codes/%s", codeID)
+				params := map[string]interface{}{
+					"conversation_id": msg.ConversationID,
+					"message_id":      uuid.Must(uuid.NewV4()).String(),
+					"category":        "PLAIN_TEXT",
+					"data":            base64.StdEncoding.EncodeToString([]byte(data)),
 				}
-				_, err = models.CreateTransfer(ctx, transfer.SnapshotID, msg.UserID, transfer.AssetId, transfer.Amount, transfer.Memo, transfer.TraceID, models.TransferStatePaid, transfer.CreatedAt)
+				err = writeMessageAndWait(ctx, mc, "CREATE_MESSAGE", params)
 				if err != nil {
-					return err
-				}
-			}
-			if msg.Category == "PLAIN_TEXT" {
-				if err := sendAppButton(ctx, mc, msg, mixin.AppID); err != nil {
-					log.Println(err)
 					return err
 				}
 			}

@@ -5,12 +5,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"multisig/configs"
 	"multisig/session"
 	"strings"
 	"time"
 
 	"github.com/MixinNetwork/bot-api-go-client"
+	"github.com/MixinNetwork/go-number"
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 )
@@ -32,15 +34,14 @@ type Payment struct {
 	Memo            string         `db:"memo"`
 	State           string         `db:"state"`
 	CodeID          string         `db:"code_id"`
-	TransactionHash string         `db:"transaction_hash"`
-	RawTransaction  string         `db:"raw_transaction"`
-	UserID          string         `db:"user_id"`
+	TransactionHash sql.NullString `db:"transaction_hash"`
+	RawTransaction  sql.NullString `db:"raw_transaction"`
 	CreatedAt       time.Time      `db:"created_at"`
 }
 
-var paymentsColumnsFull = []string{"payment_id", "asset_id", "amount", "threshold", "receivers", "memo", "state", "code_id", "transaction_hash", "raw_transaction", "user_id", "created_at"}
+var paymentsColumnsFull = []string{"payment_id", "asset_id", "amount", "threshold", "receivers", "memo", "state", "code_id", "transaction_hash", "raw_transaction", "created_at"}
 
-func CreatedPayment(ctx context.Context, payment *bot.Payment, userID string) (*Payment, error) {
+func CreatedPayment(ctx context.Context, payment *bot.Payment) (*Payment, error) {
 	p := &Payment{
 		PaymentID: payment.TraceId,
 		AssetID:   payment.AssetId,
@@ -50,7 +51,6 @@ func CreatedPayment(ctx context.Context, payment *bot.Payment, userID string) (*
 		Memo:      payment.Memo,
 		State:     payment.Status,
 		CodeID:    payment.CodeId,
-		UserID:    userID,
 		CreatedAt: payment.CreatedAt,
 	}
 
@@ -76,6 +76,18 @@ func findPaymentByID(ctx context.Context, tx *sqlx.Tx, paymentID string) (*Payme
 	}
 	p := &Payment{}
 	err := tx.Get(p, fmt.Sprintf("SELECT %s FROM payments WHERE payment_id=$1", strings.Join(paymentsColumnsFull, ",")), paymentID)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return p, err
+}
+
+func FindPaymentByMemo(ctx context.Context, memo string) (*Payment, error) {
+	if id, _ := bot.UuidFromString(memo); id.String() != memo {
+		return nil, nil
+	}
+	p := &Payment{}
+	err := session.Database(ctx).GetContext(ctx, p, fmt.Sprintf("SELECT %s FROM payments WHERE memo=$1 AND state='pending'", strings.Join(paymentsColumnsFull, ",")), memo)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -148,7 +160,7 @@ func LoopingPaidPayments(ctx context.Context) error {
 
 func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error {
 	mixin := configs.AppConfig.Mixin
-	if payment.RawTransaction == "" {
+	if !payment.RawTransaction.Valid {
 		input, err := ReadMultisig(ctx, payment.Amount)
 		if err != nil {
 			return err
@@ -158,7 +170,7 @@ func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error
 			raw = input.SignedTx
 		}
 		if raw == "" {
-			key, err := bot.ReadGhostKeys(ctx, []string{payment.UserID}, 0, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
+			key, err := bot.ReadGhostKeys(ctx, []string{payment.Memo}, 0, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
 			if err != nil {
 				return err
 			}
@@ -176,14 +188,14 @@ func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error
 				return err
 			}
 		}
-		payment.RawTransaction = raw
+		payment.RawTransaction = sql.NullString{String: raw, Valid: true}
 		query := "UPDATE payments SET raw_transaction=$1 WHERE payment_id=$2"
 		_, err = session.Database(ctx).ExecContext(ctx, query, payment.RawTransaction, payment.PaymentID)
 		if err != nil {
 			return err
 		}
 	}
-	request, err := bot.CreateMultisig(ctx, "sign", payment.RawTransaction, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
+	request, err := bot.CreateMultisig(ctx, "sign", payment.RawTransaction.String, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
 	if err != nil {
 		return err
 	}
@@ -197,8 +209,8 @@ func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error
 			return err
 		}
 	}
-	payment.TransactionHash = request.TransactionHash
-	payment.RawTransaction = request.RawTransaction
+	payment.TransactionHash = sql.NullString{String: request.TransactionHash, Valid: true}
+	payment.RawTransaction = sql.NullString{String: request.RawTransaction, Valid: true}
 	query := "UPDATE payments SET (transaction_hash,raw_transaction)=($1,$2) WHERE payment_id=$3"
 	_, err = session.Database(ctx).ExecContext(ctx, query, payment.TransactionHash, payment.RawTransaction, payment.PaymentID)
 	if err != nil {
@@ -219,14 +231,14 @@ func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error
 			return err
 		}
 	}
-	payment.TransactionHash = request.TransactionHash
-	payment.RawTransaction = request.RawTransaction
+	payment.TransactionHash = sql.NullString{String: request.TransactionHash, Valid: true}
+	payment.RawTransaction = sql.NullString{String: request.RawTransaction, Valid: true}
 	query = "UPDATE payments SET (transaction_hash,raw_transaction)=($1,$2) WHERE payment_id=$3"
 	_, err = session.Database(ctx).ExecContext(ctx, query, payment.TransactionHash, payment.RawTransaction, payment.PaymentID)
 	if err != nil {
 		return err
 	}
-	tx, err := network.GetTransaction(payment.TransactionHash)
+	tx, err := network.GetTransaction(payment.TransactionHash.String)
 	if tx == nil {
 		_, err := network.SendRawTransaction(request.RawTransaction)
 		if err != nil {
@@ -236,4 +248,41 @@ func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error
 	query = "UPDATE payments SET state='refund' WHERE payment_id=$1"
 	_, err = session.Database(ctx).ExecContext(ctx, query, payment.PaymentID)
 	return err
+}
+
+func HandleMessage(ctx context.Context, userID string) (string, error) {
+	payment, err := FindPaymentByMemo(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	if payment != nil {
+		return payment.CodeID, nil
+	}
+	mixin := configs.AppConfig.Mixin
+	receivers := mixin.Receivers
+	receivers = append(receivers, mixin.AppID)
+	rand.Seed(time.Now().UnixNano())
+	amount := number.FromString(fmt.Sprint(rand.Intn(10000))).Div(number.FromString("10000")).Persist()
+	om := struct {
+		Receivers []string `json:"receivers"`
+		Threshold int64    `json:"threshold"`
+	}{
+		receivers, 2,
+	}
+	pr := &bot.PaymentRequest{
+		AssetId:          CNBAssetID,
+		Amount:           amount,
+		TraceId:          bot.UuidNewV4().String(),
+		OpponentMultisig: om,
+		Memo:             userID,
+	}
+	botPayment, err := bot.CreatePaymentRequest(ctx, pr, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
+	if err != nil {
+		return "", err
+	}
+	payment, err = CreatedPayment(ctx, botPayment)
+	if err != nil {
+		return "", err
+	}
+	return payment.CodeID, nil
 }

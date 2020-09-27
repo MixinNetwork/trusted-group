@@ -23,13 +23,14 @@ type Option struct {
 		Name     string `yaml:"name"`
 	} `yaml:"database"`
 	Mixin struct {
-		AppID      string  `yaml:"app_id"`
-		SessionID  string  `yaml:"session_id"`
-		Secret     string  `yaml:"secret"`
-		Pin        string  `yaml:"pin"`
-		PinToken   string  `yaml:"pin_token"`
-		PrivateKey string  `yaml:"private_key"`
-		Users      []*User `yaml:"users"`
+		AppID      string   `yaml:"app_id"`
+		SessionID  string   `yaml:"session_id"`
+		Secret     string   `yaml:"secret"`
+		Pin        string   `yaml:"pin"`
+		PinToken   string   `yaml:"pin_token"`
+		PrivateKey string   `yaml:"private_key"`
+		Receivers  []string `yaml:"receivers"`
+		Users      []*User  `yaml:"users"`
 	} `yaml:"mixin"`
 	Environment string
 }

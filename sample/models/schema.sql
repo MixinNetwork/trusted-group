@@ -16,14 +16,14 @@ CREATE TABLE IF NOT EXISTS payments (
   threshold                BIGINT	NOT NULL,
   receivers                VARCHAR[] NOT NULL DEFAULT '{}',
   memo                     VARCHAR(256) NOT NULL DEFAULT '',
-  state                   VARCHAR(128) NOT NULL DEFAULT '',
+  state                    VARCHAR(128) NOT NULL DEFAULT '',
   code_id                  VARCHAR(36) NOT NULL DEFAULT '',
-  transaction_hash         VARCHAR(512) NOT NULL DEFAULT '',
-  raw_transaction          TEXT NOT NULL DEFAULT '',
-  user_id                  VARCHAR(36) NOT NULL,
+  transaction_hash         VARCHAR(512) UNIQUE,
+  raw_transaction          TEXT,
   created_at               TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS payments_memo_statex ON payments (memo, state);
 CREATE INDEX IF NOT EXISTS payments_statex ON payments (state);
 CREATE INDEX IF NOT EXISTS payments_codex ON payments (code_id);
 

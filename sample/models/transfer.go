@@ -119,7 +119,7 @@ func LoopingPaidTransfers(ctx context.Context) error {
 				session.Logger(ctx).Errorf("CreatePaymentRequest %#v", err)
 				continue
 			}
-			payment, err := CreatedPayment(ctx, botPayment, transfer.UserID)
+			payment, err := CreatedPayment(ctx, botPayment)
 			if err != nil {
 				time.Sleep(time.Second)
 				session.Logger(ctx).Errorf("CreatedPayment %#v", err)
