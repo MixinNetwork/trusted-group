@@ -67,10 +67,6 @@ type MessageContext struct {
 }
 
 func (service *MessageService) Run(ctx context.Context) error {
-	go models.LoopingPaidTransfers(ctx)
-	go models.LoopingPendingPayments(ctx)
-	go models.LoopingPaidPayments(ctx)
-
 	for {
 		err := service.loop(ctx)
 		if err != nil {

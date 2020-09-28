@@ -6,6 +6,7 @@ import (
 	"log"
 	"multisig/configs"
 	"multisig/durable"
+	"multisig/models"
 	"multisig/services"
 	"multisig/session"
 )
@@ -24,12 +25,12 @@ func main() {
 	if err != nil {
 		log.Panicln(err)
 	}
-
 	defer logger.Close()
+
 	ctx := session.WithDatabase(context.Background(), database)
 	ctx = session.WithLogger(ctx, durable.BuildLogger(logger, "multisig-message", nil))
 	message := &services.MessageService{}
-	if err := message.Run(ctx); err != nil {
-		log.Panicln(err)
-	}
+	go message.Run(ctx)
+	go models.LoopingPendingPayments(ctx)
+	models.LoopingPaidPayments(ctx)
 }
