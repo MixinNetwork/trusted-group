@@ -99,10 +99,10 @@ func handleMultisig(ctx context.Context, network *MixinNetwork) error {
 				if err != nil {
 					return err
 				}
-				if len(stx.Signatures) > 0 && len(stx.Signatures[0]) < int(payment.Threshold) {
+				if len(stx.Signatures) > 0 && len(stx.Signatures[0]) < int(output.Threshold) {
 					return nil
 				}
-				_, err = network.SendRawTransaction(payment.RawTransaction.String)
+				_, err = network.SendRawTransaction(output.SignedTx)
 				if err != nil {
 					return err
 				}
