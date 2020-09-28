@@ -1,6 +1,9 @@
 multisig
 sample/configs/yml.go
-sample/configs/yml1.go
-sample/configs/yml2.go
+sample/configs/yml.go.1
+sample/configs/yml.go.2
+sample/configs/yml.go.3
 sample/configs/doc
 .DS_Store
+local.sh
+deploy.sh
