@@ -30,7 +30,7 @@ type Option struct {
 		PinToken   string   `yaml:"pin_token"`
 		PrivateKey string   `yaml:"private_key"`
 		Receivers  []string `yaml:"receivers"`
-		Users      []*User  `yaml:"users"`
+		IsApp      bool     `yaml:"is_app"`
 	} `yaml:"mixin"`
 	Environment string
 }

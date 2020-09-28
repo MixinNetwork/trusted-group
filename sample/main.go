@@ -12,7 +12,6 @@ import (
 )
 
 func main() {
-	_ = flag.String("service", "message", "run a service")
 	env := flag.String("env", "development", "set the environment")
 	flag.Parse()
 
@@ -29,8 +28,11 @@ func main() {
 
 	ctx := session.WithDatabase(context.Background(), database)
 	ctx = session.WithLogger(ctx, durable.BuildLogger(logger, "multisig-message", nil))
-	message := &services.MessageService{}
-	go message.Run(ctx)
+	if config.Mixin.IsApp {
+		message := &services.MessageService{}
+		go message.Run(ctx)
+	}
 	go models.LoopingPendingPayments(ctx)
+	go models.LoopingSignMultisig(ctx)
 	models.LoopingPaidPayments(ctx)
 }

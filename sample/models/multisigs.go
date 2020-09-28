@@ -5,8 +5,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"multisig/configs"
+	"multisig/session"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/MixinNetwork/bot-api-go-client"
 	"github.com/MixinNetwork/go-number"
@@ -14,14 +16,17 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 )
 
+const (
+	MultisigStateSigned  = "signed"
+	MultisigStateInitial = "initial"
+)
+
 // cnb b9f49cf777dc4d03bc54cd1367eebca319f8603ea1ce18910d09e2c540c630d8
 
-func ReadMultisig(ctx context.Context, amount string) (*bot.MultisigUTXO, error) {
+func ReadMultisig(ctx context.Context, amount, memo string) (*bot.MultisigUTXO, error) {
 	mixin := configs.AppConfig.Mixin
-	receivers := []string{mixin.AppID}
-	for _, user := range mixin.Users {
-		receivers = append(receivers, user.UserID)
-	}
+	receivers := mixin.Receivers
+	receivers = append(receivers, mixin.AppID)
 	sort.Slice(receivers, func(i, j int) bool {
 		return receivers[i] < receivers[j]
 	})
@@ -35,11 +40,76 @@ func ReadMultisig(ctx context.Context, amount string) (*bot.MultisigUTXO, error)
 		sort.Slice(members, func(i, j int) bool {
 			return members[i] < members[j]
 		})
-		if receiverStr == strings.Join(members, ",") && number.FromString(amount).Cmp(number.FromString(output.Amount)) == 0 {
+		if receiverStr == strings.Join(members, ",") && number.FromString(amount).Cmp(number.FromString(output.Amount)) == 0 && output.Memo == memo {
 			return output, nil
 		}
 	}
 	return nil, nil
+}
+
+func LoopingSignMultisig(ctx context.Context) error {
+	network := NewMixinNetwork("http://35.234.74.25:8239")
+	for {
+		err := handleMultisig(ctx, network)
+		if err != nil {
+			time.Sleep(time.Second)
+			session.Logger(ctx).Errorf("handleMultisig %#v", err)
+			continue
+		}
+		time.Sleep(10 * time.Second)
+	}
+}
+
+func handleMultisig(ctx context.Context, network *MixinNetwork) error {
+	mixin := configs.AppConfig.Mixin
+	outputs, err := bot.ReadMultisigs(ctx, 500, "", mixin.AppID, mixin.SessionID, mixin.PrivateKey)
+	if err != nil {
+		return err
+	}
+	for _, output := range outputs {
+		if output.State == MultisigStateSigned {
+			request, err := bot.CreateMultisig(ctx, "sign", output.SignedTx, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
+			if err != nil {
+				return err
+			}
+			if request.State == MultisigStateInitial {
+				pin, err := bot.EncryptPIN(ctx, mixin.Pin, mixin.PinToken, mixin.SessionID, mixin.PrivateKey, uint64(time.Now().UnixNano()))
+				if err != nil {
+					return err
+				}
+				request, err = bot.SignMultisig(ctx, request.RequestId, pin, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
+				if err != nil {
+					return err
+				}
+			}
+			if mixin.IsApp {
+				payment, err := FindPaymentByMemo(ctx, output.Memo)
+				if err != nil {
+					return err
+				}
+				if payment != nil {
+					continue
+				}
+				data, err := hex.DecodeString(output.SignedTx)
+				if err != nil {
+					return err
+				}
+				var stx common.SignedTransaction
+				err = common.MsgpackUnmarshal(data, &stx)
+				if err != nil {
+					return err
+				}
+				if len(stx.Signatures) > 0 && len(stx.Signatures[0]) < int(payment.Threshold) {
+					return nil
+				}
+				_, err = network.SendRawTransaction(payment.RawTransaction.String)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 type Input struct {

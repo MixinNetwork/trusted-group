@@ -3,6 +3,7 @@ package models
 import (
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/MixinNetwork/bot-api-go-client"
 	"github.com/MixinNetwork/go-number"
+	"github.com/MixinNetwork/mixin/common"
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 )
@@ -161,11 +163,19 @@ func LoopingPaidPayments(ctx context.Context) error {
 
 func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error {
 	mixin := configs.AppConfig.Mixin
-	if !payment.RawTransaction.Valid {
-		input, err := ReadMultisig(ctx, payment.Amount)
-		if err != nil || input == nil {
+	input, err := ReadMultisig(ctx, payment.Amount, payment.Memo)
+	if err != nil || input == nil {
+		return err
+	}
+	if payment.RawTransaction.String != input.SignedTx {
+		payment.RawTransaction = sql.NullString{String: input.SignedTx, Valid: true}
+		query := "UPDATE payments SET raw_transaction=$1 WHERE payment_id=$2"
+		_, err = session.Database(ctx).ExecContext(ctx, query, payment.RawTransaction, payment.PaymentID)
+		if err != nil {
 			return err
 		}
+	}
+	if !payment.RawTransaction.Valid {
 		var raw = ""
 		if input.State == "signed" {
 			raw = input.SignedTx
@@ -210,43 +220,36 @@ func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error
 			return err
 		}
 	}
-	payment.TransactionHash = sql.NullString{String: request.TransactionHash, Valid: true}
-	payment.RawTransaction = sql.NullString{String: request.RawTransaction, Valid: true}
-	query := "UPDATE payments SET (transaction_hash,raw_transaction)=($1,$2) WHERE payment_id=$3"
-	_, err = session.Database(ctx).ExecContext(ctx, query, payment.TransactionHash, payment.RawTransaction, payment.PaymentID)
-	if err != nil {
-		return err
-	}
-	user := mixin.Users[0]
-	request, err = bot.CreateMultisig(ctx, "sign", request.RawTransaction, user.UserID, user.SessionID, user.PrivateKey)
-	if err != nil {
-		return err
-	}
-	if request.State == "initial" {
-		pin, err := bot.EncryptPIN(ctx, user.Pin, user.PinToken, user.SessionID, user.PrivateKey, uint64(time.Now().UnixNano()))
-		if err != nil {
-			return err
-		}
-		request, err = bot.SignMultisig(ctx, request.RequestId, pin, user.UserID, user.SessionID, user.PrivateKey)
+	if payment.RawTransaction.String != request.RawTransaction {
+		payment.TransactionHash = sql.NullString{String: request.TransactionHash, Valid: true}
+		payment.RawTransaction = sql.NullString{String: request.RawTransaction, Valid: true}
+		query := "UPDATE payments SET (transaction_hash,raw_transaction)=($1,$2) WHERE payment_id=$3"
+		_, err = session.Database(ctx).ExecContext(ctx, query, payment.TransactionHash, payment.RawTransaction, payment.PaymentID)
 		if err != nil {
 			return err
 		}
 	}
-	payment.TransactionHash = sql.NullString{String: request.TransactionHash, Valid: true}
-	payment.RawTransaction = sql.NullString{String: request.RawTransaction, Valid: true}
-	query = "UPDATE payments SET (transaction_hash,raw_transaction)=($1,$2) WHERE payment_id=$3"
-	_, err = session.Database(ctx).ExecContext(ctx, query, payment.TransactionHash, payment.RawTransaction, payment.PaymentID)
+
+	data, err := hex.DecodeString(payment.RawTransaction.String)
 	if err != nil {
 		return err
+	}
+	var stx common.SignedTransaction
+	err = common.MsgpackUnmarshal(data, &stx)
+	if err != nil {
+		return err
+	}
+	if len(stx.Signatures) > 0 && len(stx.Signatures[0]) < int(payment.Threshold) {
+		return nil
 	}
 	tx, err := network.GetTransaction(payment.TransactionHash.String)
 	if tx == nil {
-		_, err := network.SendRawTransaction(request.RawTransaction)
+		_, err := network.SendRawTransaction(payment.RawTransaction.String)
 		if err != nil {
 			return err
 		}
 	}
-	query = "UPDATE payments SET state='refund' WHERE payment_id=$1"
+	query := "UPDATE payments SET state='refund' WHERE payment_id=$1"
 	_, err = session.Database(ctx).ExecContext(ctx, query, payment.PaymentID)
 	return err
 }
