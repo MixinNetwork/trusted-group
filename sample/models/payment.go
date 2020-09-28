@@ -22,7 +22,8 @@ const (
 	PaymentStatePaid    = "paid"
 	PaymentStateRefund  = "refund"
 
-	CNBAssetID = "965e5c6e-434c-3fa9-b780-c50f43cd955c"
+	CNBAssetID      = "965e5c6e-434c-3fa9-b780-c50f43cd955c"
+	CNBMixinAssetID = "b9f49cf777dc4d03bc54cd1367eebca319f8603ea1ce18910d09e2c540c630d8"
 )
 
 type Payment struct {
@@ -162,7 +163,7 @@ func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error
 	mixin := configs.AppConfig.Mixin
 	if !payment.RawTransaction.Valid {
 		input, err := ReadMultisig(ctx, payment.Amount)
-		if err != nil {
+		if err != nil || input == nil {
 			return err
 		}
 		var raw = ""
@@ -177,7 +178,7 @@ func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error
 			tx := &Transaction{
 				Inputs:  []*Input{&Input{Hash: input.TransactionHash, Index: input.OutputIndex}},
 				Outputs: []*Output{&Output{Mask: key.Mask, Keys: key.Keys, Amount: payment.Amount, Script: "fffe01"}},
-				Asset:   "b9f49cf777dc4d03bc54cd1367eebca319f8603ea1ce18910d09e2c540c630d8",
+				Asset:   CNBMixinAssetID,
 			}
 			data, err := json.Marshal(tx)
 			if err != nil {
