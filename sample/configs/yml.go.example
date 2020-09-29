@@ -11,6 +11,10 @@ default: &default
     host: localhost
     port: 5432
   mixin:
+    receivers:
+      - 7a4aa538-de15-3203-b79b-a920f166c0d0
+      - 755bcc79-6e60-4032-9470-29b31b0de0f4
+    is_app: false
     app_id: 8ea075a6-1592-4....92f-244195412fc4
     session_id: 841c0206-0d38-41...a15c-df9d96276fa9
     secret: c44a3f75c1c07dc71eb8cc120c16c.....9cfc985d655ea8fec80702262f
