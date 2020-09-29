@@ -6,13 +6,13 @@
 
 ## 运行准备
 
-1. 创建机器人, 并且用机器人创建 2 个 mixin network 的用户，然后替换 ./configs/yml.go.example 相关的信息
-2. 安装 postgresql, 导入 ./models/schema.sql 
+该示例是 2/3 签名，所以运行该示例需要有 3 个 mixin network 用户 (或机器人), 至少一个为机器人用户, 用于跟 Mixin Messenger 用户交互。
 
-## 运行程序
-
-go build && ./multisig
+1. 安装 postgresql, 并导入相关数据结构 ./models/schema.sql 
+2. 到 [developers dashboard](https://developers.mixin.one/dashboard) 申请机器人，以及相关私钥等信息
+3. 如果其它 2 个用户同样是机器人，同第 2 步, 如果是 mixin network 用户，需要用两个 api, `post /users` 及 `post /pin/update` 来创建 network 用户跟 pin
+4. 用 2, 3 拿到的用户信息，`cp yml.go.example yml.go` 并更新 mixin 下相关信息, 分别启动, 注意目前只能有一个 master 跟用户交互
 
 ## 多签测试
 
-给上面机器人发送任意的文字消息，机器会返回 CNB 支付按钮, 支付完成即可收到返还的多签转帐。
+给相关机器人发送任意的消息，机器会返回多签的支付链接, 支付完成会收到返还的多签转帐。

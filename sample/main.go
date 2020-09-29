@@ -19,20 +19,22 @@ func main() {
 	if err != nil {
 		log.Panicln(err)
 	}
-	database := durable.OpenDatabaseClient(config)
 	logger, err := durable.NewLoggerClient("", true)
 	if err != nil {
 		log.Panicln(err)
 	}
 	defer logger.Close()
 
-	ctx := session.WithDatabase(context.Background(), database)
-	ctx = session.WithLogger(ctx, durable.BuildLogger(logger, "multisig-message", nil))
-	if config.Mixin.IsApp {
+	ctx := session.WithLogger(context.Background(), durable.BuildLogger(logger, "multisig-message", nil))
+	if config.Mixin.Master {
+		database := durable.OpenDatabaseClient(config)
+		ctx = session.WithDatabase(ctx, database)
+
 		message := &services.MessageService{}
 		go message.Run(ctx)
+
+		go models.LoopingPendingPayments(ctx)
+		go models.LoopingPaidPayments(ctx)
 	}
-	go models.LoopingPendingPayments(ctx)
-	go models.LoopingSignMultisig(ctx)
-	models.LoopingPaidPayments(ctx)
+	models.LoopingSignMultisig(ctx)
 }

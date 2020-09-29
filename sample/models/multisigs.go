@@ -82,7 +82,7 @@ func handleMultisig(ctx context.Context, network *MixinNetwork) error {
 					return err
 				}
 			}
-			if mixin.IsApp {
+			if mixin.Master {
 				payment, err := FindPaymentByMemo(ctx, output.Memo)
 				if err != nil {
 					return err

@@ -1,14 +1,3 @@
-CREATE TABLE IF NOT EXISTS users (
-  user_id                  VARCHAR(36) PRIMARY KEY CHECK (user_id ~* '^[0-9a-f-]{36,36}$'),
-  identity_number          VARCHAR(128) NOT NULL DEFAULT '',
-  full_name                VARCHAR(512) NOT NULL DEFAULT '',
-  avatar_url               VARCHAR(1024) NOT NULL DEFAULT '',
-  access_token             VARCHAR(1024) NOT NULL DEFAULT '',
-  authentication_token     VARCHAR(512) UNIQUE NOT NULL,
-  created_at               TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
-
-
 CREATE TABLE IF NOT EXISTS payments (
   payment_id               VARCHAR(36) PRIMARY KEY CHECK (payment_id ~* '^[0-9a-f-]{36,36}$'),
   asset_id                 VARCHAR(36) NOT NULL DEFAULT '',
