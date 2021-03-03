@@ -151,7 +151,7 @@ func LoopingPaidPayments(ctx context.Context) error {
 			err = payment.refund(ctx, network)
 			if err != nil {
 				time.Sleep(time.Second)
-				session.Logger(ctx).Errorf("refund %#v", err)
+				session.Logger(ctx).Errorf("refund payment id %s %#v", payment.PaymentID, err)
 				continue
 			}
 		}
