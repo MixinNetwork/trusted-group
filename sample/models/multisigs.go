@@ -48,7 +48,7 @@ func ReadMultisig(ctx context.Context, amount, memo string) (*bot.MultisigUTXO, 
 }
 
 func LoopingSignMultisig(ctx context.Context) error {
-	network := NewMixinNetwork("http://35.234.74.25:8239")
+	network := NewMixinNetwork("http://mixin-node0.exinpool.com:8239")
 	for {
 		err := handleMultisig(ctx, network)
 		if err != nil {

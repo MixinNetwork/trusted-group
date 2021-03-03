@@ -139,7 +139,7 @@ func LoopingPendingPayments(ctx context.Context) error {
 }
 
 func LoopingPaidPayments(ctx context.Context) error {
-	network := NewMixinNetwork("http://35.234.74.25:8239")
+	network := NewMixinNetwork("http://mixin-node0.exinpool.com:8239")
 	for {
 		payments, err := FindPaymentsByState(ctx, PaymentStatePaid, 100)
 		if err != nil {
