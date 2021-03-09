@@ -177,7 +177,7 @@ func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error
 			return fmt.Errorf("Updated Payments %#w", err)
 		}
 	}
-	if !payment.RawTransaction.Valid {
+	if payment.RawTransaction.String == "" {
 		var raw = ""
 		if input.State == "signed" {
 			raw = input.SignedTx
