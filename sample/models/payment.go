@@ -164,15 +164,17 @@ func LoopingPaidPayments(ctx context.Context) error {
 func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error {
 	mixin := configs.AppConfig.Mixin
 	input, err := ReadMultisig(ctx, payment.Amount, payment.Memo)
-	if err != nil || input == nil {
-		return err
+	if err != nil {
+		return fmt.Errorf("ReadMultisig %#w", err)
+	} else if input == nil {
+		return nil
 	}
 	if payment.RawTransaction.String != input.SignedTx {
 		payment.RawTransaction = sql.NullString{String: input.SignedTx, Valid: true}
 		query := "UPDATE payments SET raw_transaction=$1 WHERE payment_id=$2"
 		_, err = session.Database(ctx).ExecContext(ctx, query, payment.RawTransaction, payment.PaymentID)
 		if err != nil {
-			return err
+			return fmt.Errorf("Updated Payments %#w", err)
 		}
 	}
 	if !payment.RawTransaction.Valid {
@@ -183,7 +185,7 @@ func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error
 		if raw == "" {
 			key, err := bot.ReadGhostKeys(ctx, []string{payment.Memo}, 0, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
 			if err != nil {
-				return err
+				return fmt.Errorf("ReadGhostKeys %#w", err)
 			}
 			tx := &Transaction{
 				Inputs:  []*Input{&Input{Hash: input.TransactionHash, Index: input.OutputIndex}},
@@ -192,23 +194,23 @@ func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error
 			}
 			data, err := json.Marshal(tx)
 			if err != nil {
-				return err
+				return fmt.Errorf("Marshal %#w", err)
 			}
 			raw, err = buildTransaction(data)
 			if err != nil {
-				return err
+				return fmt.Errorf("buildTransaction %#w", err)
 			}
 		}
 		payment.RawTransaction = sql.NullString{String: raw, Valid: true}
 		query := "UPDATE payments SET raw_transaction=$1 WHERE payment_id=$2"
 		_, err = session.Database(ctx).ExecContext(ctx, query, payment.RawTransaction, payment.PaymentID)
 		if err != nil {
-			return err
+			return fmt.Errorf("UPDATE payments 208 %#w", err)
 		}
 	}
 	request, err := bot.CreateMultisig(ctx, "sign", payment.RawTransaction.String, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
 	if err != nil {
-		return err
+		return fmt.Errorf("CreateMultisig %#w", err)
 	}
 	if request.State == "initial" {
 		pin, err := bot.EncryptPIN(ctx, mixin.Pin, mixin.PinToken, mixin.SessionID, mixin.PrivateKey, uint64(time.Now().UnixNano()))
@@ -234,12 +236,11 @@ func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error
 	if err != nil {
 		return err
 	}
-	var stx common.SignedTransaction
-	err = common.MsgpackUnmarshal(data, &stx)
+	ver, err := common.UnmarshalVersionedTransaction(data)
 	if err != nil {
-		return err
+		return fmt.Errorf("UnmarshalVersionedTransaction %#w", err)
 	}
-	if len(stx.SignaturesMap) > 0 && len(stx.SignaturesMap[0]) < int(payment.Threshold) {
+	if len(ver.SignaturesMap) > 0 && len(ver.SignaturesMap[0]) < int(payment.Threshold) {
 		return nil
 	}
 	tx, err := network.GetTransaction(payment.TransactionHash.String)
