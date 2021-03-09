@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"log"
 	"multisig/configs"
 	"multisig/session"
 	"sort"
@@ -94,12 +95,12 @@ func handleMultisig(ctx context.Context, network *MixinNetwork) error {
 				if err != nil {
 					return err
 				}
-				var stx common.SignedTransaction
-				err = common.MsgpackUnmarshal(data, &stx)
+				ver, err := common.UnmarshalVersionedTransaction(data)
 				if err != nil {
 					return err
 				}
-				if len(stx.Signatures) > 0 && len(stx.Signatures[0]) < int(output.Threshold) {
+				if len(ver.SignaturesMap) > 0 && len(ver.SignaturesMap[0]) < int(output.Threshold) {
+					log.Println("ver.SignaturesMap:::", len(ver.SignaturesMap))
 					return nil
 				}
 				_, err = network.SendRawTransaction(output.SignedTx)

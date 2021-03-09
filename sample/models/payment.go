@@ -239,7 +239,7 @@ func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error
 	if err != nil {
 		return err
 	}
-	if len(stx.Signatures) > 0 && len(stx.Signatures[0]) < int(payment.Threshold) {
+	if len(stx.SignaturesMap) > 0 && len(stx.SignaturesMap[0]) < int(payment.Threshold) {
 		return nil
 	}
 	tx, err := network.GetTransaction(payment.TransactionHash.String)
