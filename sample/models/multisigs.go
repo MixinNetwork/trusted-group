@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"log"
 	"multisig/configs"
 	"multisig/session"
 	"sort"
@@ -36,15 +35,11 @@ func ReadMultisig(ctx context.Context, amount, memo string) (*bot.MultisigUTXO, 
 	if err != nil {
 		return nil, err
 	}
-	log.Println("outputs:::", len(outputs))
 	for _, output := range outputs {
 		members := output.Members
 		sort.Slice(members, func(i, j int) bool {
 			return members[i] < members[j]
 		})
-		if number.FromString(amount).Equal(number.FromString(output.Amount)) {
-			log.Println("members:::::", receiverStr == strings.Join(members, ","), output.Memo == memo)
-		}
 		if receiverStr == strings.Join(members, ",") && number.FromString(amount).Equal(number.FromString(output.Amount)) && output.Memo == memo {
 			return output, nil
 		}
