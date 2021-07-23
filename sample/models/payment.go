@@ -6,16 +6,17 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math/rand"
 	"multisig/configs"
 	"multisig/session"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/MixinNetwork/bot-api-go-client"
 	"github.com/MixinNetwork/go-number"
 	"github.com/MixinNetwork/mixin/common"
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 )
@@ -210,6 +211,14 @@ func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error
 			return fmt.Errorf("UPDATE payments 208 %#w", err)
 		}
 	}
+	if payment.TransactionHash.Valid {
+		tx, err := network.GetTransaction(payment.TransactionHash.String)
+		if tx != nil {
+			query := "UPDATE payments SET state='refund' WHERE payment_id=$1"
+			_, err = session.Database(ctx).ExecContext(ctx, query, payment.PaymentID)
+			return err
+		}
+	}
 	request, err := bot.CreateMultisig(ctx, "sign", payment.RawTransaction.String, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
 	if err != nil {
 		return fmt.Errorf("CreateMultisig %#w", err)
@@ -224,7 +233,7 @@ func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error
 			return err
 		}
 	}
-	if payment.RawTransaction.String != request.RawTransaction {
+	if payment.RawTransaction.String != request.RawTransaction || request.TransactionHash != payment.RawTransaction.String {
 		payment.TransactionHash = sql.NullString{String: request.TransactionHash, Valid: true}
 		payment.RawTransaction = sql.NullString{String: request.RawTransaction, Valid: true}
 		query := "UPDATE payments SET (transaction_hash,raw_transaction)=($1,$2) WHERE payment_id=$3"
@@ -243,7 +252,6 @@ func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error
 		return fmt.Errorf("UnmarshalVersionedTransaction %#w", err)
 	}
 	if len(ver.SignaturesMap) < int(payment.Threshold) {
-		log.Println("SignaturesMap len %d", len(ver.SignaturesMap))
 		return nil
 	}
 	tx, err := network.GetTransaction(payment.TransactionHash.String)
@@ -293,4 +301,13 @@ func HandleMessage(ctx context.Context, userID string) (string, error) {
 		return "", err
 	}
 	return payment.CodeID, nil
+}
+
+func hashMembers(ids []string) string {
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	var in string
+	for _, id := range ids {
+		in = in + id
+	}
+	return crypto.NewHash([]byte(in)).String()
 }

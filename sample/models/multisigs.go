@@ -31,7 +31,7 @@ func ReadMultisig(ctx context.Context, amount, memo string) (*bot.MultisigUTXO, 
 		return receivers[i] < receivers[j]
 	})
 	receiverStr := strings.Join(receivers, ",")
-	outputs, err := bot.ReadMultisigs(ctx, 500, "", "", mixin.AppID, mixin.SessionID, mixin.PrivateKey)
+	outputs, err := bot.ReadMultisigs(ctx, 500, "", hashMembers(receivers), "2", "", mixin.AppID, mixin.SessionID, mixin.PrivateKey)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,9 @@ func LoopingSignMultisig(ctx context.Context) error {
 
 func handleMultisig(ctx context.Context, network *MixinNetwork) error {
 	mixin := configs.AppConfig.Mixin
-	outputs, err := bot.ReadMultisigs(ctx, 500, "", "", mixin.AppID, mixin.SessionID, mixin.PrivateKey)
+	receivers := mixin.Receivers
+	receivers = append(receivers, mixin.AppID)
+	outputs, err := bot.ReadMultisigs(ctx, 500, "", hashMembers(receivers), "2", "", mixin.AppID, mixin.SessionID, mixin.PrivateKey)
 	if err != nil {
 		return err
 	}

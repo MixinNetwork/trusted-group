@@ -26,6 +26,7 @@ func main() {
 	defer logger.Close()
 
 	ctx := session.WithLogger(context.Background(), durable.BuildLogger(logger, "multisig-message", nil))
+	log.Println(config.Mixin.Master)
 	if config.Mixin.Master {
 		database := durable.OpenDatabaseClient(config)
 		ctx = session.WithDatabase(ctx, database)
