@@ -183,10 +183,11 @@ func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error
 			raw = input.SignedTx
 		}
 		if raw == "" {
-			key, err := bot.ReadGhostKeys(ctx, []string{payment.Memo}, 0, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
-			if err != nil {
-				return fmt.Errorf("ReadGhostKeys %#w", err)
+			keys, err := bot.ReadGhostKeys(ctx, []bot.GhostKeyRequest{bot.GhostKeyRequest{Receivers: []string{payment.Memo}}}, mixin.AppID, mixin.SessionID, mixin.PrivateKey)
+			if err != nil || len(keys) != 1 {
+				return fmt.Errorf("ReadGhostKeys %#w %d", err, len(keys))
 			}
+			key := keys[0]
 			tx := &Transaction{
 				Inputs:  []*Input{&Input{Hash: input.TransactionHash, Index: input.OutputIndex}},
 				Outputs: []*Output{&Output{Mask: key.Mask, Keys: key.Keys, Amount: payment.Amount, Script: "fffe01"}},
