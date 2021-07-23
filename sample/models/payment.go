@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/rand"
 	"multisig/configs"
 	"multisig/session"
@@ -241,7 +242,8 @@ func (payment *Payment) refund(ctx context.Context, network *MixinNetwork) error
 	if err != nil {
 		return fmt.Errorf("UnmarshalVersionedTransaction %#w", err)
 	}
-	if len(ver.SignaturesMap) > 0 && len(ver.SignaturesMap[0]) < int(payment.Threshold) {
+	if len(ver.SignaturesMap) < int(payment.Threshold) {
+		log.Println("SignaturesMap len %d", len(ver.SignaturesMap))
 		return nil
 	}
 	tx, err := network.GetTransaction(payment.TransactionHash.String)
