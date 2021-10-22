@@ -6,6 +6,8 @@ I prefer to call it Mixin Trusted Group or MTG. The old Domain Extensions propos
 
 Unlike every smart contract is executed by the huge state machine in all Ethereum or EOS nodes, MTG  is only running by nodes selected by the program respectively. The solution is very similar to what those Ethereum folks have been planning for years, sharding Ethereum, every MTG is as a shard to Ethereum, and it's also interesting that MTG is a second layer solution to Mixin Kernel, while the Kernel is already a second layer to many other distributed ledgers like Bitcoin or Ethereum.
 
+## Transaction
+
 To make Mixin Trusted Group easier to implement, the program may use the API provided by Mixin Messenger, to loop all their multisig transactions. For every UTXO belongs to their multisig group, they should save the UTXO in their local storage to make it easier for further query, then they do whatever they need to do with the memo associated with UTXO. A simple decentralized AMM similar to Uniswap could be implemented in below Golang snippet.
 
 ```golang
@@ -13,7 +15,7 @@ To make Mixin Trusted Group easier to implement, the program may use the API pro
 checkpoint := readCheckPointFromLocalStorage()
 for {
     // loop all the multisig UTXOs belong to the group
-    path := fmt.Sprintf("/multisigs?offset=%s&limit=100", checkpoint)
+    path := fmt.Sprintf("/multisigs/outputs?members=%s&threshold=%d&offset=%s&limit=100", members, threshold, checkpoint)
     utxos := requestAPI("GET", path) 
 
     for _, utxo := range utxos {
@@ -49,6 +51,36 @@ for {
     }
 }
 ```
+
+## Evolution
+
+The group should be able to operate when some nodes leave, and could allow new nodes joining. Whenever a node leaves or joins the group, an evolution happens. After an evolution, the old group enters the maintenance mode, and all further transactions should only be handled by the new group. There could be multiple old groups if multiple evolutions happen, and the group members can decide how many old groups to maintain. A maintenance group do two kind of works, notice users of the evolution and transfer old UTXOs to the new group.
+
+```golang
+// the maintenance group transfer old UTXOs to the new group
+for {
+    for _, utxo := range allOldLocalUTXOs {
+        sendOldUTXOtoCurrentGroup(utxo)
+    }
+}
+
+// the maintenance group notice users of the evolution
+checkpoint := readCheckPointFromLocalStorage(group)
+for {
+    // loop all the multisig UTXOs belong to the group
+    path := fmt.Sprintf("/multisigs/outputs?members=%s&threshold=%d&offset=%s&limit=100", members, threshold, checkpoint)
+    utxos := requestAPI("GET", path) 
+
+    for _, utxo := range utxos {
+        // make the refund transaction with evolution memo
+        refundUTXOWithEvolutionMemo(utxo)
+    }
+}
+```
+
+After a user receives a refund with an evolution memo, the user should get the new MTG information to retry their transactions. 
+
+## Governance
 
 After the program pass all tests, the owner should select some trusted nodes to help them run the program. The selected nodes should do full audit of the code to make sure its security, then the nodes will run the program in isolated secure environment, after all selected up, a Mixin Trusted Group is running. Thereafter, all users of the MTG can ensure their cryptocurrencies won't be stolen by anyone unless most of these nodes are cheaters, they can safely use the MTG like they trust an Ethereum smart contract. Compared to Ethereum smart contract, a Mixin Trusted Group is more likely to be audited by experts, and more importantly, MTG is always faster and cheaper to use than any smart contracts.
 
