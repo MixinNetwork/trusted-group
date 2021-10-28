@@ -27,7 +27,7 @@ Multiple groups, multiple group contracts, multiple smart contract networks.
 
 ## Security
 
-Group contract signature.
+The group contract is mainly served as a message queue to developer contracts, anyone can send message to this contract without any special permissions, but my guarantee the correct message format. However the developer contracts should always validate the message signature, it should be signed by enough MTG group members. Threshold BLS signatures aggregated verification could be a possible solution to this purpose.
 
 Developer contracts balance.
 
