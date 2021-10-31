@@ -31,6 +31,10 @@ The group contract is mainly served as a message queue to developer contracts, a
 
 Developer contracts balance.
 
+## Interoperability
+
+The developer contract can wrap or map the MTG asset to its own native issued assets, just like the Curve cTokens, AAVE aTokens, WBTC or WETH. Then those assets can be used among with native raw smart contracts.
+
 ## Privacy
 
 Masked user id for different contracts.
