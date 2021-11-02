@@ -31,7 +31,7 @@ The group contract is mainly served as a message queue to developer contracts, a
 
 Developer contracts balance check to ensure they can only do transfer out without exceeding the balance.
 
-To prevent MEV, i.e. the extraction of value from Ethereum users by reordering, inserting, and censoring transactions within blocks. MTG should send the transaction with a monotically increasing nonce inside.
+To prevent MEV, i.e. the extraction of value from Ethereum users by reordering, inserting, and censoring transactions within blocks. MTG should send the transaction with a monotically increasing nonce inside. When the developer contracts receive new notifications, they should ensure all the messages are in strictly correct order, if there is a gap, they should abort execution and wait until valid transactions come.
 
 ## Interoperability
 
