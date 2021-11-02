@@ -29,7 +29,9 @@ Multiple groups, multiple group contracts, multiple smart contract networks.
 
 The group contract is mainly served as a message queue to developer contracts, anyone can send message to this contract without any special permissions, but my guarantee the correct message format. However the developer contracts should always validate the message signature, it should be signed by enough MTG group members. Threshold BLS signatures aggregated verification could be a possible solution to this purpose.
 
-Developer contracts balance.
+Developer contracts balance check to ensure they can only do transfer out without exceeding the balance.
+
+To prevent MEV, i.e. the extraction of value from Ethereum users by reordering, inserting, and censoring transactions within blocks. MTG should send the transaction with a monotically increasing nonce inside.
 
 ## Interoperability
 
