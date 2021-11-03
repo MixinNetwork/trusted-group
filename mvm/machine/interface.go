@@ -13,14 +13,14 @@ type Store interface {
 	ReadAccount(id string, asset string) (*Account, error)
 	WriteAccountChange(id string, asset string, amount common.Integer, credit bool) error
 
-	ReadPlatformGroupEventsOffset(id string) (uint64, error)
-	WritePlatformGroupEventsOffset(id string, offset uint64) error
+	ReadEngineGroupEventsOffset(id string) (uint64, error)
+	WriteEngineGroupEventsOffset(id string, offset uint64) error
 
 	ListProcesses() ([]*Process, error)
 	WriteProcess(p *Process) error
 }
 
-type Platform interface {
+type Engine interface {
 	EstimateCost(events []*encoding.Event) (common.Integer, error)
 	SendGroupEvents(address string, events []*encoding.Event) error
 	ReceiveGroupEvents(address string, offset uint64, limit int) ([]*encoding.Event, error)

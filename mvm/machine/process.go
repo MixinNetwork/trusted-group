@@ -19,14 +19,20 @@ const (
 
 type Process struct {
 	Identifier string
-	Platform   Platform
+	Platform   string
 	Address    string
 	Credit     common.Integer
+
+	machine *Machine
 }
 
 func (p *Process) Spwan(ctx context.Context, store Store) {
 	go p.loopSendEvents(ctx, store)
 	go p.loopReceiveEvents(ctx, store)
+}
+
+func (p *Process) Engine() Engine {
+	return p.machine.engines[p.Platform]
 }
 
 func (p *Process) loopSendEvents(ctx context.Context, store Store) {
@@ -35,7 +41,7 @@ func (p *Process) loopSendEvents(ctx context.Context, store Store) {
 		if err != nil {
 			panic(err)
 		}
-		cost, err := p.Platform.EstimateCost(events)
+		cost, err := p.Engine().EstimateCost(events)
 		if err != nil {
 			panic(err)
 		}
@@ -51,7 +57,7 @@ func (p *Process) loopSendEvents(ctx context.Context, store Store) {
 			}
 		}
 
-		err = p.Platform.SendGroupEvents(p.Address, events)
+		err = p.Engine().SendGroupEvents(p.Address, events)
 		if err != nil {
 			time.Sleep(1 * time.Minute)
 			continue
@@ -62,11 +68,11 @@ func (p *Process) loopSendEvents(ctx context.Context, store Store) {
 
 func (p *Process) loopReceiveEvents(ctx context.Context, store Store) {
 	for {
-		offset, err := store.ReadPlatformGroupEventsOffset(p.Identifier)
+		offset, err := store.ReadEngineGroupEventsOffset(p.Identifier)
 		if err != nil {
 			panic(err)
 		}
-		events, err := p.Platform.ReceiveGroupEvents(p.Address, offset, 100)
+		events, err := p.Engine().ReceiveGroupEvents(p.Address, offset, 100)
 		if err != nil {
 			time.Sleep(1 * time.Minute)
 			continue
@@ -89,7 +95,7 @@ func (p *Process) loopReceiveEvents(ctx context.Context, store Store) {
 			if err != nil {
 				panic(err)
 			}
-			store.WritePlatformGroupEventsOffset(p.Identifier, e.Nonce)
+			store.WriteEngineGroupEventsOffset(p.Identifier, e.Nonce)
 			if err != nil {
 				panic(err)
 			}

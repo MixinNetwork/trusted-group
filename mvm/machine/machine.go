@@ -11,7 +11,8 @@ const (
 )
 
 type Machine struct {
-	Store Store
+	Store   Store
+	engines map[string]Engine
 }
 
 func Boot() (*Machine, error) {
@@ -26,6 +27,15 @@ func (m *Machine) Loop(ctx context.Context) {
 	for _, p := range processes {
 		p.Spwan(ctx, m.Store)
 	}
+}
+
+func (m *Machine) AddEngine(platform string, engine Engine) {
+	switch platform {
+	case ProcessPlatformQuorum:
+	default:
+		return
+	}
+	m.engines[platform] = engine
 }
 
 func (m *Machine) AddProcess(id string, platform, address string, out *mtg.Output) {
