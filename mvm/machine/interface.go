@@ -15,6 +15,9 @@ type Store interface {
 
 	ReadPlatformGroupEventsOffset(id string) (uint64, error)
 	WritePlatformGroupEventsOffset(id string, offset uint64) error
+
+	ListProcesses() ([]*Process, error)
+	WriteProcess(p *Process) error
 }
 
 type Platform interface {

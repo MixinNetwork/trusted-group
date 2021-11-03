@@ -44,7 +44,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	go im.Loop()
+	go im.Loop(ctx)
 
 	group, err := mtg.BuildGroup(ctx, db, conf)
 	if err != nil {

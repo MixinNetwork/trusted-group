@@ -24,9 +24,9 @@ type Process struct {
 	Credit     common.Integer
 }
 
-func (p *Process) Run(ctx context.Context, store Store) {
+func (p *Process) Spwan(ctx context.Context, store Store) {
 	go p.loopSendEvents(ctx, store)
-	p.loopReceiveEvents(ctx, store)
+	go p.loopReceiveEvents(ctx, store)
 }
 
 func (p *Process) loopSendEvents(ctx context.Context, store Store) {
@@ -100,5 +100,5 @@ func (p *Process) loopReceiveEvents(ctx context.Context, store Store) {
 func (p *Process) buildGroupTransaction(ctx context.Context, group *mtg.Group, event *encoding.Event) error {
 	amount := event.Amount.String()
 	traceId := mixin.UniqueConversationID(p.Identifier, fmt.Sprintf("EVENT#%d", event.Nonce))
-	return group.BuildTransaction(ctx, event.Asset, event.Receivers, event.Threshold, amount, event.Memo, traceId)
+	return group.BuildTransaction(ctx, event.Asset, event.Members, event.Threshold, amount, event.Memo, traceId)
 }
