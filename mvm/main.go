@@ -9,9 +9,9 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/nfo/mtg"
-	"github.com/MixinNetwork/nfo/store"
 	"github.com/MixinNetwork/trusted-group/mvm/machine"
 	"github.com/MixinNetwork/trusted-group/mvm/quorum"
+	"github.com/MixinNetwork/trusted-group/mvm/store"
 )
 
 func main() {
