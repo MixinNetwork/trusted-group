@@ -6,22 +6,23 @@ import (
 )
 
 type Store interface {
-	WriteGroupEvent(event *encoding.Event) error
-	ListGroupEvents(id string, limit int) ([]*encoding.Event, error)
+	WriteGroupEventAndNonce(pid string, event *encoding.Event) error
+	ListGroupEvents(pid string, limit int) ([]*encoding.Event, error)
 	ExpireGroupEvents(events []*encoding.Event) error
 
-	ReadAccount(id string, asset string) (*Account, error)
-	WriteAccountChange(id string, asset string, amount common.Integer, credit bool) error
+	ReadAccount(pid string, asset string) (*Account, error)
+	WriteAccountChange(pid string, asset string, amount common.Integer, credit bool) error
 
-	ReadEngineGroupEventsOffset(id string) (uint64, error)
-	WriteEngineGroupEventsOffset(id string, offset uint64) error
+	ReadEngineGroupEventsOffset(pid string) (uint64, error)
+	WriteEngineGroupEventsOffset(pid string, offset uint64) error
 
 	ListProcesses() ([]*Process, error)
 	WriteProcess(p *Process) error
 }
 
 type Engine interface {
+	VerifyAddress(addr string) error
 	EstimateCost(events []*encoding.Event) (common.Integer, error)
-	SendGroupEvents(address string, events []*encoding.Event) error
+	EnsureSendGroupEvents(address string, events []*encoding.Event) error
 	ReceiveGroupEvents(address string, offset uint64, limit int) ([]*encoding.Event, error)
 }

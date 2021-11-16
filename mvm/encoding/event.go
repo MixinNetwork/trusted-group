@@ -13,12 +13,11 @@ import (
 // nonce || asset || amount || memo || members || threshold
 //
 type Event struct {
-	Process   string
 	Asset     string
 	Members   []string
 	Threshold int
 	Amount    common.Integer
-	Memo      string
+	Memo      []byte
 	Nonce     uint64
 	Signature []byte
 }
@@ -28,7 +27,7 @@ func (e *Event) Encode() []byte {
 	enc.WriteUint64(e.Nonce)
 	writeUUID(enc, e.Asset)
 	enc.WriteInteger(e.Amount)
-	writeString(enc, e.Memo)
+	writeBytes(enc, e.Memo)
 
 	if len(e.Members) > 64 {
 		panic(len(e.Members))
@@ -41,12 +40,7 @@ func (e *Event) Encode() []byte {
 		panic(e.Threshold)
 	}
 	enc.WriteInt(e.Threshold)
-
-	if len(e.Signature) > 128 {
-		panic(e.Signature)
-	}
-	enc.WriteInt(len(e.Signature))
-	enc.Write(e.Signature)
+	writeBytes(enc, e.Signature)
 
 	return enc.Bytes()
 }
@@ -96,7 +90,7 @@ func DecodeEvent(b []byte) (*Event, error) {
 		Members:   members,
 		Threshold: threshold,
 		Amount:    amount,
-		Memo:      string(memo),
+		Memo:      memo,
 		Nonce:     nonce,
 		Signature: sig,
 	}, nil
@@ -110,12 +104,12 @@ func writeUUID(enc *common.Encoder, id string) {
 	enc.Write(uid.Bytes())
 }
 
-func writeString(enc *common.Encoder, s string) {
-	if len(s) > 128 {
-		panic(s)
+func writeBytes(enc *common.Encoder, b []byte) {
+	if len(b) > 128 {
+		panic(b)
 	}
-	enc.WriteInt(len(s))
-	enc.Write([]byte(s))
+	enc.WriteInt(len(b))
+	enc.Write(b)
 }
 
 func readUUID(dec *common.Decoder) (string, error) {

@@ -2,6 +2,7 @@ package machine
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"time"
 
@@ -22,11 +23,12 @@ type Process struct {
 	Platform   string
 	Address    string
 	Credit     common.Integer
+	Nonce      uint64
 
 	machine *Machine
 }
 
-func (p *Process) Spwan(ctx context.Context, store Store) {
+func (p *Process) Spawn(ctx context.Context, store Store) {
 	go p.loopSendEvents(ctx, store)
 	go p.loopReceiveEvents(ctx, store)
 }
@@ -57,7 +59,7 @@ func (p *Process) loopSendEvents(ctx context.Context, store Store) {
 			}
 		}
 
-		err = p.Engine().SendGroupEvents(p.Address, events)
+		err = p.Engine().EnsureSendGroupEvents(p.Address, events)
 		if err != nil {
 			time.Sleep(1 * time.Minute)
 			continue
@@ -106,5 +108,6 @@ func (p *Process) loopReceiveEvents(ctx context.Context, store Store) {
 func (p *Process) buildGroupTransaction(ctx context.Context, group *mtg.Group, event *encoding.Event) error {
 	amount := event.Amount.String()
 	traceId := mixin.UniqueConversationID(p.Identifier, fmt.Sprintf("EVENT#%d", event.Nonce))
-	return group.BuildTransaction(ctx, event.Asset, event.Members, event.Threshold, amount, event.Memo, traceId)
+	memo := base64.RawStdEncoding.EncodeToString(event.Memo)
+	return group.BuildTransaction(ctx, event.Asset, event.Members, event.Threshold, amount, memo, traceId)
 }

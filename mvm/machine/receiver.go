@@ -2,23 +2,12 @@ package machine
 
 import (
 	"context"
+	"encoding/base64"
 
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/nfo/mtg"
+	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 )
-
-const (
-	OperationPurposeUnknown       = "UNKNOWN"
-	OperationPurposeAddProcess    = "PROCESS:ADD"
-	OperationPurposeCreditProcess = "PROCESS:CREDIT"
-	OperationPurposeGroupEvent    = "EVENT"
-)
-
-type Operation struct {
-	Purpose string
-
-	Platform string
-	Address  string
-}
 
 type GroupReceiver struct {
 	Machine *Machine
@@ -29,20 +18,26 @@ func NewGroupReceiver() *GroupReceiver {
 }
 
 func (r *GroupReceiver) ProcessOutput(ctx context.Context, out *mtg.Output) {
-	op := r.parseOperation(out.Memo)
+	op, err := r.parseOperation(out.Memo)
+	if err != nil {
+		logger.Verbosef("parseOperation(%s) => %s", out.Memo, err)
+		return
+	}
 	switch op.Purpose {
-	case OperationPurposeAddProcess:
+	case encoding.OperationPurposeAddProcess:
 		r.Machine.AddProcess(out.Sender, op.Platform, op.Address, out)
-	case OperationPurposeGroupEvent:
-		r.Machine.WriteGroupEvent(out)
+	case encoding.OperationPurposeGroupEvent:
+		r.Machine.WriteGroupEvent(op.Process, out, op.Extra)
 	}
 }
 
 func (r *GroupReceiver) ProcessCollectibleOutput(context.Context, *mtg.CollectibleOutput) {
 }
 
-func (r *GroupReceiver) parseOperation(memo string) *Operation {
-	return &Operation{
-		Purpose: OperationPurposeUnknown,
+func (r *GroupReceiver) parseOperation(memo string) (*encoding.Operation, error) {
+	b, err := base64.RawURLEncoding.DecodeString(memo)
+	if err != nil {
+		return nil, err
 	}
+	return encoding.DecodeOperation(b)
 }
