@@ -23,14 +23,15 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 			}
 			if len(partials) >= m.group.GetThreshold() {
 				e.Signature = nil
+				msg := e.Encode()
 				suite := bn256.NewSuiteG2()
 				scheme := tbls.NewThresholdSchemeOnG1(bn256.NewSuiteG2())
 				poly := share.NewPubPoly(suite, suite.Point().Base(), m.commitments)
-				sig, err := scheme.Recover(poly, e.Encode(), partials, len(m.commitments), len(partials))
+				sig, err := scheme.Recover(poly, msg, partials, m.group.GetThreshold(), len(m.group.GetMembers()))
 				if err != nil {
 					panic(err)
 				}
-				err = crypto.Verify(poly.Commit(), e.Encode(), sig)
+				err = crypto.Verify(poly.Commit(), msg, sig)
 				if err != nil {
 					panic(err)
 				}
