@@ -8,7 +8,7 @@ import (
 type Store interface {
 	WriteGroupEventAndNonce(pid string, event *encoding.Event) error
 	ListGroupEvents(pid string, limit int) ([]*encoding.Event, error)
-	ExpireGroupEvents(events []*encoding.Event) error
+	ExpireGroupEventsWithCost(events []*encoding.Event, cost common.Integer) error
 
 	ReadAccount(pid string, asset string) (*Account, error)
 	WriteAccountChange(pid string, asset string, amount common.Integer, credit bool) error

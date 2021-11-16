@@ -25,7 +25,7 @@ func (r *GroupReceiver) ProcessOutput(ctx context.Context, out *mtg.Output) {
 	}
 	switch op.Purpose {
 	case encoding.OperationPurposeAddProcess:
-		r.Machine.AddProcess(out.Sender, op.Platform, op.Address, out)
+		r.Machine.AddProcess(ctx, out.Sender, op.Platform, op.Address, out)
 	case encoding.OperationPurposeGroupEvent:
 		r.Machine.WriteGroupEvent(op.Process, out, op.Extra)
 	}

@@ -41,23 +41,23 @@ func main() {
 	}
 	defer db.Close()
 
-	en, err := quorum.Boot()
-	if err != nil {
-		panic(err)
-	}
-
-	im, err := machine.Boot()
-	if err != nil {
-		panic(err)
-	}
-	im.AddEngine(machine.ProcessPlatformQuorum, en)
-	go im.Loop(ctx)
-
 	group, err := mtg.BuildGroup(ctx, db, conf)
 	if err != nil {
 		panic(err)
 	}
 	grw := machine.NewGroupReceiver()
 	group.AddWorker(grw)
+
+	en, err := quorum.Boot()
+	if err != nil {
+		panic(err)
+	}
+	im, err := machine.Boot(group, db)
+	if err != nil {
+		panic(err)
+	}
+	im.AddEngine(machine.ProcessPlatformQuorum, en)
+	im.Loop(ctx)
+
 	group.Run(ctx)
 }

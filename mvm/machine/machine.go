@@ -17,13 +17,20 @@ const (
 
 type Machine struct {
 	Store     Store
+	group     *mtg.Group
 	engines   map[string]Engine
 	processes map[string]*Process
 	mutex     *sync.Mutex
 }
 
-func Boot() (*Machine, error) {
-	return nil, nil
+func Boot(group *mtg.Group, store Store) (*Machine, error) {
+	return &Machine{
+		Store:     store,
+		group:     group,
+		engines:   make(map[string]Engine),
+		processes: make(map[string]*Process),
+		mutex:     new(sync.Mutex),
+	}, nil
 }
 
 func (m *Machine) Loop(ctx context.Context) {
@@ -46,7 +53,7 @@ func (m *Machine) AddEngine(platform string, engine Engine) {
 	m.engines[platform] = engine
 }
 
-func (m *Machine) AddProcess(pid string, platform, address string, out *mtg.Output) {
+func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address string, out *mtg.Output) {
 	if out.AssetID != ProcessRegistrationAssetId {
 		return
 	}
@@ -79,12 +86,14 @@ func (m *Machine) AddProcess(pid string, platform, address string, out *mtg.Outp
 		Address:    address,
 		Credit:     common.Zero,
 		Nonce:      0,
+		machine:    m,
 	}
 	err = m.Store.WriteProcess(proc)
 	if err != nil {
 		panic(err)
 	}
 	m.processes[pid] = proc
+	proc.Spawn(ctx, m.Store)
 }
 
 func (m *Machine) WriteGroupEvent(pid string, out *mtg.Output, extra []byte) {

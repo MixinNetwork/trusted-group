@@ -64,7 +64,12 @@ func (p *Process) loopSendEvents(ctx context.Context, store Store) {
 			time.Sleep(1 * time.Minute)
 			continue
 		}
-		store.ExpireGroupEvents(events)
+		err = store.ExpireGroupEventsWithCost(events, cost)
+		if err != nil {
+			time.Sleep(1 * time.Minute)
+			continue
+		}
+		p.Credit = p.Credit.Sub(cost)
 	}
 }
 
@@ -86,14 +91,14 @@ func (p *Process) loopReceiveEvents(ctx context.Context, store Store) {
 			}
 			if account.Balance.Cmp(e.Amount) < 0 {
 				time.Sleep(1 * time.Minute)
-				continue
+				break
 			}
 			err = store.WriteAccountChange(p.Identifier, e.Asset, e.Amount, false)
 			if err != nil {
 				panic(err)
 			}
 
-			err = p.buildGroupTransaction(ctx, nil, e)
+			err = p.buildGroupTransaction(ctx, p.machine.group, e)
 			if err != nil {
 				panic(err)
 			}
