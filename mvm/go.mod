@@ -5,6 +5,8 @@ go 1.17
 require (
 	github.com/MixinNetwork/mixin v0.13.10-0.20211116080650-d19f54b50e38
 	github.com/MixinNetwork/nfo v0.0.5-0.20211103145306-495b3b7e0222
+	github.com/MixinNetwork/tip v0.0.0-20210723184622-79e10f05d16e
+	github.com/drand/kyber v1.1.6
 	github.com/fox-one/mixin-sdk-go v1.5.3
 	github.com/gofrs/uuid v4.1.0+incompatible
 	github.com/shopspring/decimal v1.3.1
@@ -40,6 +42,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/vmihailenco/msgpack/v4 v4.3.12 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
+	go.dedis.ch/fixbuf v1.0.3 // indirect
 	go.opencensus.io v0.22.5 // indirect
 	golang.org/x/crypto v0.0.0-20211108221036-ceb1ce70b4fa // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect

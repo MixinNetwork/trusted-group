@@ -9,6 +9,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/nfo/mtg"
+	"github.com/MixinNetwork/tip/messenger"
 	"github.com/MixinNetwork/trusted-group/mvm/machine"
 	"github.com/MixinNetwork/trusted-group/mvm/quorum"
 	"github.com/MixinNetwork/trusted-group/mvm/store"
@@ -47,17 +48,20 @@ func main() {
 	}
 	grw := machine.NewGroupReceiver()
 	group.AddWorker(grw)
+	go group.Run(ctx)
 
+	messenger, err := messenger.NewMixinMessenger(ctx, nil)
+	if err != nil {
+		panic(err)
+	}
 	en, err := quorum.Boot()
 	if err != nil {
 		panic(err)
 	}
-	im, err := machine.Boot(group, db)
+	im, err := machine.Boot(group, db, messenger)
 	if err != nil {
 		panic(err)
 	}
 	im.AddEngine(machine.ProcessPlatformQuorum, en)
 	im.Loop(ctx)
-
-	group.Run(ctx)
 }

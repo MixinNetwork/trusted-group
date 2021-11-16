@@ -19,6 +19,7 @@ type Event struct {
 	Threshold int
 	Amount    common.Integer
 	Memo      []byte
+	Timestamp uint64
 	Nonce     uint64
 	Signature []byte
 }
@@ -30,6 +31,7 @@ func (e *Event) Encode() []byte {
 	writeUUID(enc, e.Asset)
 	enc.WriteInteger(e.Amount)
 	writeBytes(enc, e.Memo)
+	enc.WriteUint64(e.Timestamp)
 
 	if len(e.Members) > 64 {
 		panic(len(e.Members))
@@ -69,6 +71,10 @@ func DecodeEvent(b []byte) (*Event, error) {
 	if err != nil {
 		return nil, err
 	}
+	timestamp, err := dec.ReadUint64()
+	if err != nil {
+		return nil, err
+	}
 
 	ml, err := dec.ReadInt()
 	if err != nil {
@@ -98,6 +104,7 @@ func DecodeEvent(b []byte) (*Event, error) {
 		Threshold: threshold,
 		Amount:    amount,
 		Memo:      memo,
+		Timestamp: timestamp,
 		Nonce:     nonce,
 		Signature: sig,
 	}, nil

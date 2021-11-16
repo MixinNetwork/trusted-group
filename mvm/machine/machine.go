@@ -6,7 +6,10 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/nfo/mtg"
+	"github.com/MixinNetwork/tip/messenger"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
+	"github.com/drand/kyber"
+	"github.com/drand/kyber/share"
 	"github.com/shopspring/decimal"
 	"golang.org/x/net/context"
 )
@@ -16,17 +19,21 @@ const (
 )
 
 type Machine struct {
-	Store     Store
-	group     *mtg.Group
-	engines   map[string]Engine
-	processes map[string]*Process
-	mutex     *sync.Mutex
+	Store       Store
+	share       *share.PriShare
+	commitments []kyber.Point
+	group       *mtg.Group
+	messenger   messenger.Messenger
+	engines     map[string]Engine
+	processes   map[string]*Process
+	mutex       *sync.Mutex
 }
 
-func Boot(group *mtg.Group, store Store) (*Machine, error) {
+func Boot(group *mtg.Group, store Store, m messenger.Messenger) (*Machine, error) {
 	return &Machine{
 		Store:     store,
 		group:     group,
+		messenger: m,
 		engines:   make(map[string]Engine),
 		processes: make(map[string]*Process),
 		mutex:     new(sync.Mutex),
@@ -42,6 +49,8 @@ func (m *Machine) Loop(ctx context.Context) {
 		m.processes[p.Identifier] = p
 		p.Spawn(ctx, m.Store)
 	}
+	go m.loopReceiveGroupMessages(ctx)
+	m.loopSignGroupEvents(ctx)
 }
 
 func (m *Machine) AddEngine(platform string, engine Engine) {
@@ -116,9 +125,10 @@ func (m *Machine) WriteGroupEvent(pid string, out *mtg.Output, extra []byte) {
 		Threshold: 1,
 		Amount:    amount,
 		Memo:      extra,
+		Timestamp: uint64(out.CreatedAt.UnixNano()),
 		Nonce:     proc.Nonce,
 	}
-	err := m.Store.WriteGroupEventAndNonce(pid, evt)
+	err := m.Store.WritePendingGroupEventAndNonce(evt)
 	if err != nil {
 		panic(err)
 	}
