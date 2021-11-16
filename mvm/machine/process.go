@@ -39,7 +39,7 @@ func (p *Process) Engine() Engine {
 
 func (p *Process) loopSendEvents(ctx context.Context, store Store) {
 	for {
-		events, err := store.ListGroupEvents(p.Identifier, 100)
+		events, err := store.ListSignedGroupEvents(p.Identifier, 100)
 		if err != nil {
 			panic(err)
 		}

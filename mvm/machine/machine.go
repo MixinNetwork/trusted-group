@@ -80,6 +80,10 @@ func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address 
 	if err != nil {
 		logger.Verbosef("VerifyAddress(%s) => %s", address, err)
 	}
+	err = engine.SetupNotifier(address)
+	if err != nil {
+		logger.Verbosef("SetupNotifier(%s) => %s", address, err)
+	}
 	proc := &Process{
 		Identifier: pid,
 		Platform:   platform,
@@ -106,6 +110,7 @@ func (m *Machine) WriteGroupEvent(pid string, out *mtg.Output, extra []byte) {
 	}
 	amount := common.NewIntegerFromString(out.Amount.String())
 	evt := &encoding.Event{
+		Process:   proc.Identifier,
 		Asset:     out.AssetID,
 		Members:   []string{out.Sender},
 		Threshold: 1,
