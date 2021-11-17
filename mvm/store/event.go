@@ -11,6 +11,7 @@ import (
 const (
 	prefixPendingEventQueue      = "MVM:EVENT:PENDING:QUEUE:"
 	prefixPendingEventSignatures = "MVM:EVENT:PENDING:SIGNATURES:"
+	prefixSignedEventQueue       = "MVM:EVENT:SIGNED:QUEUE:"
 )
 
 func (bs *BadgerStore) WritePendingGroupEventAndNonce(event *encoding.Event) error {
@@ -99,11 +100,40 @@ func (bs *BadgerStore) WritePendingGroupEventSignatures(pid string, nonce uint64
 }
 
 func (bs *BadgerStore) WriteSignedGroupEvent(event *encoding.Event) error {
-	panic(0)
+	return bs.Badger().Update(func(txn *badger.Txn) error {
+		key := buildSignedEventTimedKey(event)
+		val := common.MsgpackMarshalPanic(event)
+		return txn.Set(key, val)
+	})
 }
 
 func (bs *BadgerStore) ListSignedGroupEvents(pid string, limit int) ([]*encoding.Event, error) {
-	panic(0)
+	txn := bs.Badger().NewTransaction(false)
+	defer txn.Discard()
+
+	opts := badger.DefaultIteratorOptions
+	opts.PrefetchValues = false
+	opts.Prefix = append([]byte(prefixSignedEventQueue), pid...)
+	it := txn.NewIterator(opts)
+	defer it.Close()
+
+	var evts []*encoding.Event
+	for it.Seek(opts.Prefix); it.Valid(); it.Next() {
+		val, err := it.Item().ValueCopy(nil)
+		if err != nil {
+			return nil, err
+		}
+		var evt encoding.Event
+		err = common.MsgpackUnmarshal(val, &evt)
+		if err != nil {
+			return nil, err
+		}
+		evts = append(evts, &evt)
+		if len(evts) == limit {
+			break
+		}
+	}
+	return evts, nil
 }
 
 func (bs *BadgerStore) ExpireGroupEventsWithCost(events []*encoding.Event, cost common.Integer) error {
@@ -123,5 +153,12 @@ func buildPendingEventTimedKey(evt *encoding.Event) []byte {
 	key := append([]byte(prefixPendingEventQueue), buf...)
 	key = append(key, evt.Process...)
 	binary.BigEndian.PutUint64(buf, evt.Nonce)
+	return append(key, buf...)
+}
+
+func buildSignedEventTimedKey(evt *encoding.Event) []byte {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, evt.Nonce)
+	key := append([]byte(prefixSignedEventQueue), evt.Process...)
 	return append(key, buf...)
 }

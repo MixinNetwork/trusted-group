@@ -1,21 +1,40 @@
 package store
 
 import (
+	"encoding/binary"
+
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/trusted-group/mvm/machine"
 	"github.com/dgraph-io/badger/v3"
 )
 
 const (
-	prefixProcessPayload = "MVM:PROCESS:PAYLOAD:"
+	prefixProcessPayload          = "MVM:PROCESS:PAYLOAD:"
+	prefixEngineGroupEventsOffset = "MVM:ENGINE:GROUP:EVENTS:OFFSET"
 )
 
 func (bs *BadgerStore) ReadEngineGroupEventsOffset(pid string) (uint64, error) {
-	panic(0)
+	txn := bs.Badger().NewTransaction(false)
+	defer txn.Discard()
+
+	key := append([]byte(prefixEngineGroupEventsOffset), pid...)
+	item, err := txn.Get(key)
+	if err == badger.ErrKeyNotFound {
+		return 0, nil
+	} else if err != nil {
+		return 0, err
+	}
+	val, err := item.ValueCopy(nil)
+	return binary.BigEndian.Uint64(val), err
 }
 
 func (bs *BadgerStore) WriteEngineGroupEventsOffset(pid string, offset uint64) error {
-	panic(0)
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, offset)
+	key := append([]byte(prefixEngineGroupEventsOffset), pid...)
+	return bs.Badger().Update(func(txn *badger.Txn) error {
+		return txn.Set(key, buf)
+	})
 }
 
 func (bs *BadgerStore) ListProcesses() ([]*machine.Process, error) {
