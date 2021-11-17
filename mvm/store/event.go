@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
@@ -101,9 +102,9 @@ func (bs *BadgerStore) ReadPendingGroupEventSignatures(pid string, nonce uint64)
 	if err != nil {
 		return nil, err
 	}
-	sigs := make([][]byte, len(val)/96)
+	sigs := make([][]byte, len(val)/66)
 	for i := 0; i < len(sigs); i++ {
-		sigs[i] = val[i*96 : i*96+1]
+		sigs[i] = val[i*66 : (i+1)*66]
 	}
 	return sigs, nil
 }
@@ -112,8 +113,8 @@ func (bs *BadgerStore) WritePendingGroupEventSignatures(pid string, nonce uint64
 	return bs.Badger().Update(func(txn *badger.Txn) error {
 		var val []byte
 		for _, p := range partials {
-			if len(p) != 96 {
-				panic(p)
+			if len(p) != 66 {
+				panic(hex.EncodeToString(p))
 			}
 			val = append(val, p...)
 		}

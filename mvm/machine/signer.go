@@ -15,13 +15,10 @@ import (
 
 func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 	for {
+		time.Sleep(3 * time.Second)
 		events, err := m.store.ListPendingGroupEvents(100)
 		if err != nil {
 			panic(err)
-		}
-		if len(events) == 0 {
-			time.Sleep(5 * time.Second)
-			continue
 		}
 		for _, e := range events {
 			e.Signature = nil
@@ -49,7 +46,7 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 			}
 
 			e.Signature = partial
-			err = m.messenger.SendMessage(ctx, msg)
+			err = m.messenger.SendMessage(ctx, e.Encode())
 			if err != nil {
 				panic(err)
 			}
