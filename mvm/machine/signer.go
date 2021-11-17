@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"time"
 
 	"github.com/MixinNetwork/tip/crypto"
 	"github.com/MixinNetwork/tip/logger"
@@ -18,6 +19,10 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 		events, err := m.store.ListPendingGroupEvents(100)
 		if err != nil {
 			panic(err)
+		}
+		if len(events) == 0 {
+			time.Sleep(5 * time.Second)
+			continue
 		}
 		for _, e := range events {
 			partials, err := m.store.ReadPendingGroupEventSignatures(e.Process, e.Nonce)

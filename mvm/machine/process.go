@@ -43,6 +43,10 @@ func (p *Process) loopSendEvents(ctx context.Context, store Store) {
 		if err != nil {
 			panic(err)
 		}
+		if len(events) == 0 {
+			time.Sleep(5 * time.Second)
+			continue
+		}
 		cost, err := p.Engine().EstimateCost(events)
 		if err != nil {
 			panic(err)
@@ -82,6 +86,10 @@ func (p *Process) loopReceiveEvents(ctx context.Context, store Store) {
 		events, err := p.Engine().ReceiveGroupEvents(p.Address, offset, 100)
 		if err != nil {
 			time.Sleep(1 * time.Minute)
+			continue
+		}
+		if len(events) == 0 {
+			time.Sleep(5 * time.Second)
 			continue
 		}
 		for _, e := range events {
