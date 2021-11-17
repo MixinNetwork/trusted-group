@@ -3,8 +3,10 @@ package machine
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 
 	"github.com/MixinNetwork/tip/crypto"
+	"github.com/MixinNetwork/tip/logger"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/drand/kyber/pairing/bn256"
 	"github.com/drand/kyber/share"
@@ -23,25 +25,14 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 				panic(err)
 			}
 			if len(partials) >= m.group.GetThreshold() {
-				e.Signature = nil
-				msg := e.Encode()
-				suite := bn256.NewSuiteG2()
-				scheme := tbls.NewThresholdSchemeOnG1(bn256.NewSuiteG2())
-				poly := share.NewPubPoly(suite, suite.Point().Base(), m.commitments)
-				sig, err := scheme.Recover(poly, msg, partials, m.group.GetThreshold(), len(m.group.GetMembers()))
+				e.Signature = m.recoverSignature(e, partials)
+				err = m.store.WriteSignedGroupEventAndExpirePending(e)
 				if err != nil {
 					panic(err)
 				}
-				err = crypto.Verify(poly.Commit(), msg, sig)
-				if err != nil {
-					panic(err)
-				}
-				e.Signature = sig
-				err = m.store.WriteSignedGroupEvent(e)
-				if err != nil {
-					panic(err)
-				}
+				continue
 			}
+
 			scheme := tbls.NewThresholdSchemeOnG1(bn256.NewSuiteG2())
 			partial, err := scheme.Sign(m.share, e.Encode())
 			if err != nil {
@@ -50,12 +41,14 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 			if checkSignedWith(partials, partial) {
 				continue
 			}
+
 			e.Signature = partial
 			err = m.messenger.SendMessage(ctx, e.Encode())
 			if err != nil {
 				panic(err)
 			}
-			err = m.store.WritePendingGroupEventSignatures(e.Process, e.Nonce, [][]byte{partial})
+			partials = append(partials, partial)
+			err = m.store.WritePendingGroupEventSignatures(e.Process, e.Nonce, partials)
 			if err != nil {
 				panic(err)
 			}
@@ -67,13 +60,14 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 	for {
 		b, err := m.messenger.ReceiveMessage(ctx)
 		if err != nil {
+			logger.Verbosef("ReceiveMessage() => %s", err)
 			panic(err)
 		}
 		evt, err := encoding.DecodeEvent(b)
 		if err != nil {
-			panic(err)
+			logger.Verbosef("DecodeEvent(%s) => %s", hex.EncodeToString(b), err)
+			continue
 		}
-		// TODO validate evt and partial
 		partials, err := m.store.ReadPendingGroupEventSignatures(evt.Process, evt.Nonce)
 		if err != nil {
 			panic(err)
@@ -87,6 +81,23 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 			panic(err)
 		}
 	}
+}
+
+func (m *Machine) recoverSignature(e *encoding.Event, partials [][]byte) []byte {
+	e.Signature = nil
+	msg := e.Encode()
+	suite := bn256.NewSuiteG2()
+	scheme := tbls.NewThresholdSchemeOnG1(bn256.NewSuiteG2())
+	poly := share.NewPubPoly(suite, suite.Point().Base(), m.commitments)
+	sig, err := scheme.Recover(poly, msg, partials, m.group.GetThreshold(), len(m.group.GetMembers()))
+	if err != nil {
+		panic(err)
+	}
+	err = crypto.Verify(poly.Commit(), msg, sig)
+	if err != nil {
+		panic(err)
+	}
+	return sig
 }
 
 func checkSignedWith(partials [][]byte, s []byte) bool {

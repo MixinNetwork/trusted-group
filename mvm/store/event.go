@@ -11,11 +11,34 @@ import (
 const (
 	prefixPendingEventQueue      = "MVM:EVENT:PENDING:QUEUE:"
 	prefixPendingEventSignatures = "MVM:EVENT:PENDING:SIGNATURES:"
+	prefixPendingEventIdentifier = "MVM:EVENT:PENDING:IDENTIFIER:"
 	prefixSignedEventQueue       = "MVM:EVENT:SIGNED:QUEUE:"
 )
 
-func (bs *BadgerStore) WritePendingGroupEventAndNonce(event *encoding.Event) error {
+func (bs *BadgerStore) CheckPendingGroupEventIdentifier(id string) (bool, error) {
+	txn := bs.Badger().NewTransaction(false)
+	defer txn.Discard()
+
+	ts, err := bs.readPendingGroupEventIdentifier(txn, id)
+	return ts > 0, err
+}
+
+func (bs *BadgerStore) WritePendingGroupEventAndNonce(event *encoding.Event, id string) error {
 	return bs.Badger().Update(func(txn *badger.Txn) error {
+		if event.Timestamp <= 0 {
+			panic(event.Timestamp)
+		}
+		ts, err := bs.readPendingGroupEventIdentifier(txn, id)
+		if err != nil {
+			return err
+		} else if ts > 0 && ts != event.Timestamp {
+			panic(id)
+		}
+		err = bs.writePendingGroupEventIdentifier(txn, id, event.Timestamp)
+		if err != nil {
+			return err
+		}
+
 		proc, err := bs.readProcess(txn, event.Process)
 		if err != nil {
 			return err
@@ -99,8 +122,13 @@ func (bs *BadgerStore) WritePendingGroupEventSignatures(pid string, nonce uint64
 	})
 }
 
-func (bs *BadgerStore) WriteSignedGroupEvent(event *encoding.Event) error {
+func (bs *BadgerStore) WriteSignedGroupEventAndExpirePending(event *encoding.Event) error {
 	return bs.Badger().Update(func(txn *badger.Txn) error {
+		pending := buildPendingEventTimedKey(event)
+		err := txn.Delete(pending)
+		if err != nil {
+			return err
+		}
 		key := buildSignedEventTimedKey(event)
 		val := common.MsgpackMarshalPanic(event)
 		return txn.Set(key, val)
@@ -138,6 +166,28 @@ func (bs *BadgerStore) ListSignedGroupEvents(pid string, limit int) ([]*encoding
 
 func (bs *BadgerStore) ExpireGroupEventsWithCost(events []*encoding.Event, cost common.Integer) error {
 	panic(0)
+}
+
+func (bs *BadgerStore) writePendingGroupEventIdentifier(txn *badger.Txn, id string, ts uint64) error {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, ts)
+	key := append([]byte(prefixPendingEventIdentifier), id...)
+	return txn.Set(key, buf)
+}
+
+func (bs *BadgerStore) readPendingGroupEventIdentifier(txn *badger.Txn, id string) (uint64, error) {
+	key := append([]byte(prefixPendingEventIdentifier), id...)
+	item, err := txn.Get(key)
+	if err == badger.ErrKeyNotFound {
+		return 0, nil
+	} else if err != nil {
+		return 0, err
+	}
+	val, err := item.ValueCopy(nil)
+	if err != nil {
+		return 0, err
+	}
+	return binary.BigEndian.Uint64(val), nil
 }
 
 func buildPendingEventSignaturesKey(pid string, nonce uint64) []byte {

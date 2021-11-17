@@ -6,11 +6,12 @@ import (
 )
 
 type Store interface {
-	WritePendingGroupEventAndNonce(event *encoding.Event) error
+	CheckPendingGroupEventIdentifier(id string) (bool, error)
+	WritePendingGroupEventAndNonce(event *encoding.Event, id string) error
 	ListPendingGroupEvents(limit int) ([]*encoding.Event, error)
 	ReadPendingGroupEventSignatures(pid string, nonce uint64) ([][]byte, error)
 	WritePendingGroupEventSignatures(pid string, nonce uint64, partials [][]byte) error
-	WriteSignedGroupEvent(event *encoding.Event) error
+	WriteSignedGroupEventAndExpirePending(event *encoding.Event) error
 	ListSignedGroupEvents(pid string, limit int) ([]*encoding.Event, error)
 	ExpireGroupEventsWithCost(events []*encoding.Event, cost common.Integer) error
 

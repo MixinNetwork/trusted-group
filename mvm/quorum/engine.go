@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/common"
+	"github.com/MixinNetwork/mixin/domains/ethereum"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 )
 
@@ -24,6 +25,10 @@ func Boot() (*Engine, error) {
 }
 
 func (e *Engine) VerifyAddress(address string) error {
+	err := ethereum.VerifyAddress(address)
+	if err != nil {
+		return err
+	}
 	// format
 	// ABI
 	panic(0)

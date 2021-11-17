@@ -84,7 +84,7 @@ func (m *Machine) AddEngine(platform string, engine Engine) {
 	m.engines[platform] = engine
 }
 
-func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address string, out *mtg.Output) {
+func (m *Machine) AddProcess(ctx context.Context, platform, address string, out *mtg.Output) {
 	if out.AssetID != ProcessRegistrationAssetId {
 		return
 	}
@@ -99,7 +99,7 @@ func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address 
 		return
 	}
 	for _, old := range m.processes {
-		if old.Identifier == pid {
+		if old.Identifier == out.Sender {
 			return
 		}
 		if old.Address == address {
@@ -116,7 +116,7 @@ func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address 
 		logger.Verbosef("SetupNotifier(%s) => %s", address, err)
 	}
 	proc := &Process{
-		Identifier: pid,
+		Identifier: out.Sender,
 		Platform:   platform,
 		Address:    address,
 		Credit:     common.Zero,
@@ -127,7 +127,7 @@ func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address 
 	if err != nil {
 		panic(err)
 	}
-	m.processes[pid] = proc
+	m.processes[proc.Identifier] = proc
 	proc.Spawn(ctx, m.store)
 }
 
@@ -139,6 +139,13 @@ func (m *Machine) WriteGroupEvent(pid string, out *mtg.Output, extra []byte) {
 	if proc == nil {
 		return
 	}
+	done, err := m.store.CheckPendingGroupEventIdentifier(out.UTXOID)
+	if err != nil {
+		panic(err)
+	} else if done {
+		return
+	}
+
 	amount := common.NewIntegerFromString(out.Amount.String())
 	evt := &encoding.Event{
 		Process:   proc.Identifier,
@@ -150,7 +157,7 @@ func (m *Machine) WriteGroupEvent(pid string, out *mtg.Output, extra []byte) {
 		Timestamp: uint64(out.CreatedAt.UnixNano()),
 		Nonce:     proc.Nonce,
 	}
-	err := m.store.WritePendingGroupEventAndNonce(evt)
+	err = m.store.WritePendingGroupEventAndNonce(evt, out.UTXOID)
 	if err != nil {
 		panic(err)
 	}
