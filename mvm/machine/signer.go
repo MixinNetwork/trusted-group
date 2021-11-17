@@ -25,12 +25,14 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 			continue
 		}
 		for _, e := range events {
+			e.Signature = nil
+			msg := m.engines[ProcessPlatformQuorum].Hash(e.Encode()) // FIXME
 			partials, err := m.store.ReadPendingGroupEventSignatures(e.Process, e.Nonce)
 			if err != nil {
 				panic(err)
 			}
 			if len(partials) >= m.group.GetThreshold() {
-				e.Signature = m.recoverSignature(e, partials)
+				e.Signature = m.recoverSignature(msg, partials)
 				err = m.store.WriteSignedGroupEventAndExpirePending(e)
 				if err != nil {
 					panic(err)
@@ -39,7 +41,7 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 			}
 
 			scheme := tbls.NewThresholdSchemeOnG1(bn256.NewSuiteG2())
-			partial, err := scheme.Sign(m.share, e.Encode())
+			partial, err := scheme.Sign(m.share, msg)
 			if err != nil {
 				panic(err)
 			}
@@ -48,7 +50,7 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 			}
 
 			e.Signature = partial
-			err = m.messenger.SendMessage(ctx, e.Encode())
+			err = m.messenger.SendMessage(ctx, msg)
 			if err != nil {
 				panic(err)
 			}
@@ -88,9 +90,7 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 	}
 }
 
-func (m *Machine) recoverSignature(e *encoding.Event, partials [][]byte) []byte {
-	e.Signature = nil
-	msg := e.Encode()
+func (m *Machine) recoverSignature(msg []byte, partials [][]byte) []byte {
 	suite := bn256.NewSuiteG2()
 	scheme := tbls.NewThresholdSchemeOnG1(bn256.NewSuiteG2())
 	poly := share.NewPubPoly(suite, suite.Point().Base(), m.commitments)
