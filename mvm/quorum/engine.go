@@ -13,8 +13,14 @@ import (
 )
 
 const (
-	ClockTick  = 3 * time.Second
-	EventTopic = "0x90b180992b9780963499859256fa3d63e86d4e68dc14d9c6ae2bf38a0953a8a1"
+	ClockTick = 3 * time.Second
+	// event MixinTransaction(bytes);
+	EventTopic = "0xdb53e751d28ed0d6e3682814bf8d23f7dd7b29c94f74a56fbb7f88e9dca9f39b"
+	// function mixin(bytes calldata raw) public returns (bool)
+	EventMethod = "0x5cae8005"
+
+	GasLimit = 100000000
+	GasPrice = 10000
 )
 
 type Configuration struct {

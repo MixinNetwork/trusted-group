@@ -107,7 +107,27 @@ func (chain *RPC) GetLogs(address, topic string, from, to uint64) ([][]byte, err
 		if err != nil {
 			return nil, err
 		}
-		logs = append(logs, b)
+		if len(b)%64 != 0 {
+			return nil, fmt.Errorf("invalid log %s", r.Data)
+		}
+		if len(b) < 128 {
+			return nil, fmt.Errorf("invalid log %s", r.Data)
+		}
+		bi := new(big.Int).SetBytes(b[:32])
+		if !bi.IsInt64() {
+			return nil, fmt.Errorf("invalid log %s", r.Data)
+		}
+		if bi.Int64() != 0x20 {
+			return nil, fmt.Errorf("invalid log %s", r.Data)
+		}
+		bi = new(big.Int).SetBytes(b[32:64])
+		if !bi.IsInt64() {
+			return nil, fmt.Errorf("invalid log %s", r.Data)
+		}
+		if bi.Int64() > 512 {
+			return nil, fmt.Errorf("invalid log %s", r.Data)
+		}
+		logs = append(logs, b[64:64+bi.Int64()])
 	}
 	return logs, nil
 }

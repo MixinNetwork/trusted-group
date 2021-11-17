@@ -8,6 +8,7 @@ require (
 	github.com/MixinNetwork/tip v0.0.0-20210723184622-79e10f05d16e
 	github.com/dgraph-io/badger/v3 v3.2103.2
 	github.com/drand/kyber v1.1.6
+	github.com/ethereum/go-ethereum v1.10.12
 	github.com/fox-one/mixin-sdk-go v1.5.3
 	github.com/gofrs/uuid v4.1.0+incompatible
 	github.com/pelletier/go-toml v1.9.4
@@ -32,9 +33,9 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b // indirect
-	github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6 // indirect
+	github.com/golang/groupcache v0.0.0-20191227052852-215e87163ea7 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
-	github.com/golang/snappy v0.0.3 // indirect
+	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/flatbuffers v1.12.1 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/jadeydi/mobilecoin-account v0.0.0-20211028053259-47bbc95060e8 // indirect
@@ -48,9 +49,9 @@ require (
 	go.dedis.ch/fixbuf v1.0.3 // indirect
 	go.opencensus.io v0.22.5 // indirect
 	golang.org/x/crypto v0.0.0-20211108221036-ceb1ce70b4fa // indirect
-	golang.org/x/net v0.0.0-20210510095157-81045d8b478c // indirect
+	golang.org/x/net v0.0.0-20210805182204-aaa1db679c0d // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
-	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1 // indirect
+	golang.org/x/sys v0.0.0-20210816183151-1e6c022a8912 // indirect
 	golang.org/x/text v0.3.6 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013 // indirect
