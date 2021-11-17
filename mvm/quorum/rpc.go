@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type RPC struct {
@@ -72,7 +73,7 @@ func (chain *RPC) GetContractBirthBlock(address, hash string) (uint64, error) {
 	if resp.Error != nil {
 		return 0, resp.Error
 	}
-	if resp.Result.ContractAddress != address {
+	if formatAddress(resp.Result.ContractAddress) != address {
 		return 0, fmt.Errorf("malformed %s %s %s", address, hash, resp.Result.ContractAddress)
 	}
 	return ethereumNumberToUint64(resp.Result.BlockNumber)
@@ -192,6 +193,16 @@ func (chain *RPC) call(method string, params []interface{}) ([]byte, error) {
 	defer resp.Body.Close()
 
 	return io.ReadAll(resp.Body)
+}
+
+func formatAddress(to string) string {
+	ab, err := hex.DecodeString(to[2:])
+	if err != nil {
+		panic(err)
+	}
+	var address common.Address
+	copy(address[:], ab)
+	return address.Hex()
 }
 
 func ethereumNumberToUint64(hex string) (uint64, error) {
