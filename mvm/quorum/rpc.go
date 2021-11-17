@@ -78,6 +78,25 @@ func (chain *RPC) GetContractBirthBlock(address, hash string) (uint64, error) {
 	return ethereumNumberToUint64(resp.Result.BlockNumber)
 }
 
+func (chain *RPC) GetAddressNonce(address string) (uint64, error) {
+	body, err := chain.call("eth_getTransactionCount", []interface{}{address, "latest"})
+	if err != nil {
+		return 0, err
+	}
+	var resp struct {
+		Result string         `json:"result"`
+		Error  *EthereumError `json:"error,omitempty"`
+	}
+	err = json.Unmarshal(body, &resp)
+	if err != nil {
+		return 0, err
+	}
+	if resp.Error != nil {
+		return 0, resp.Error
+	}
+	return ethereumNumberToUint64(resp.Result)
+}
+
 func (chain *RPC) GetLogs(address, topic string, from, to uint64) ([][]byte, error) {
 	body, err := chain.call("eth_getLogs", []interface{}{map[string]interface{}{
 		"address":   address,
@@ -130,6 +149,25 @@ func (chain *RPC) GetLogs(address, topic string, from, to uint64) ([][]byte, err
 		logs = append(logs, b[64:64+bi.Int64()])
 	}
 	return logs, nil
+}
+
+func (chain *RPC) SendRawTransaction(raw string) (string, error) {
+	body, err := chain.call("eth_sendRawTransaction", []interface{}{raw})
+	if err != nil {
+		return "", err
+	}
+	var resp struct {
+		Result string         `json:"result"`
+		Error  *EthereumError `json:"error,omitempty"`
+	}
+	err = json.Unmarshal(body, &resp)
+	if err != nil {
+		return "", err
+	}
+	if resp.Error != nil {
+		return "", resp.Error
+	}
+	return resp.Result, nil
 }
 
 func (chain *RPC) call(method string, params []interface{}) ([]byte, error) {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -13,7 +12,11 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-func (e *Engine) SignGroupEventTransaction(notifier string, contract string, evt *encoding.Event) {
+func (e *Engine) signContractNotifierDepositTransaction(contract string, key string) string {
+	panic(0)
+}
+
+func (e *Engine) signGroupEventTransaction(contract string, evt *encoding.Event, notifier string) string {
 	ecdsaPriv, err := crypto.HexToECDSA(notifier)
 	if err != nil {
 		panic(err)
@@ -45,11 +48,9 @@ func (e *Engine) SignGroupEventTransaction(notifier string, contract string, evt
 		panic(err)
 	}
 
-	txId := tx.Hash().Hex()
 	rb, err := tx.MarshalBinary()
 	if err != nil {
 		panic(err)
 	}
-	raw := fmt.Sprintf("%x", rb)
-	logger.Println(txId, raw)
+	return fmt.Sprintf("%x", rb)
 }

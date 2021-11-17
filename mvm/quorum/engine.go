@@ -1,6 +1,7 @@
 package quorum
 
 import (
+	"encoding/hex"
 	"fmt"
 	"sort"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/MixinNetwork/mixin/domains/ethereum"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/dgraph-io/badger/v3"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 const (
@@ -30,14 +32,26 @@ type Configuration struct {
 }
 
 type Engine struct {
-	db        *badger.DB
-	rpc       *RPC
-	key       string
-	publisher bool
+	db  *badger.DB
+	rpc *RPC
+	key string
 }
 
 func Boot(conf *Configuration) (*Engine, error) {
-	return nil, nil
+	db := openBadger(conf.Store)
+	rpc, err := NewRPC(conf.RPC)
+	if err != nil {
+		return nil, err
+	}
+	e := &Engine{db: db, rpc: rpc}
+	if conf.PrivateKey != "" {
+		priv, err := crypto.HexToECDSA(conf.PrivateKey)
+		if err != nil {
+			panic(err)
+		}
+		e.key = hex.EncodeToString(crypto.FromECDSA(priv))
+	}
+	return e, nil
 }
 
 func (e *Engine) VerifyAddress(address string, hash []byte) error {
@@ -119,13 +133,26 @@ func (e *Engine) loopGetLogs(address string) {
 }
 
 func (e *Engine) loopSendGroupEvents(address string) {
-	// for loop all group events
-	// ensure the events are in RPC
-	// batch events per transaction
-	// there should be only one node engines send transactions
-	// check events available before sending the transaction
-	for e.publisher {
-		time.Sleep(ClockTick)
+	notifier := e.storeReadContractNotifier(address)
+	for e.key != "" {
+		nonce, err := e.rpc.GetAddressNonce(address)
+		if err != nil {
+			panic(err)
+		}
+		evts, err := e.storeListGroupEvents(address, nonce, 100)
+		if err != nil {
+			panic(err)
+		}
+		for _, evt := range evts {
+			raw := e.signGroupEventTransaction(address, evt, notifier)
+			_, err := e.rpc.SendRawTransaction(raw)
+			if err != nil {
+				panic(err)
+			}
+		}
+		if len(evts) == 0 {
+			time.Sleep(ClockTick)
+		}
 	}
 }
 

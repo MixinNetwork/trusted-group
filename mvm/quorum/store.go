@@ -1,6 +1,17 @@
 package quorum
 
-import "github.com/MixinNetwork/trusted-group/mvm/encoding"
+import (
+	"github.com/MixinNetwork/trusted-group/mvm/encoding"
+	"github.com/dgraph-io/badger/v3"
+)
+
+func (e *Engine) storeWriteContractNotifier(address string, key, state string) error {
+	panic(0)
+}
+
+func (e *Engine) storeReadContractNotifier(address string) string {
+	panic(0)
+}
 
 func (e *Engine) storeReadContractLogsOffset(address string) uint64 {
 	panic(0)
@@ -26,6 +37,15 @@ func (e *Engine) storeWriteGroupEvents(address string, events []*encoding.Event)
 	panic(0)
 }
 
-func (e *Engine) storeWriteContractNotifier(address string, key, state string) error {
+func (e *Engine) storeListGroupEvents(address string, offset uint64, limit int) ([]*encoding.Event, error) {
 	panic(0)
+}
+
+func openBadger(dir string) *badger.DB {
+	opts := badger.DefaultOptions(dir)
+	db, err := badger.Open(opts)
+	if err != nil {
+		panic(err)
+	}
+	return db
 }
