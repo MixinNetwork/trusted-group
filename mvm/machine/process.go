@@ -108,7 +108,7 @@ func (m *Machine) loopReceiveEvents(ctx context.Context, p *Process) {
 			if err != nil {
 				panic(err)
 			}
-			m.store.WriteEngineGroupEventsOffset(p.Identifier, e.Nonce)
+			err = m.store.WriteEngineGroupEventsOffset(p.Identifier, e.Nonce)
 			if err != nil {
 				panic(err)
 			}

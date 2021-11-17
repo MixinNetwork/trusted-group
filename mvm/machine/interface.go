@@ -26,7 +26,7 @@ type Store interface {
 }
 
 type Engine interface {
-	VerifyAddress(addr string) error
+	VerifyAddress(addr string, extra []byte) error
 	SetupNotifier(addr string) error
 	EstimateCost(events []*encoding.Event) (common.Integer, error)
 	EnsureSendGroupEvents(address string, events []*encoding.Event) error

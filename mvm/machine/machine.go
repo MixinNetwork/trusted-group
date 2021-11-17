@@ -84,7 +84,7 @@ func (m *Machine) AddEngine(platform string, engine Engine) {
 	m.engines[platform] = engine
 }
 
-func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address string, out *mtg.Output) {
+func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address string, out *mtg.Output, extra []byte) {
 	if pid != out.Sender {
 		logger.Verbosef("AddProcess(%s, %s, %s) => sender %s", pid, platform, address, out.Sender)
 		return
@@ -116,7 +116,7 @@ func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address 
 		}
 	}
 
-	err := engine.VerifyAddress(address)
+	err := engine.VerifyAddress(address, extra)
 	if err != nil {
 		logger.Verbosef("VerifyAddress(%s) => %s", address, err)
 		return

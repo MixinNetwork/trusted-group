@@ -73,6 +73,7 @@ func publishAppCmd(c *cli.Context) error {
 		Process:  key.ClientId,
 		Platform: c.String("platform"),
 		Address:  c.String("address"),
+		Extra:    []byte(c.String("extra")),
 	}
 	input := &mixin.TransferInput{
 		AssetID: machine.ProcessRegistrationAssetId,
