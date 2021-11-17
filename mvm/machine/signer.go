@@ -1,6 +1,7 @@
 package machine
 
 import (
+	"bytes"
 	"context"
 
 	"github.com/MixinNetwork/tip/crypto"
@@ -41,13 +42,13 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 					panic(err)
 				}
 			}
-			if len(partials) > 0 {
-				continue
-			}
 			scheme := tbls.NewThresholdSchemeOnG1(bn256.NewSuiteG2())
 			partial, err := scheme.Sign(m.share, e.Encode())
 			if err != nil {
 				panic(err)
+			}
+			if checkSignedWith(partials, partial) {
+				continue
 			}
 			e.Signature = partial
 			err = m.messenger.SendMessage(ctx, e.Encode())
@@ -77,10 +78,22 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 		if err != nil {
 			panic(err)
 		}
+		if checkSignedWith(partials, evt.Signature) {
+			continue
+		}
 		partials = append(partials, evt.Signature)
 		err = m.Store.WritePendingGroupEventSignatures(evt.Process, evt.Nonce, partials)
 		if err != nil {
 			panic(err)
 		}
 	}
+}
+
+func checkSignedWith(partials [][]byte, s []byte) bool {
+	for _, p := range partials {
+		if bytes.Compare(p, s) == 0 {
+			return true
+		}
+	}
+	return false
 }
