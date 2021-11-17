@@ -1,6 +1,7 @@
 package machine
 
 import (
+	"context"
 	"sync"
 
 	"github.com/MixinNetwork/mixin/common"
@@ -11,12 +12,16 @@ import (
 	"github.com/drand/kyber"
 	"github.com/drand/kyber/share"
 	"github.com/shopspring/decimal"
-	"golang.org/x/net/context"
 )
 
 const (
 	ProcessRegistrationAssetId = "c94ac88f-4671-3976-b60a-09064f1811e8"
 )
+
+type Configuration struct {
+	Poly  string `toml:"poly"`
+	Share string `toml:"share"`
+}
 
 type Machine struct {
 	Store       Store

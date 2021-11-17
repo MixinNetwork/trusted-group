@@ -10,6 +10,7 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/nfo/mtg"
 	"github.com/MixinNetwork/tip/messenger"
+	"github.com/MixinNetwork/trusted-group/mvm/config"
 	"github.com/MixinNetwork/trusted-group/mvm/machine"
 	"github.com/MixinNetwork/trusted-group/mvm/quorum"
 	"github.com/MixinNetwork/trusted-group/mvm/store"
@@ -27,7 +28,7 @@ func main() {
 		usr, _ := user.Current()
 		*cp = filepath.Join(usr.HomeDir, (*cp)[2:])
 	}
-	conf, err := mtg.Setup(*cp)
+	conf, err := config.ReadConfiguration(*cp)
 	if err != nil {
 		panic(err)
 	}
@@ -42,7 +43,7 @@ func main() {
 	}
 	defer db.Close()
 
-	group, err := mtg.BuildGroup(ctx, db, conf)
+	group, err := mtg.BuildGroup(ctx, db, conf.MTG)
 	if err != nil {
 		panic(err)
 	}
@@ -50,7 +51,7 @@ func main() {
 	group.AddWorker(grw)
 	go group.Run(ctx)
 
-	messenger, err := messenger.NewMixinMessenger(ctx, nil)
+	messenger, err := messenger.NewMixinMessenger(ctx, conf.Messenger)
 	if err != nil {
 		panic(err)
 	}

@@ -11,6 +11,11 @@ const (
 	ClockTick = 3 * time.Second
 )
 
+type Configuration struct {
+	Store string `toml:"store"`
+	RPC   string `toml:"rpc"`
+}
+
 type Engine struct {
 }
 
