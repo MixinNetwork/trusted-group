@@ -27,7 +27,7 @@ func bootCmd(c *cli.Context) error {
 	}
 	conf, err := config.ReadConfiguration(cp)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	bp := c.String("dir")
@@ -37,26 +37,26 @@ func bootCmd(c *cli.Context) error {
 	}
 	db, err := store.OpenBadger(ctx, bp)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer db.Close()
 
 	group, err := mtg.BuildGroup(ctx, db, conf.MTG)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	messenger, err := messenger.NewMixinMessenger(ctx, conf.Messenger)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	en, err := quorum.Boot(conf.Quorum)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	im, err := machine.Boot(conf.Machine, group, db, messenger)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	im.AddEngine(machine.ProcessPlatformQuorum, en)
 	go im.Loop(ctx)

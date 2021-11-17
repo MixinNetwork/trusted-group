@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	ProcessRegistrationAssetId = "c94ac88f-4671-3976-b60a-09064f1811e8"
+	ProcessRegistrationAssetId = "965e5c6e-434c-3fa9-b780-c50f43cd955c"
 )
 
 type Configuration struct {
@@ -84,7 +84,10 @@ func (m *Machine) AddEngine(platform string, engine Engine) {
 	m.engines[platform] = engine
 }
 
-func (m *Machine) AddProcess(ctx context.Context, platform, address string, out *mtg.Output) {
+func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address string, out *mtg.Output) {
+	if pid != out.Sender {
+		return
+	}
 	if out.AssetID != ProcessRegistrationAssetId {
 		return
 	}

@@ -17,7 +17,7 @@ func (m *Machine) ProcessOutput(ctx context.Context, out *mtg.Output) {
 	}
 	switch op.Purpose {
 	case encoding.OperationPurposeAddProcess:
-		m.AddProcess(ctx, op.Platform, op.Address, out)
+		m.AddProcess(ctx, op.Process, op.Platform, op.Address, out)
 	case encoding.OperationPurposeGroupEvent:
 		m.WriteGroupEvent(op.Process, out, op.Extra)
 	}

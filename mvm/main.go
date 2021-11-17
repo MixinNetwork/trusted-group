@@ -33,6 +33,35 @@ func main() {
 					},
 				},
 			},
+			{
+				Name:   "publish",
+				Usage:  "Publish a MVM app",
+				Action: publishAppCmd,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:    "machine",
+						Aliases: []string{"m"},
+						Value:   "~/.mixin/mvm/config.toml",
+						Usage:   "The MVM members and threshold configuration",
+					},
+					&cli.StringFlag{
+						Name:    "key",
+						Aliases: []string{"k"},
+						Usage:   "The app key JSON file",
+					},
+					&cli.StringFlag{
+						Name:    "platform",
+						Aliases: []string{"p"},
+						Value:   "quorum",
+						Usage:   "The smart contract platform",
+					},
+					&cli.StringFlag{
+						Name:    "address",
+						Aliases: []string{"a"},
+						Usage:   "The smart contract address",
+					},
+				},
+			},
 		},
 	}
 
