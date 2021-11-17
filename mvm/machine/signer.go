@@ -10,7 +10,6 @@ import (
 	"github.com/MixinNetwork/tip/logger"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/drand/kyber/pairing/bn256"
-	"github.com/drand/kyber/share"
 	"github.com/drand/kyber/sign/tbls"
 )
 
@@ -91,14 +90,12 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 }
 
 func (m *Machine) recoverSignature(msg []byte, partials [][]byte) []byte {
-	suite := bn256.NewSuiteG2()
 	scheme := tbls.NewThresholdSchemeOnG1(bn256.NewSuiteG2())
-	poly := share.NewPubPoly(suite, suite.Point().Base(), m.commitments)
-	sig, err := scheme.Recover(poly, msg, partials, m.group.GetThreshold(), len(m.group.GetMembers()))
+	sig, err := scheme.Recover(m.poly, msg, partials, m.group.GetThreshold(), len(m.group.GetMembers()))
 	if err != nil {
 		panic(err)
 	}
-	err = crypto.Verify(poly.Commit(), msg, sig)
+	err = crypto.Verify(m.poly.Commit(), msg, sig)
 	if err != nil {
 		panic(err)
 	}

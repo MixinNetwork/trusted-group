@@ -29,14 +29,14 @@ type Configuration struct {
 }
 
 type Machine struct {
-	store       Store
-	group       *mtg.Group
-	share       *share.PriShare
-	commitments []kyber.Point
-	messenger   messenger.Messenger
-	engines     map[string]Engine
-	processes   map[string]*Process
-	mutex       *sync.Mutex
+	store     Store
+	group     *mtg.Group
+	share     *share.PriShare
+	poly      *share.PubPoly
+	messenger messenger.Messenger
+	engines   map[string]Engine
+	processes map[string]*Process
+	mutex     *sync.Mutex
 }
 
 func Boot(conf *Configuration, group *mtg.Group, store Store, m messenger.Messenger) (*Machine, error) {
@@ -44,21 +44,24 @@ func Boot(conf *Configuration, group *mtg.Group, store Store, m messenger.Messen
 	if err != nil {
 		return nil, err
 	}
-	poly := unmarshalCommitments(pb)
+	commitments := unmarshalCommitments(pb)
+	suite := bn256.NewSuiteG2()
+	poly := share.NewPubPoly(suite, suite.Point().Base(), commitments)
 	sb, err := hex.DecodeString(conf.Share)
 	if err != nil {
 		return nil, err
 	}
 	share := unmarshalPrivShare(sb)
+	logger.Printf("Machine.Boot(%s)", poly.Commit().String())
 	return &Machine{
-		store:       store,
-		group:       group,
-		share:       share,
-		commitments: poly,
-		messenger:   m,
-		engines:     make(map[string]Engine),
-		processes:   make(map[string]*Process),
-		mutex:       new(sync.Mutex),
+		store:     store,
+		group:     group,
+		share:     share,
+		poly:      poly,
+		messenger: m,
+		engines:   make(map[string]Engine),
+		processes: make(map[string]*Process),
+		mutex:     new(sync.Mutex),
 	}, nil
 }
 
