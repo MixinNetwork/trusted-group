@@ -121,6 +121,6 @@ func (p *Process) loopReceiveEvents(ctx context.Context, store Store) {
 func (p *Process) buildGroupTransaction(ctx context.Context, group *mtg.Group, event *encoding.Event) error {
 	amount := event.Amount.String()
 	traceId := mixin.UniqueConversationID(p.Identifier, fmt.Sprintf("EVENT#%d", event.Nonce))
-	memo := base64.RawStdEncoding.EncodeToString(event.Memo)
+	memo := base64.RawURLEncoding.EncodeToString(event.Memo)
 	return group.BuildTransaction(ctx, event.Asset, event.Members, event.Threshold, amount, memo, traceId)
 }

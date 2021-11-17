@@ -1,68 +1,43 @@
 package main
 
 import (
-	"context"
-	"flag"
-	"os/user"
-	"path/filepath"
-	"strings"
+	"fmt"
+	"os"
 
-	"github.com/MixinNetwork/mixin/logger"
-	"github.com/MixinNetwork/nfo/mtg"
-	"github.com/MixinNetwork/tip/messenger"
-	"github.com/MixinNetwork/trusted-group/mvm/config"
-	"github.com/MixinNetwork/trusted-group/mvm/machine"
-	"github.com/MixinNetwork/trusted-group/mvm/quorum"
-	"github.com/MixinNetwork/trusted-group/mvm/store"
+	"github.com/urfave/cli/v2"
 )
 
 func main() {
-	logger.SetLevel(logger.VERBOSE)
-	ctx := context.Background()
-
-	bp := flag.String("d", "~/.mixin/mvm/data", "database directory path")
-	cp := flag.String("c", "~/.mixin/mvm/config.toml", "configuration file path")
-	flag.Parse()
-
-	if strings.HasPrefix(*cp, "~/") {
-		usr, _ := user.Current()
-		*cp = filepath.Join(usr.HomeDir, (*cp)[2:])
-	}
-	conf, err := config.ReadConfiguration(*cp)
-	if err != nil {
-		panic(err)
-	}
-
-	if strings.HasPrefix(*bp, "~/") {
-		usr, _ := user.Current()
-		*bp = filepath.Join(usr.HomeDir, (*bp)[2:])
-	}
-	db, err := store.OpenBadger(ctx, *bp)
-	if err != nil {
-		panic(err)
-	}
-	defer db.Close()
-
-	group, err := mtg.BuildGroup(ctx, db, conf.MTG)
-	if err != nil {
-		panic(err)
+	app := &cli.App{
+		Name:                 "mvm",
+		Usage:                "MVM (Mixin Virtual Machine) is a smart contract platform built with MTG.",
+		Version:              "0.0.1",
+		EnableBashCompletion: true,
+		Commands: []*cli.Command{
+			{
+				Name:   "boot",
+				Usage:  "Boot a MVM node",
+				Action: bootCmd,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:    "config",
+						Aliases: []string{"c"},
+						Value:   "~/.mixin/mvm/config.toml",
+						Usage:   "The configuration file path",
+					},
+					&cli.StringFlag{
+						Name:    "dir",
+						Aliases: []string{"d"},
+						Value:   "~/.mixin/mvm/data",
+						Usage:   "The database directory path",
+					},
+				},
+			},
+		},
 	}
 
-	messenger, err := messenger.NewMixinMessenger(ctx, conf.Messenger)
+	err := app.Run(os.Args)
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
 	}
-	en, err := quorum.Boot()
-	if err != nil {
-		panic(err)
-	}
-	im, err := machine.Boot(conf.Machine, group, db, messenger)
-	if err != nil {
-		panic(err)
-	}
-	im.AddEngine(machine.ProcessPlatformQuorum, en)
-	go im.Loop(ctx)
-
-	group.AddWorker(im)
-	group.Run(ctx)
 }

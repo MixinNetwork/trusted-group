@@ -13,14 +13,15 @@ const (
 )
 
 type Configuration struct {
-	Store string `toml:"store"`
-	RPC   string `toml:"rpc"`
+	Store     string `toml:"store"`
+	RPC       string `toml:"rpc"`
+	Publisher bool   `toml:"publisher"`
 }
 
 type Engine struct {
 }
 
-func Boot() (*Engine, error) {
+func Boot(conf *Configuration) (*Engine, error) {
 	return nil, nil
 }
 

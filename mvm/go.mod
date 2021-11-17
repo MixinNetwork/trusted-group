@@ -6,11 +6,13 @@ require (
 	github.com/MixinNetwork/mixin v0.13.10-0.20211116080650-d19f54b50e38
 	github.com/MixinNetwork/nfo v0.0.5-0.20211103145306-495b3b7e0222
 	github.com/MixinNetwork/tip v0.0.0-20210723184622-79e10f05d16e
+	github.com/dgraph-io/badger/v3 v3.2103.2
 	github.com/drand/kyber v1.1.6
 	github.com/fox-one/mixin-sdk-go v1.5.3
 	github.com/gofrs/uuid v4.1.0+incompatible
+	github.com/pelletier/go-toml v1.9.4
 	github.com/shopspring/decimal v1.3.1
-	golang.org/x/net v0.0.0-20210510095157-81045d8b478c
+	github.com/urfave/cli/v2 v2.3.0
 )
 
 require (
@@ -21,8 +23,8 @@ require (
 	github.com/bwesterb/go-ristretto v1.2.0 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.0-20190314233015-f79a8a8ca69d // indirect
 	github.com/dchest/blake2b v1.0.0 // indirect
-	github.com/dgraph-io/badger/v3 v3.2103.2 // indirect
 	github.com/dgraph-io/ristretto v0.1.0 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/fox-one/msgpack v1.0.0 // indirect
@@ -38,13 +40,15 @@ require (
 	github.com/jadeydi/mobilecoin-account v0.0.0-20211028053259-47bbc95060e8 // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
-	github.com/pelletier/go-toml v1.9.4 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/russross/blackfriday/v2 v2.0.1 // indirect
+	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
 	github.com/vmihailenco/msgpack/v4 v4.3.12 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
 	go.dedis.ch/fixbuf v1.0.3 // indirect
 	go.opencensus.io v0.22.5 // indirect
 	golang.org/x/crypto v0.0.0-20211108221036-ceb1ce70b4fa // indirect
+	golang.org/x/net v0.0.0-20210510095157-81045d8b478c // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
 	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1 // indirect
 	golang.org/x/text v0.3.6 // indirect
