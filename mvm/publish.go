@@ -77,7 +77,6 @@ func publishAppCmd(c *cli.Context) error {
 	input := &mixin.TransferInput{
 		AssetID: machine.ProcessRegistrationAssetId,
 		Amount:  decimal.NewFromFloat(1),
-		TraceID: key.SessionId,
 	}
 	input.OpponentMultisig.Receivers = conf.MTG.Genesis.Members
 	input.OpponentMultisig.Threshold = uint8(conf.MTG.Genesis.Threshold)

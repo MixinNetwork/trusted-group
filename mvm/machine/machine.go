@@ -86,12 +86,15 @@ func (m *Machine) AddEngine(platform string, engine Engine) {
 
 func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address string, out *mtg.Output) {
 	if pid != out.Sender {
+		logger.Verbosef("AddProcess(%s, %s, %s) => sender %s", pid, platform, address, out.Sender)
 		return
 	}
 	if out.AssetID != ProcessRegistrationAssetId {
+		logger.Verbosef("AddProcess(%s, %s, %s) => asset %s", pid, platform, address, out.AssetID)
 		return
 	}
 	if out.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
+		logger.Verbosef("AddProcess(%s, %s, %s) => amount %s", pid, platform, address, out.Amount)
 		return
 	}
 	m.mutex.Lock()
@@ -99,13 +102,16 @@ func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address 
 
 	engine := m.engines[platform]
 	if engine == nil {
+		logger.Verbosef("AddProcess(%s, %s, %s) => engine %s", pid, platform, address, platform)
 		return
 	}
 	for _, old := range m.processes {
 		if old.Identifier == out.Sender {
+			logger.Verbosef("AddProcess(%s, %s, %s) => sender %s", pid, platform, address, out.Sender)
 			return
 		}
 		if old.Address == address {
+			logger.Verbosef("AddProcess(%s, %s, %s) => address %s", pid, platform, address, address)
 			return
 		}
 	}
@@ -113,10 +119,12 @@ func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address 
 	err := engine.VerifyAddress(address)
 	if err != nil {
 		logger.Verbosef("VerifyAddress(%s) => %s", address, err)
+		return
 	}
 	err = engine.SetupNotifier(address)
 	if err != nil {
 		logger.Verbosef("SetupNotifier(%s) => %s", address, err)
+		return
 	}
 	proc := &Process{
 		Identifier: out.Sender,
