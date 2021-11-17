@@ -52,7 +52,7 @@ func (bs *BadgerStore) WritePendingGroupEventAndNonce(event *encoding.Event, id 
 			return err
 		}
 		key := buildPendingEventTimedKey(event)
-		val := common.MsgpackMarshalPanic(event)
+		val := encoding.JSONMarshalPanic(event)
 		return txn.Set(key, val)
 	})
 }
@@ -74,7 +74,7 @@ func (bs *BadgerStore) ListPendingGroupEvents(limit int) ([]*encoding.Event, err
 			return nil, err
 		}
 		var evt encoding.Event
-		err = common.MsgpackUnmarshal(val, &evt)
+		err = encoding.JSONUnmarshal(val, &evt)
 		if err != nil {
 			return nil, err
 		}
@@ -130,7 +130,7 @@ func (bs *BadgerStore) WriteSignedGroupEventAndExpirePending(event *encoding.Eve
 			return err
 		}
 		key := buildSignedEventTimedKey(event)
-		val := common.MsgpackMarshalPanic(event)
+		val := encoding.JSONMarshalPanic(event)
 		return txn.Set(key, val)
 	})
 }
@@ -152,7 +152,7 @@ func (bs *BadgerStore) ListSignedGroupEvents(pid string, limit int) ([]*encoding
 			return nil, err
 		}
 		var evt encoding.Event
-		err = common.MsgpackUnmarshal(val, &evt)
+		err = encoding.JSONUnmarshal(val, &evt)
 		if err != nil {
 			return nil, err
 		}

@@ -69,7 +69,7 @@ func (m *Machine) Loop(ctx context.Context) {
 	}
 	for _, p := range processes {
 		m.processes[p.Identifier] = p
-		p.Spawn(ctx, m.store)
+		m.Spawn(ctx, p)
 	}
 	go m.loopReceiveGroupMessages(ctx)
 	m.loopSignGroupEvents(ctx)
@@ -124,14 +124,13 @@ func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address 
 		Address:    address,
 		Credit:     common.Zero,
 		Nonce:      0,
-		machine:    m,
 	}
 	err = m.store.WriteProcess(proc)
 	if err != nil {
 		panic(err)
 	}
 	m.processes[proc.Identifier] = proc
-	proc.Spawn(ctx, m.store)
+	m.Spawn(ctx, proc)
 }
 
 func (m *Machine) WriteGroupEvent(pid string, out *mtg.Output, extra []byte) {
@@ -156,7 +155,7 @@ func (m *Machine) WriteGroupEvent(pid string, out *mtg.Output, extra []byte) {
 		Members:   []string{out.Sender},
 		Threshold: 1,
 		Amount:    amount,
-		Memo:      extra,
+		Extra:     extra,
 		Timestamp: uint64(out.CreatedAt.UnixNano()),
 		Nonce:     proc.Nonce,
 	}

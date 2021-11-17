@@ -3,7 +3,7 @@ package store
 import (
 	"encoding/binary"
 
-	"github.com/MixinNetwork/mixin/common"
+	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/MixinNetwork/trusted-group/mvm/machine"
 	"github.com/dgraph-io/badger/v3"
 )
@@ -54,7 +54,7 @@ func (bs *BadgerStore) ListProcesses() ([]*machine.Process, error) {
 			return nil, err
 		}
 		var proc machine.Process
-		err = common.MsgpackUnmarshal(val, &proc)
+		err = encoding.JSONUnmarshal(val, &proc)
 		if err != nil {
 			return nil, err
 		}
@@ -75,7 +75,7 @@ func (bs *BadgerStore) WriteProcess(p *machine.Process) error {
 
 func (bs *BadgerStore) writeProcess(txn *badger.Txn, p *machine.Process) error {
 	key := []byte(prefixProcessPayload + p.Identifier)
-	val := common.MsgpackMarshalPanic(p)
+	val := encoding.JSONMarshalPanic(p)
 	return txn.Set(key, val)
 }
 
@@ -92,6 +92,6 @@ func (bs *BadgerStore) readProcess(txn *badger.Txn, pid string) (*machine.Proces
 		return nil, err
 	}
 	var proc machine.Process
-	err = common.MsgpackUnmarshal(val, &proc)
+	err = encoding.JSONUnmarshal(val, &proc)
 	return &proc, err
 }

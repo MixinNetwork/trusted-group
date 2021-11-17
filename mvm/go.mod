@@ -3,7 +3,7 @@ module github.com/MixinNetwork/trusted-group/mvm
 go 1.17
 
 require (
-	github.com/MixinNetwork/mixin v0.13.10-0.20211116080650-d19f54b50e38
+	github.com/MixinNetwork/mixin v0.13.10-0.20211117144244-82be7924ca4b
 	github.com/MixinNetwork/nfo v0.0.5-0.20211103145306-495b3b7e0222
 	github.com/MixinNetwork/tip v0.0.0-20210723184622-79e10f05d16e
 	github.com/dgraph-io/badger/v3 v3.2103.2

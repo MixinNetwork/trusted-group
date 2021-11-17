@@ -4,8 +4,8 @@ filippo.io/edwards25519 v1.0.0-rc.1 h1:m0VOOB23frXZvAOK44usCgLWvtsxIoMCTBGJZlpmG
 filippo.io/edwards25519 v1.0.0-rc.1/go.mod h1:N1IkdkCkiLB6tki+MYJoSx2JTY9NUlxZE7eHn5EwJns=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/DataDog/zstd v1.4.1/go.mod h1:1jcaCB/ufaK+sKp1NBhlGmpz41jOoPQ35bpF36t7BBo=
-github.com/MixinNetwork/mixin v0.13.10-0.20211116080650-d19f54b50e38 h1:lqXoRXP6//5u+tAxHW/N6aIiG+SLiIWymOCG38HP3yw=
-github.com/MixinNetwork/mixin v0.13.10-0.20211116080650-d19f54b50e38/go.mod h1:2BOgsB8+mxpZQ+imEcqnrELOkgSLIPzzyxbjZmctupk=
+github.com/MixinNetwork/mixin v0.13.10-0.20211117144244-82be7924ca4b h1:WtD/IOFrmU5R6VN+Lm3XhDx2XtDkOkrx4gV7K2WOqrM=
+github.com/MixinNetwork/mixin v0.13.10-0.20211117144244-82be7924ca4b/go.mod h1:2BOgsB8+mxpZQ+imEcqnrELOkgSLIPzzyxbjZmctupk=
 github.com/MixinNetwork/nfo v0.0.5-0.20211103145306-495b3b7e0222 h1:h63Z8vL+qwf+lBADfQPTuTw3EyC/bFXW608Doj80O/o=
 github.com/MixinNetwork/nfo v0.0.5-0.20211103145306-495b3b7e0222/go.mod h1:7huzND+A99yEqpVXy/5/tOX8+bMhIM7WjWJKmNP1IPs=
 github.com/MixinNetwork/tip v0.0.0-20210723184622-79e10f05d16e h1:OjT8FCByCnXn59kFK8/vOm73vH4LT3ZXRpK6UWg8I/8=

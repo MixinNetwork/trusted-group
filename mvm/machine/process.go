@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/common"
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/nfo/mtg"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/fox-one/mixin-sdk-go"
@@ -24,22 +25,18 @@ type Process struct {
 	Address    string
 	Credit     common.Integer
 	Nonce      uint64
-
-	machine *Machine
 }
 
-func (p *Process) Spawn(ctx context.Context, store Store) {
-	go p.loopSendEvents(ctx, store)
-	go p.loopReceiveEvents(ctx, store)
+func (m *Machine) Spawn(ctx context.Context, p *Process) {
+	logger.Verbosef("Spawn(%s, %s, %s, %d)", p.Identifier, p.Platform, p.Address, p.Nonce)
+	go m.loopSendEvents(ctx, p)
+	go m.loopReceiveEvents(ctx, p)
 }
 
-func (p *Process) Engine() Engine {
-	return p.machine.engines[p.Platform]
-}
-
-func (p *Process) loopSendEvents(ctx context.Context, store Store) {
+func (m *Machine) loopSendEvents(ctx context.Context, p *Process) {
+	engine := m.engines[p.Platform]
 	for {
-		events, err := store.ListSignedGroupEvents(p.Identifier, 100)
+		events, err := m.store.ListSignedGroupEvents(p.Identifier, 100)
 		if err != nil {
 			panic(err)
 		}
@@ -47,7 +44,7 @@ func (p *Process) loopSendEvents(ctx context.Context, store Store) {
 			time.Sleep(5 * time.Second)
 			continue
 		}
-		cost, err := p.Engine().EstimateCost(events)
+		cost, err := engine.EstimateCost(events)
 		if err != nil {
 			panic(err)
 		}
@@ -57,18 +54,18 @@ func (p *Process) loopSendEvents(ctx context.Context, store Store) {
 		}
 
 		for _, e := range events {
-			err = store.WriteAccountChange(p.Identifier, e.Asset, e.Amount, true)
+			err = m.store.WriteAccountChange(p.Identifier, e.Asset, e.Amount, true)
 			if err != nil {
 				panic(err)
 			}
 		}
 
-		err = p.Engine().EnsureSendGroupEvents(p.Address, events)
+		err = engine.EnsureSendGroupEvents(p.Address, events)
 		if err != nil {
 			time.Sleep(1 * time.Minute)
 			continue
 		}
-		err = store.ExpireGroupEventsWithCost(events, cost)
+		err = m.store.ExpireGroupEventsWithCost(events, cost)
 		if err != nil {
 			time.Sleep(1 * time.Minute)
 			continue
@@ -77,13 +74,14 @@ func (p *Process) loopSendEvents(ctx context.Context, store Store) {
 	}
 }
 
-func (p *Process) loopReceiveEvents(ctx context.Context, store Store) {
+func (m *Machine) loopReceiveEvents(ctx context.Context, p *Process) {
+	engine := m.engines[p.Platform]
 	for {
-		offset, err := store.ReadEngineGroupEventsOffset(p.Identifier)
+		offset, err := m.store.ReadEngineGroupEventsOffset(p.Identifier)
 		if err != nil {
 			panic(err)
 		}
-		events, err := p.Engine().ReceiveGroupEvents(p.Address, offset, 100)
+		events, err := engine.ReceiveGroupEvents(p.Address, offset, 100)
 		if err != nil {
 			time.Sleep(1 * time.Minute)
 			continue
@@ -93,7 +91,7 @@ func (p *Process) loopReceiveEvents(ctx context.Context, store Store) {
 			continue
 		}
 		for _, e := range events {
-			account, err := store.ReadAccount(p.Identifier, e.Asset)
+			account, err := m.store.ReadAccount(p.Identifier, e.Asset)
 			if err != nil {
 				panic(err)
 			}
@@ -101,16 +99,16 @@ func (p *Process) loopReceiveEvents(ctx context.Context, store Store) {
 				time.Sleep(1 * time.Minute)
 				break
 			}
-			err = store.WriteAccountChange(p.Identifier, e.Asset, e.Amount, false)
+			err = m.store.WriteAccountChange(p.Identifier, e.Asset, e.Amount, false)
 			if err != nil {
 				panic(err)
 			}
 
-			err = p.buildGroupTransaction(ctx, p.machine.group, e)
+			err = p.buildGroupTransaction(ctx, m.group, e)
 			if err != nil {
 				panic(err)
 			}
-			store.WriteEngineGroupEventsOffset(p.Identifier, e.Nonce)
+			m.store.WriteEngineGroupEventsOffset(p.Identifier, e.Nonce)
 			if err != nil {
 				panic(err)
 			}
@@ -121,6 +119,6 @@ func (p *Process) loopReceiveEvents(ctx context.Context, store Store) {
 func (p *Process) buildGroupTransaction(ctx context.Context, group *mtg.Group, event *encoding.Event) error {
 	amount := event.Amount.String()
 	traceId := mixin.UniqueConversationID(p.Identifier, fmt.Sprintf("EVENT#%d", event.Nonce))
-	memo := base64.RawURLEncoding.EncodeToString(event.Memo)
+	memo := base64.RawURLEncoding.EncodeToString(event.Extra)
 	return group.BuildTransaction(ctx, event.Asset, event.Members, event.Threshold, amount, memo, traceId)
 }

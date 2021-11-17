@@ -6,6 +6,7 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/domains/ethereum"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
+	"github.com/dgraph-io/badger/v3"
 )
 
 const (
@@ -19,6 +20,9 @@ type Configuration struct {
 }
 
 type Engine struct {
+	db        *badger.DB
+	rpc       *RPC
+	publisher bool
 }
 
 func Boot(conf *Configuration) (*Engine, error) {
@@ -32,7 +36,8 @@ func (e *Engine) VerifyAddress(address string) error {
 	}
 	// format
 	// ABI
-	panic(0)
+	// TODO
+	return nil
 }
 
 func (e *Engine) SetupNotifier(address string) error {
@@ -40,7 +45,8 @@ func (e *Engine) SetupNotifier(address string) error {
 	// use this private key to submit all events for this address
 	// just add this command to storage
 	// then another loop do all the works
-	panic(0)
+	// TODO
+	return nil
 }
 
 func (e *Engine) EstimateCost(events []*encoding.Event) (common.Integer, error) {
@@ -54,7 +60,8 @@ func (e *Engine) EnsureSendGroupEvents(address string, events []*encoding.Event)
 
 func (e *Engine) ReceiveGroupEvents(address string, offset uint64, limit int) ([]*encoding.Event, error) {
 	// rpc.eth_getLogs(fromBlock: offset, toBlock: offset+10, address: address, topics: groupTransfer)
-	panic(0)
+	// TODO
+	return nil, nil
 }
 
 func (e *Engine) loopSendGroupEvents(address string) {
@@ -63,10 +70,12 @@ func (e *Engine) loopSendGroupEvents(address string) {
 	// batch events per transaction
 	// there should be only one node engines send transactions
 	// check events available before sending the transaction
-	for {
+	for e.publisher {
 		time.Sleep(ClockTick)
 	}
 }
 
 func (e *Engine) loopSetupNotifiers() {
+	for {
+	}
 }

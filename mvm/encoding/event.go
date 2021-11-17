@@ -7,10 +7,10 @@ import (
 
 //
 // MTG => VM
-// process || nonce || asset || amount || memo || members || threshold || sig
+// process || nonce || asset || amount || extra || members || threshold || sig
 //
 // VM => MTG
-// process || nonce || asset || amount || memo || members || threshold
+// process || nonce || asset || amount || extra || members || threshold
 //
 type Event struct {
 	Process   string
@@ -18,7 +18,7 @@ type Event struct {
 	Members   []string // need to do user mask per process
 	Threshold int
 	Amount    common.Integer
-	Memo      []byte
+	Extra     []byte
 	Timestamp uint64
 	Nonce     uint64
 	Signature []byte
@@ -30,7 +30,7 @@ func (e *Event) Encode() []byte {
 	enc.WriteUint64(e.Nonce)
 	writeUUID(enc, e.Asset)
 	enc.WriteInteger(e.Amount)
-	writeBytes(enc, e.Memo)
+	writeBytes(enc, e.Extra)
 	enc.WriteUint64(e.Timestamp)
 
 	if len(e.Members) > 64 {
@@ -67,7 +67,7 @@ func DecodeEvent(b []byte) (*Event, error) {
 	if err != nil {
 		return nil, err
 	}
-	memo, err := dec.ReadBytes()
+	extra, err := dec.ReadBytes()
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ func DecodeEvent(b []byte) (*Event, error) {
 		Members:   members,
 		Threshold: threshold,
 		Amount:    amount,
-		Memo:      memo,
+		Extra:     extra,
 		Timestamp: timestamp,
 		Nonce:     nonce,
 		Signature: sig,
