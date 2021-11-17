@@ -2,14 +2,19 @@ package machine
 
 import (
 	"context"
+	"encoding/binary"
+	"encoding/hex"
 	"sync"
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/nfo/mtg"
+	"github.com/MixinNetwork/tip/crypto"
 	"github.com/MixinNetwork/tip/messenger"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/drand/kyber"
+	"github.com/drand/kyber/group/mod"
+	"github.com/drand/kyber/pairing/bn256"
 	"github.com/drand/kyber/share"
 	"github.com/shopspring/decimal"
 )
@@ -25,23 +30,35 @@ type Configuration struct {
 
 type Machine struct {
 	Store       Store
+	group       *mtg.Group
 	share       *share.PriShare
 	commitments []kyber.Point
-	group       *mtg.Group
 	messenger   messenger.Messenger
 	engines     map[string]Engine
 	processes   map[string]*Process
 	mutex       *sync.Mutex
 }
 
-func Boot(group *mtg.Group, store Store, m messenger.Messenger) (*Machine, error) {
+func Boot(conf *Configuration, group *mtg.Group, store Store, m messenger.Messenger) (*Machine, error) {
+	pb, err := hex.DecodeString(conf.Poly)
+	if err != nil {
+		return nil, err
+	}
+	poly := unmarshalCommitments(pb)
+	sb, err := hex.DecodeString(conf.Share)
+	if err != nil {
+		return nil, err
+	}
+	share := unmarshalPrivShare(sb)
 	return &Machine{
-		Store:     store,
-		group:     group,
-		messenger: m,
-		engines:   make(map[string]Engine),
-		processes: make(map[string]*Process),
-		mutex:     new(sync.Mutex),
+		Store:       store,
+		group:       group,
+		share:       share,
+		commitments: poly,
+		messenger:   m,
+		engines:     make(map[string]Engine),
+		processes:   make(map[string]*Process),
+		mutex:       new(sync.Mutex),
 	}, nil
 }
 
@@ -138,4 +155,23 @@ func (m *Machine) WriteGroupEvent(pid string, out *mtg.Output, extra []byte) {
 		panic(err)
 	}
 	proc.Nonce = proc.Nonce + 1
+}
+
+func unmarshalPrivShare(b []byte) *share.PriShare {
+	var ps share.PriShare
+	ps.V = mod.NewInt64(0, bn256.Order).SetBytes(b[4:])
+	ps.I = int(binary.BigEndian.Uint32(b[:4]))
+	return &ps
+}
+
+func unmarshalCommitments(b []byte) []kyber.Point {
+	var commits []kyber.Point
+	for i, l := 0, len(b)/128; i < l; i++ {
+		point, err := crypto.PubKeyFromBytes(b[i*128 : (i+1)*128])
+		if err != nil {
+			panic(err)
+		}
+		commits = append(commits, point)
+	}
+	return commits
 }

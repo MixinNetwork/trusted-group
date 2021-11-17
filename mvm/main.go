@@ -59,7 +59,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	im, err := machine.Boot(group, db, messenger)
+	im, err := machine.Boot(conf.Machine, group, db, messenger)
 	if err != nil {
 		panic(err)
 	}
