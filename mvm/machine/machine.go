@@ -29,7 +29,7 @@ type Configuration struct {
 }
 
 type Machine struct {
-	Store       Store
+	store       Store
 	group       *mtg.Group
 	share       *share.PriShare
 	commitments []kyber.Point
@@ -51,7 +51,7 @@ func Boot(conf *Configuration, group *mtg.Group, store Store, m messenger.Messen
 	}
 	share := unmarshalPrivShare(sb)
 	return &Machine{
-		Store:       store,
+		store:       store,
 		group:       group,
 		share:       share,
 		commitments: poly,
@@ -63,13 +63,13 @@ func Boot(conf *Configuration, group *mtg.Group, store Store, m messenger.Messen
 }
 
 func (m *Machine) Loop(ctx context.Context) {
-	processes, err := m.Store.ListProcesses()
+	processes, err := m.store.ListProcesses()
 	if err != nil {
 		panic(err)
 	}
 	for _, p := range processes {
 		m.processes[p.Identifier] = p
-		p.Spawn(ctx, m.Store)
+		p.Spawn(ctx, m.store)
 	}
 	go m.loopReceiveGroupMessages(ctx)
 	m.loopSignGroupEvents(ctx)
@@ -123,12 +123,12 @@ func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address 
 		Nonce:      0,
 		machine:    m,
 	}
-	err = m.Store.WriteProcess(proc)
+	err = m.store.WriteProcess(proc)
 	if err != nil {
 		panic(err)
 	}
 	m.processes[pid] = proc
-	proc.Spawn(ctx, m.Store)
+	proc.Spawn(ctx, m.store)
 }
 
 func (m *Machine) WriteGroupEvent(pid string, out *mtg.Output, extra []byte) {
@@ -150,7 +150,7 @@ func (m *Machine) WriteGroupEvent(pid string, out *mtg.Output, extra []byte) {
 		Timestamp: uint64(out.CreatedAt.UnixNano()),
 		Nonce:     proc.Nonce,
 	}
-	err := m.Store.WritePendingGroupEventAndNonce(evt)
+	err := m.store.WritePendingGroupEventAndNonce(evt)
 	if err != nil {
 		panic(err)
 	}

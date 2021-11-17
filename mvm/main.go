@@ -47,9 +47,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	grw := machine.NewGroupReceiver()
-	group.AddWorker(grw)
-	go group.Run(ctx)
 
 	messenger, err := messenger.NewMixinMessenger(ctx, conf.Messenger)
 	if err != nil {
@@ -64,5 +61,8 @@ func main() {
 		panic(err)
 	}
 	im.AddEngine(machine.ProcessPlatformQuorum, en)
-	im.Loop(ctx)
+	go im.Loop(ctx)
+
+	group.AddWorker(im)
+	group.Run(ctx)
 }

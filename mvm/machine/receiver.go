@@ -9,32 +9,24 @@ import (
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 )
 
-type GroupReceiver struct {
-	Machine *Machine
-}
-
-func NewGroupReceiver() *GroupReceiver {
-	return nil
-}
-
-func (r *GroupReceiver) ProcessOutput(ctx context.Context, out *mtg.Output) {
-	op, err := r.parseOperation(out.Memo)
+func (m *Machine) ProcessOutput(ctx context.Context, out *mtg.Output) {
+	op, err := m.parseOperation(out.Memo)
 	if err != nil {
 		logger.Verbosef("parseOperation(%s) => %s", out.Memo, err)
 		return
 	}
 	switch op.Purpose {
 	case encoding.OperationPurposeAddProcess:
-		r.Machine.AddProcess(ctx, out.Sender, op.Platform, op.Address, out)
+		m.AddProcess(ctx, out.Sender, op.Platform, op.Address, out)
 	case encoding.OperationPurposeGroupEvent:
-		r.Machine.WriteGroupEvent(op.Process, out, op.Extra)
+		m.WriteGroupEvent(op.Process, out, op.Extra)
 	}
 }
 
-func (r *GroupReceiver) ProcessCollectibleOutput(context.Context, *mtg.CollectibleOutput) {
+func (m *Machine) ProcessCollectibleOutput(context.Context, *mtg.CollectibleOutput) {
 }
 
-func (r *GroupReceiver) parseOperation(memo string) (*encoding.Operation, error) {
+func (m *Machine) parseOperation(memo string) (*encoding.Operation, error) {
 	b, err := base64.RawURLEncoding.DecodeString(memo)
 	if err != nil {
 		return nil, err

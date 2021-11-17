@@ -13,12 +13,12 @@ import (
 
 func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 	for {
-		events, err := m.Store.ListPendingGroupEvents(100)
+		events, err := m.store.ListPendingGroupEvents(100)
 		if err != nil {
 			panic(err)
 		}
 		for _, e := range events {
-			partials, err := m.Store.ReadPendingGroupEventSignatures(e.Process, e.Nonce)
+			partials, err := m.store.ReadPendingGroupEventSignatures(e.Process, e.Nonce)
 			if err != nil {
 				panic(err)
 			}
@@ -37,7 +37,7 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 					panic(err)
 				}
 				e.Signature = sig
-				err = m.Store.WriteSignedGroupEvent(e)
+				err = m.store.WriteSignedGroupEvent(e)
 				if err != nil {
 					panic(err)
 				}
@@ -55,7 +55,7 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 			if err != nil {
 				panic(err)
 			}
-			err = m.Store.WritePendingGroupEventSignatures(e.Process, e.Nonce, [][]byte{partial})
+			err = m.store.WritePendingGroupEventSignatures(e.Process, e.Nonce, [][]byte{partial})
 			if err != nil {
 				panic(err)
 			}
@@ -74,7 +74,7 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 			panic(err)
 		}
 		// TODO validate evt and partial
-		partials, err := m.Store.ReadPendingGroupEventSignatures(evt.Process, evt.Nonce)
+		partials, err := m.store.ReadPendingGroupEventSignatures(evt.Process, evt.Nonce)
 		if err != nil {
 			panic(err)
 		}
@@ -82,7 +82,7 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 			continue
 		}
 		partials = append(partials, evt.Signature)
-		err = m.Store.WritePendingGroupEventSignatures(evt.Process, evt.Nonce, partials)
+		err = m.store.WritePendingGroupEventSignatures(evt.Process, evt.Nonce, partials)
 		if err != nil {
 			panic(err)
 		}
