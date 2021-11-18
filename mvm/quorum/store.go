@@ -1,52 +1,220 @@
 package quorum
 
 import (
+	"encoding/binary"
+
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/dgraph-io/badger/v3"
 )
 
 const (
-	prefixQuorumContractNotifier = "QUORUM:CONTRACT:NOTIFIER:"
+	prefixQuorumContractNotifier   = "QUORUM:CONTRACT:NOTIFIER:"
+	prefixQuorumContractLogOffset  = "QUORUM:CONTRACT:LOG:OFFSET:"
+	prefixQuorumContractEventQueue = "QUORUM:CONTRACT:EVENT:QUEUE:"
+	prefixQuorumGroupEventQueue    = "QUORUM:GROUP:EVENT:QUEUE:"
 )
 
-func (e *Engine) storeWriteContractNotifier(address, key string) error {
-	panic(0)
+func (e *Engine) storeWriteContractNotifier(address, notifier string) error {
+	key := []byte(prefixQuorumContractNotifier + address)
+	return e.db.Update(func(txn *badger.Txn) error {
+		_, err := txn.Get(key)
+		if err == nil {
+			panic(address)
+		} else if err != badger.ErrKeyNotFound {
+			return err
+		}
+		return txn.Set(key, []byte(notifier))
+	})
 }
 
 func (e *Engine) storeReadContractNotifier(address string) string {
-	panic(0)
+	txn := e.db.NewTransaction(false)
+	defer txn.Discard()
+
+	key := []byte(prefixQuorumContractNotifier + address)
+	item, err := txn.Get(key)
+	if err == badger.ErrKeyNotFound {
+		return ""
+	} else if err != nil {
+		panic(err)
+	}
+
+	val, err := item.ValueCopy(nil)
+	if err != nil {
+		panic(err)
+	}
+	return string(val)
 }
 
 func (e *Engine) storeListContractNotifiers() ([]string, error) {
-	panic(0)
+	txn := e.db.NewTransaction(false)
+	defer txn.Discard()
+
+	opts := badger.DefaultIteratorOptions
+	opts.PrefetchValues = false
+	opts.Prefix = []byte(prefixQuorumContractNotifier)
+	it := txn.NewIterator(opts)
+	defer it.Close()
+
+	var notifiers []string
+	for it.Seek(opts.Prefix); it.Valid(); it.Next() {
+		val, err := it.Item().ValueCopy(nil)
+		if err != nil {
+			return nil, err
+		}
+		notifiers = append(notifiers, string(val))
+	}
+	return notifiers, nil
 }
 
 func (e *Engine) storeReadContractLogsOffset(address string) uint64 {
-	panic(0)
+	txn := e.db.NewTransaction(false)
+	defer txn.Discard()
+
+	key := []byte(prefixQuorumContractLogOffset + address)
+	item, err := txn.Get(key)
+	if err == badger.ErrKeyNotFound {
+		return 0
+	} else if err != nil {
+		panic(err)
+	}
+
+	val, err := item.ValueCopy(nil)
+	if err != nil {
+		panic(err)
+	}
+	return binary.BigEndian.Uint64(val)
 }
 
-func (e *Engine) storeWriteContractLogsOffset(address string, offset uint64) {
-	panic(0)
+func (e *Engine) storeWriteContractLogsOffset(address string, offset uint64) error {
+	key := []byte(prefixQuorumContractLogOffset + address)
+	return e.db.Update(func(txn *badger.Txn) error {
+		return txn.Set(key, uint64Bytes(offset))
+	})
 }
 
 func (e *Engine) storeReadLastContractEventNonce(address string) uint64 {
-	panic(0)
+	txn := e.db.NewTransaction(false)
+	defer txn.Discard()
+
+	opts := badger.DefaultIteratorOptions
+	opts.Prefix = []byte(prefixQuorumContractEventQueue + address)
+	opts.PrefetchValues = false
+	opts.Reverse = true
+
+	it := txn.NewIterator(opts)
+	defer it.Close()
+
+	it.Seek(append(opts.Prefix, uint64Bytes(^uint64(0))...))
+	if !it.Valid() {
+		return 0
+	}
+	val, err := it.Item().ValueCopy(nil)
+	if err != nil {
+		panic(err)
+	}
+	var evt encoding.Event
+	err = encoding.JSONUnmarshal(val, &evt)
+	if err != nil {
+		panic(err)
+	}
+	return evt.Nonce
 }
 
-func (e *Engine) storeWriteContractEvent(address string, evt *encoding.Event) {
-	panic(0)
+func (e *Engine) storeWriteContractEvent(address string, evt *encoding.Event) error {
+	key := []byte(prefixQuorumContractEventQueue + address)
+	key = append(key, uint64Bytes(evt.Nonce)...)
+	val := encoding.JSONMarshalPanic(evt)
+	return e.db.Update(func(txn *badger.Txn) error {
+		_, err := txn.Get(key)
+		if err == nil {
+			return nil
+		} else if err != badger.ErrKeyNotFound {
+			return err
+		}
+		return txn.Set(key, val)
+	})
 }
 
 func (e *Engine) storeListContractEvents(address string, offset uint64, limit int) ([]*encoding.Event, error) {
-	panic(0)
+	txn := e.db.NewTransaction(false)
+	defer txn.Discard()
+
+	opts := badger.DefaultIteratorOptions
+	opts.PrefetchValues = false
+	opts.Prefix = []byte(prefixQuorumContractEventQueue + address)
+	it := txn.NewIterator(opts)
+	defer it.Close()
+
+	var events []*encoding.Event
+	it.Seek(append(opts.Prefix, uint64Bytes(offset)...))
+	for ; it.Valid(); it.Next() {
+		val, err := it.Item().ValueCopy(nil)
+		if err != nil {
+			return nil, err
+		}
+		var evt encoding.Event
+		err = encoding.JSONUnmarshal(val, &evt)
+		if err != nil {
+			panic(err)
+		}
+		events = append(events, &evt)
+	}
+	return events, nil
 }
 
 func (e *Engine) storeWriteGroupEvents(address string, events []*encoding.Event) error {
-	panic(0)
+	return e.db.Update(func(txn *badger.Txn) error {
+		for _, evt := range events {
+			key := []byte(prefixQuorumGroupEventQueue + address)
+			key = append(key, uint64Bytes(evt.Nonce)...)
+			val := encoding.JSONMarshalPanic(evt)
+			_, err := txn.Get(key)
+			if err == nil {
+				continue
+			} else if err != badger.ErrKeyNotFound {
+				return err
+			}
+			err = txn.Set(key, val)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (e *Engine) storeListGroupEvents(address string, offset uint64, limit int) ([]*encoding.Event, error) {
-	panic(0)
+	txn := e.db.NewTransaction(false)
+	defer txn.Discard()
+
+	opts := badger.DefaultIteratorOptions
+	opts.PrefetchValues = false
+	opts.Prefix = []byte(prefixQuorumGroupEventQueue + address)
+	it := txn.NewIterator(opts)
+	defer it.Close()
+
+	var events []*encoding.Event
+	it.Seek(append(opts.Prefix, uint64Bytes(offset)...))
+	for ; it.Valid(); it.Next() {
+		val, err := it.Item().ValueCopy(nil)
+		if err != nil {
+			return nil, err
+		}
+		var evt encoding.Event
+		err = encoding.JSONUnmarshal(val, &evt)
+		if err != nil {
+			panic(err)
+		}
+		events = append(events, &evt)
+	}
+	return events, nil
+}
+
+func uint64Bytes(i uint64) []byte {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, i)
+	return buf
 }
 
 func openBadger(dir string) *badger.DB {

@@ -62,15 +62,15 @@ func (m *Machine) loopSendEvents(ctx context.Context, p *Process) {
 
 		err = engine.EnsureSendGroupEvents(p.Address, events)
 		if err != nil {
-			time.Sleep(1 * time.Minute)
-			continue
+			panic(err)
 		}
 		err = m.store.ExpireGroupEventsWithCost(events, cost)
 		if err != nil {
-			time.Sleep(1 * time.Minute)
-			continue
+			panic(err)
 		}
-		p.Credit = p.Credit.Sub(cost)
+		if cost.Sign() > 0 {
+			p.Credit = p.Credit.Sub(cost)
+		}
 	}
 }
 

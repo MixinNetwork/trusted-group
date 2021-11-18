@@ -78,8 +78,7 @@ func (e *Engine) VerifyAddress(address string, hash []byte) error {
 		return fmt.Errorf("too young %d %d", birth, height)
 	}
 	// TODO ABI
-	e.storeWriteContractLogsOffset(address, birth)
-	return nil
+	return e.storeWriteContractLogsOffset(address, birth)
 }
 
 func (e *Engine) SetupNotifier(address string) error {
@@ -140,12 +139,18 @@ func (e *Engine) loopGetLogs(address string) {
 			if evt.Nonce > nonce {
 				break
 			}
-			e.storeWriteContractEvent(address, evt)
+			err = e.storeWriteContractEvent(address, evt)
+			if err != nil {
+				panic(err)
+			}
 			nonce = nonce + 1
 		}
-		e.storeWriteContractLogsOffset(address, offset+10)
+		err = e.storeWriteContractLogsOffset(address, offset+10)
+		if err != nil {
+			panic(err)
+		}
 		if len(logs) == 0 {
-			time.Sleep(ClockTick * 5)
+			time.Sleep(ClockTick)
 		}
 	}
 }
@@ -184,6 +189,7 @@ func (e *Engine) loopSendGroupEvents(address string) {
 func (e *Engine) loopHandleContracts() {
 	contracts := make(map[string]bool)
 	for {
+		time.Sleep(ClockTick)
 		all, err := e.storeListContractNotifiers()
 		if err != nil {
 			panic(err)
@@ -195,6 +201,9 @@ func (e *Engine) loopHandleContracts() {
 			contracts[c] = true
 			e.loopGetLogs(c)
 			e.loopSendGroupEvents(c)
+		}
+		if !e.IsPublisher() {
+			continue
 		}
 
 		nonce, err := e.rpc.GetAddressNonce(pub(e.key))
@@ -210,7 +219,7 @@ func (e *Engine) loopHandleContracts() {
 			if balance.Cmp(decimal.NewFromInt(10)) > 0 {
 				continue
 			}
-			id, raw := e.signContractNotifierDepositTransaction(notifier, e.key, decimal.NewFromInt(100), nonce+1)
+			id, raw := e.signContractNotifierDepositTransaction(pub(notifier), e.key, decimal.NewFromInt(100), nonce+1)
 			res, err := e.rpc.SendRawTransaction(raw)
 			logger.Verbosef("SendRawTransaction(%s, %s) => %s, %v", id, raw, res, err)
 			nonce = nonce + 1

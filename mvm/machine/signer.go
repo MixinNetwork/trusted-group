@@ -6,8 +6,8 @@ import (
 	"encoding/hex"
 	"time"
 
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/tip/crypto"
-	"github.com/MixinNetwork/tip/logger"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/drand/kyber/pairing/bn256"
 	"github.com/drand/kyber/sign/tbls"

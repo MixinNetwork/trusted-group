@@ -166,7 +166,31 @@ func (bs *BadgerStore) ListSignedGroupEvents(pid string, limit int) ([]*encoding
 }
 
 func (bs *BadgerStore) ExpireGroupEventsWithCost(events []*encoding.Event, cost common.Integer) error {
-	panic(0)
+	if len(events) == 0 {
+		return nil
+	}
+	pid := events[0].Process
+	return bs.Badger().Update(func(txn *badger.Txn) error {
+		for _, evt := range events {
+			if evt.Process != pid {
+				panic(evt.Process)
+			}
+			key := buildSignedEventTimedKey(evt)
+			err := txn.Delete(key)
+			if err != nil {
+				return err
+			}
+		}
+		if cost.Sign() == 0 {
+			return nil
+		}
+		p, err := bs.readProcess(txn, pid)
+		if err != nil {
+			return err
+		}
+		p.Credit = p.Credit.Sub(cost)
+		return bs.writeProcess(txn, p)
+	})
 }
 
 func (bs *BadgerStore) writePendingGroupEventIdentifier(txn *badger.Txn, id string, ts uint64) error {
