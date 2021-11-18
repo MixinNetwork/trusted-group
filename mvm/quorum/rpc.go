@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	quorumMinimumHeight = 8192
+	quorumMinimumHeight = 256
 	etherPrecision      = 18
 )
 
@@ -79,6 +79,9 @@ func (chain *RPC) GetContractBirthBlock(address, hash string) (uint64, error) {
 	}
 	if resp.Error != nil {
 		return 0, resp.Error
+	}
+	if resp.Result.ContractAddress == "" {
+		return 0, fmt.Errorf("not a contract %s", address)
 	}
 	if formatAddress(resp.Result.ContractAddress) != address {
 		return 0, fmt.Errorf("malformed %s %s %s", address, hash, resp.Result.ContractAddress)
@@ -154,7 +157,7 @@ func (chain *RPC) GetLogs(address, topic string, from, to uint64) ([][]byte, err
 		if err != nil {
 			return nil, err
 		}
-		if len(b)%64 != 0 {
+		if len(b)%32 != 0 {
 			return nil, fmt.Errorf("invalid log %s", r.Data)
 		}
 		if len(b) < 128 {

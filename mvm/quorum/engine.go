@@ -22,10 +22,10 @@ const (
 	// function mixin(bytes calldata raw) public returns (bool)
 	EventMethod = "0x5cae8005"
 
-	ContractAgeLimit = 1
+	ContractAgeLimit = 16
 	GasLimit         = 1000000
 	GasPrice         = 100000000000
-	ChainID          = 19890609
+	ChainID          = 83927
 )
 
 type Configuration struct {
@@ -189,9 +189,7 @@ func (e *Engine) loopSendGroupEvents(address string) {
 			res, err := e.rpc.SendRawTransaction(raw)
 			logger.Verbosef("loopSendGroupEvents => SendRawTransaction(%s, %s) => %s, %v", id, raw, res, err)
 		}
-		if len(evts) == 0 {
-			time.Sleep(ClockTick)
-		}
+		time.Sleep(ClockTick)
 	}
 }
 
@@ -229,7 +227,7 @@ func (e *Engine) loopHandleContracts() {
 			if balance.Cmp(decimal.NewFromInt(10)) > 0 {
 				continue
 			}
-			id, raw := e.signContractNotifierDepositTransaction(pub(notifier), e.key, decimal.NewFromInt(100), nonce+1)
+			id, raw := e.signContractNotifierDepositTransaction(pub(notifier), e.key, decimal.NewFromInt(100), nonce)
 			res, err := e.rpc.SendRawTransaction(raw)
 			logger.Verbosef("loopHandleContracts => SendRawTransaction(%s, %s) => %s, %v", id, raw, res, err)
 			nonce = nonce + 1

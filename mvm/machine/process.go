@@ -116,9 +116,10 @@ func (m *Machine) loopReceiveEvents(ctx context.Context, p *Process) {
 	}
 }
 
-func (p *Process) buildGroupTransaction(ctx context.Context, group *mtg.Group, event *encoding.Event) error {
-	amount := event.Amount.String()
-	traceId := mixin.UniqueConversationID(p.Identifier, fmt.Sprintf("EVENT#%d", event.Nonce))
-	memo := base64.RawURLEncoding.EncodeToString(event.Extra)
-	return group.BuildTransaction(ctx, event.Asset, event.Members, event.Threshold, amount, memo, traceId)
+func (p *Process) buildGroupTransaction(ctx context.Context, group *mtg.Group, evt *encoding.Event) error {
+	logger.Verbosef("buildGroupTransaction(%s, %v, %d, %s)", evt.Asset, evt.Members, evt.Threshold, evt.Amount)
+	amount := evt.Amount.String()
+	traceId := mixin.UniqueConversationID(p.Identifier, fmt.Sprintf("EVENT#%d", evt.Nonce))
+	memo := base64.RawURLEncoding.EncodeToString(evt.Extra)
+	return group.BuildTransaction(ctx, evt.Asset, evt.Members, evt.Threshold, amount, memo, traceId)
 }

@@ -24,7 +24,7 @@ func (e *Engine) signGroupEventTransaction(contract string, evt *encoding.Event,
 	for p := len(evt.Encode()) % 32; p > 0 && p < 32; p++ {
 		data = data + "00"
 	}
-	db, err := hex.DecodeString(data)
+	db, err := hex.DecodeString(data[2:])
 	if err != nil {
 		panic(err)
 	}
@@ -44,7 +44,7 @@ func (e *Engine) signTransaction(to string, key string, amount decimal.Decimal, 
 	var address common.Address
 	copy(address[:], cb)
 
-	gasPrice := new(big.Int).SetUint64(GasPrice)
+	gasPrice := big.NewInt(GasPrice)
 	amt := amount.Mul(decimal.New(1, etherPrecision)).BigInt()
 	tx := types.NewTransaction(nonce, address, amt, GasLimit, gasPrice, data)
 	params := params.MainnetChainConfig
