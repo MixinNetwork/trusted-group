@@ -14,6 +14,7 @@ import (
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/MixinNetwork/trusted-group/mvm/machine"
 	"github.com/fox-one/mixin-sdk-go"
+	"github.com/gofrs/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/urfave/cli/v2"
 )
@@ -68,22 +69,27 @@ func invokeProcessCmd(c *cli.Context) error {
 		return err
 	}
 
+	trace, err := uuid.NewV4()
+	if err != nil {
+		return err
+	}
 	op := &encoding.Operation{
 		Purpose: encoding.OperationPurposeGroupEvent,
 		Process: c.String("process"),
 		Extra:   []byte(c.String("extra")),
 	}
-	input := &mixin.TransferInput{
+	input := mixin.TransferInput{
 		AssetID: machine.ProcessRegistrationAssetId,
 		Amount:  decimal.NewFromFloat(0.123),
+		TraceID: trace.String(),
 	}
 	input.OpponentMultisig.Receivers = conf.MTG.Genesis.Members
 	input.OpponentMultisig.Threshold = uint8(conf.MTG.Genesis.Threshold)
 	input.Memo = base64.RawURLEncoding.EncodeToString(op.Encode())
-	tx, err := client.Transaction(ctx, input, key.PIN)
+	pay, err := client.VerifyPayment(ctx, input)
 	if err != nil {
 		return err
 	}
-	fmt.Println(*tx)
+	fmt.Println("mixin://codes/" + pay.CodeID)
 	return nil
 }
