@@ -12,19 +12,27 @@ const (
 	prefixAccountBalance  = "MVM:ACCOUNT:BALANCE:"
 )
 
-func (bs *BadgerStore) ReadAccount(pid string, asset string) (*machine.Account, error) {
+func (bs *BadgerStore) CheckAccountSnapshot(as *machine.AccountSnapshot) (bool, error) {
 	txn := bs.Badger().NewTransaction(false)
 	defer txn.Discard()
-
-	balance, err := bs.readAccountBalance(txn, pid, asset)
-	if err != nil {
-		return nil, err
+	if as.Credit {
+		panic(as.Amount)
 	}
-	return &machine.Account{
-		Process: pid,
-		Asset:   asset,
-		Balance: balance,
-	}, nil
+
+	ask := []byte(prefixAccountSnapshot + as.Process)
+	ask = append(ask, uint64Bytes(as.Nonce)...)
+	_, err := txn.Get(ask)
+	if err == nil {
+		return true, nil
+	} else if err != badger.ErrKeyNotFound {
+		return false, err
+	}
+
+	balance, err := bs.readAccountBalance(txn, as.Process, as.Asset)
+	if err != nil {
+		return false, err
+	}
+	return balance.Cmp(as.Amount) >= 0, nil
 }
 
 func (bs *BadgerStore) WriteAccountSnapshot(as *machine.AccountSnapshot) error {

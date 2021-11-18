@@ -84,17 +84,16 @@ func (m *Machine) loopReceiveEvents(ctx context.Context, p *Process) {
 			if processed[e.Nonce] {
 				continue
 			}
-			account, err := m.store.ReadAccount(p.Identifier, e.Asset)
+			as := p.buildAccountSnapshot(e, false)
+			enough, err := m.store.CheckAccountSnapshot(as)
 			if err != nil {
 				panic(err)
-			}
-			if account.Balance.Cmp(e.Amount) < 0 {
-				logger.Verbosef("Process(%s, %d) => balance %s %s %s", p.Identifier, p.Nonce, e.Asset, account.Balance, e.Amount)
+			} else if !enough {
+				logger.Verbosef("Process(%s, %d) => balance %s %s", p.Identifier, p.Nonce, e.Asset, e.Amount)
 				time.Sleep(1 * time.Minute)
 				break
 			}
 			processed[e.Nonce] = true
-			as := p.buildAccountSnapshot(e, false)
 			err = m.store.WriteAccountSnapshot(as)
 			if err != nil {
 				panic(err)

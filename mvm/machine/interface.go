@@ -15,7 +15,7 @@ type Store interface {
 	ListSignedGroupEvents(pid string, limit int) ([]*encoding.Event, error)
 	ExpireGroupEventsWithCost(events []*encoding.Event, cost common.Integer) error
 
-	ReadAccount(pid string, asset string) (*Account, error)
+	CheckAccountSnapshot(as *AccountSnapshot) (bool, error)
 	WriteAccountSnapshot(as *AccountSnapshot) error
 
 	ReadEngineGroupEventsOffset(pid string) (uint64, error)

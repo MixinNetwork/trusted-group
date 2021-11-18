@@ -5,12 +5,6 @@ import (
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 )
 
-type Account struct {
-	Process string
-	Asset   string
-	Balance common.Integer
-}
-
 type AccountSnapshot struct {
 	Process string
 	Nonce   uint64
