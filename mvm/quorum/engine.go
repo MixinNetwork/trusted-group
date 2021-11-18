@@ -23,8 +23,9 @@ const (
 	EventMethod = "0x5cae8005"
 
 	ContractAgeLimit = 1
-	GasLimit         = 100000000
-	GasPrice         = 10000
+	GasLimit         = 1000000
+	GasPrice         = 100000000000
+	ChainID          = 19890609
 )
 
 type Configuration struct {
@@ -115,6 +116,7 @@ func (e *Engine) IsPublisher() bool {
 }
 
 func (e *Engine) loopGetLogs(address string) {
+	logger.Verbosef("Engine.loopGetLogs(%s)", address)
 	nonce := e.storeReadLastContractEventNonce(address) + 1
 
 	for {
@@ -127,7 +129,8 @@ func (e *Engine) loopGetLogs(address string) {
 		for _, b := range logs {
 			evt, err := encoding.DecodeEvent(b)
 			if err != nil {
-				panic(err)
+				logger.Verbosef("loopGetLogs(%s) => DecodeEvent(%x) => %s", address, b, err)
+				continue
 			}
 			evts = append(evts, evt)
 		}
@@ -145,17 +148,23 @@ func (e *Engine) loopGetLogs(address string) {
 			}
 			nonce = nonce + 1
 		}
-		err = e.storeWriteContractLogsOffset(address, offset+10)
+		height, err := e.rpc.GetBlockHeight()
 		if err != nil {
 			panic(err)
 		}
-		if len(logs) == 0 {
+		if offset+10 > height {
 			time.Sleep(ClockTick)
+			continue
+		}
+		err = e.storeWriteContractLogsOffset(address, offset+10)
+		if err != nil {
+			panic(err)
 		}
 	}
 }
 
 func (e *Engine) loopSendGroupEvents(address string) {
+	logger.Verbosef("Engine.loopSendGroupEvents(%s)", address)
 	notifier := e.storeReadContractNotifier(address)
 
 	for e.IsPublisher() {
@@ -178,7 +187,7 @@ func (e *Engine) loopSendGroupEvents(address string) {
 		for _, evt := range evts {
 			id, raw := e.signGroupEventTransaction(address, evt, notifier)
 			res, err := e.rpc.SendRawTransaction(raw)
-			logger.Verbosef("SendRawTransaction(%s, %s) => %s, %v", id, raw, res, err)
+			logger.Verbosef("loopSendGroupEvents => SendRawTransaction(%s, %s) => %s, %v", id, raw, res, err)
 		}
 		if len(evts) == 0 {
 			time.Sleep(ClockTick)
@@ -188,9 +197,10 @@ func (e *Engine) loopSendGroupEvents(address string) {
 
 func (e *Engine) loopHandleContracts() {
 	contracts := make(map[string]bool)
+
 	for {
 		time.Sleep(ClockTick)
-		all, err := e.storeListContractNotifiers()
+		all, err := e.storeListContractAddresses()
 		if err != nil {
 			panic(err)
 		}
@@ -199,8 +209,8 @@ func (e *Engine) loopHandleContracts() {
 				continue
 			}
 			contracts[c] = true
-			e.loopGetLogs(c)
-			e.loopSendGroupEvents(c)
+			go e.loopGetLogs(c)
+			go e.loopSendGroupEvents(c)
 		}
 		if !e.IsPublisher() {
 			continue
@@ -221,7 +231,7 @@ func (e *Engine) loopHandleContracts() {
 			}
 			id, raw := e.signContractNotifierDepositTransaction(pub(notifier), e.key, decimal.NewFromInt(100), nonce+1)
 			res, err := e.rpc.SendRawTransaction(raw)
-			logger.Verbosef("SendRawTransaction(%s, %s) => %s, %v", id, raw, res, err)
+			logger.Verbosef("loopHandleContracts => SendRawTransaction(%s, %s) => %s, %v", id, raw, res, err)
 			nonce = nonce + 1
 		}
 	}

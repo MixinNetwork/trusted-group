@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/shopspring/decimal"
@@ -124,6 +125,7 @@ func (chain *RPC) GetAddressBalance(address string) (decimal.Decimal, error) {
 }
 
 func (chain *RPC) GetLogs(address, topic string, from, to uint64) ([][]byte, error) {
+	logger.Verbosef("RPC.GetLogs(%s, %s, %d, %d)", address, topic, from, to)
 	body, err := chain.call("eth_getLogs", []interface{}{map[string]interface{}{
 		"address":   address,
 		"topics":    []string{topic},
@@ -148,7 +150,7 @@ func (chain *RPC) GetLogs(address, topic string, from, to uint64) ([][]byte, err
 	}
 	var logs [][]byte
 	for _, r := range resp.Result {
-		b, err := hex.DecodeString(r.Data)
+		b, err := hex.DecodeString(r.Data[2:])
 		if err != nil {
 			return nil, err
 		}

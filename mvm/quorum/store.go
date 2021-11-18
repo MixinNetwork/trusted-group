@@ -46,7 +46,7 @@ func (e *Engine) storeReadContractNotifier(address string) string {
 	return string(val)
 }
 
-func (e *Engine) storeListContractNotifiers() ([]string, error) {
+func (e *Engine) storeListContractAddresses() ([]string, error) {
 	txn := e.db.NewTransaction(false)
 	defer txn.Discard()
 
@@ -56,15 +56,13 @@ func (e *Engine) storeListContractNotifiers() ([]string, error) {
 	it := txn.NewIterator(opts)
 	defer it.Close()
 
-	var notifiers []string
+	var addresses []string
 	for it.Seek(opts.Prefix); it.Valid(); it.Next() {
-		val, err := it.Item().ValueCopy(nil)
-		if err != nil {
-			return nil, err
-		}
-		notifiers = append(notifiers, string(val))
+		key := string(it.Item().Key())
+		addr := key[len(prefixQuorumContractNotifier):]
+		addresses = append(addresses, addr)
 	}
-	return notifiers, nil
+	return addresses, nil
 }
 
 func (e *Engine) storeReadContractLogsOffset(address string) uint64 {
@@ -159,6 +157,9 @@ func (e *Engine) storeListContractEvents(address string, offset uint64, limit in
 			panic(err)
 		}
 		events = append(events, &evt)
+		if len(events) >= limit {
+			break
+		}
 	}
 	return events, nil
 }
@@ -207,6 +208,9 @@ func (e *Engine) storeListGroupEvents(address string, offset uint64, limit int) 
 			panic(err)
 		}
 		events = append(events, &evt)
+		if len(events) >= limit {
+			break
+		}
 	}
 	return events, nil
 }

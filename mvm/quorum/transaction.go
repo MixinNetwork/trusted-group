@@ -47,7 +47,9 @@ func (e *Engine) signTransaction(to string, key string, amount decimal.Decimal, 
 	gasPrice := new(big.Int).SetUint64(GasPrice)
 	amt := amount.Mul(decimal.New(1, etherPrecision)).BigInt()
 	tx := types.NewTransaction(nonce, address, amt, GasLimit, gasPrice, data)
-	signer := types.MakeSigner(params.MainnetChainConfig, params.MainnetChainConfig.LondonBlock)
+	params := params.MainnetChainConfig
+	params.ChainID = big.NewInt(ChainID)
+	signer := types.MakeSigner(params, params.EIP155Block)
 	tx, err = types.SignTx(tx, signer, ecdsaPriv)
 	if err != nil {
 		panic(err)
@@ -58,5 +60,5 @@ func (e *Engine) signTransaction(to string, key string, amount decimal.Decimal, 
 		panic(err)
 	}
 	id := tx.Hash().Hex()
-	return id, fmt.Sprintf("%x", rb)
+	return id, "0x" + fmt.Sprintf("%x", rb)
 }
