@@ -5,11 +5,19 @@ import (
 	"github.com/dgraph-io/badger/v3"
 )
 
-func (e *Engine) storeWriteContractNotifier(address string, key, state string) error {
+const (
+	prefixQuorumContractNotifier = "QUORUM:CONTRACT:NOTIFIER:"
+)
+
+func (e *Engine) storeWriteContractNotifier(address, key string) error {
 	panic(0)
 }
 
 func (e *Engine) storeReadContractNotifier(address string) string {
+	panic(0)
+}
+
+func (e *Engine) storeListContractNotifiers() ([]string, error) {
 	panic(0)
 }
 

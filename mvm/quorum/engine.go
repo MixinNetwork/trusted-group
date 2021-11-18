@@ -4,14 +4,15 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/domains/ethereum"
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/dgraph-io/badger/v3"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/shopspring/decimal"
 )
 
 const (
@@ -21,8 +22,9 @@ const (
 	// function mixin(bytes calldata raw) public returns (bool)
 	EventMethod = "0x5cae8005"
 
-	GasLimit = 100000000
-	GasPrice = 10000
+	ContractAgeLimit = 1
+	GasLimit         = 100000000
+	GasPrice         = 10000
 )
 
 type Configuration struct {
@@ -51,6 +53,7 @@ func Boot(conf *Configuration) (*Engine, error) {
 		}
 		e.key = hex.EncodeToString(crypto.FromECDSA(priv))
 	}
+	go e.loopHandleContracts()
 	return e, nil
 }
 
@@ -68,12 +71,10 @@ func (e *Engine) VerifyAddress(address string, hash []byte) error {
 		panic(err)
 	}
 	birth, err := e.rpc.GetContractBirthBlock(address, string(hash))
-	if err != nil && strings.Contains(err.Error(), "malformed") {
+	if err != nil {
 		return err
-	} else if err != nil {
-		panic(err)
 	}
-	if height < birth+128 {
+	if height < birth+ContractAgeLimit {
 		return fmt.Errorf("too young %d %d", birth, height)
 	}
 	// TODO ABI
@@ -82,11 +83,19 @@ func (e *Engine) VerifyAddress(address string, hash []byte) error {
 }
 
 func (e *Engine) SetupNotifier(address string) error {
-	// seed = hash(e.key + address)
-	// key from seed
-	// read contract notifier state
-	key := ""
-	return e.storeWriteContractNotifier(address, key, "initial")
+	seed := e.Hash([]byte(e.key + address))
+	key, err := crypto.ToECDSA(seed)
+	if err != nil {
+		panic(err)
+	}
+	notifier := hex.EncodeToString(crypto.FromECDSA(key))
+	old := e.storeReadContractNotifier(address)
+	if old == notifier {
+		return nil
+	} else if old != "" {
+		panic(old)
+	}
+	return e.storeWriteContractNotifier(address, notifier)
 }
 
 func (e *Engine) EstimateCost(events []*encoding.Event) (common.Integer, error) {
@@ -102,8 +111,13 @@ func (e *Engine) ReceiveGroupEvents(address string, offset uint64, limit int) ([
 	return e.storeListContractEvents(address, offset, limit)
 }
 
+func (e *Engine) IsPublisher() bool {
+	return e.key != ""
+}
+
 func (e *Engine) loopGetLogs(address string) {
 	nonce := e.storeReadLastContractEventNonce(address) + 1
+
 	for {
 		offset := e.storeReadContractLogsOffset(address)
 		logs, err := e.rpc.GetLogs(address, EventTopic, offset, offset+10)
@@ -138,8 +152,17 @@ func (e *Engine) loopGetLogs(address string) {
 
 func (e *Engine) loopSendGroupEvents(address string) {
 	notifier := e.storeReadContractNotifier(address)
-	for e.key != "" {
-		nonce, err := e.rpc.GetAddressNonce(address)
+
+	for e.IsPublisher() {
+		balance, err := e.rpc.GetAddressBalance(pub(notifier))
+		if err != nil {
+			panic(err)
+		}
+		if balance.Cmp(decimal.NewFromInt(1)) < 0 {
+			time.Sleep(5 * time.Second)
+			continue
+		}
+		nonce, err := e.rpc.GetAddressNonce(pub(notifier))
 		if err != nil {
 			panic(err)
 		}
@@ -148,11 +171,9 @@ func (e *Engine) loopSendGroupEvents(address string) {
 			panic(err)
 		}
 		for _, evt := range evts {
-			raw := e.signGroupEventTransaction(address, evt, notifier)
-			_, err := e.rpc.SendRawTransaction(raw)
-			if err != nil {
-				panic(err)
-			}
+			id, raw := e.signGroupEventTransaction(address, evt, notifier)
+			res, err := e.rpc.SendRawTransaction(raw)
+			logger.Verbosef("SendRawTransaction(%s, %s) => %s, %v", id, raw, res, err)
 		}
 		if len(evts) == 0 {
 			time.Sleep(ClockTick)
@@ -161,11 +182,43 @@ func (e *Engine) loopSendGroupEvents(address string) {
 }
 
 func (e *Engine) loopHandleContracts() {
+	contracts := make(map[string]bool)
 	for {
-		// read all contracts
-		// see if notifier setup => setup
-		// see if they are running
-		// then loopGetLogs
-		// then loopSendGroupEvents
+		all, err := e.storeListContractNotifiers()
+		if err != nil {
+			panic(err)
+		}
+		for _, c := range all {
+			if contracts[c] {
+				continue
+			}
+			contracts[c] = true
+			e.loopGetLogs(c)
+			e.loopSendGroupEvents(c)
+		}
+
+		nonce, err := e.rpc.GetAddressNonce(pub(e.key))
+		if err != nil {
+			panic(err)
+		}
+		for _, c := range all {
+			notifier := e.storeReadContractNotifier(c)
+			balance, err := e.rpc.GetAddressBalance(pub(notifier))
+			if err != nil {
+				panic(err)
+			}
+			if balance.Cmp(decimal.NewFromInt(10)) > 0 {
+				continue
+			}
+			id, raw := e.signContractNotifierDepositTransaction(notifier, e.key, decimal.NewFromInt(100), nonce+1)
+			res, err := e.rpc.SendRawTransaction(raw)
+			logger.Verbosef("SendRawTransaction(%s, %s) => %s, %v", id, raw, res, err)
+			nonce = nonce + 1
+		}
 	}
+}
+
+func pub(priv string) string {
+	key, _ := crypto.HexToECDSA(priv)
+	return crypto.PubkeyToAddress(key.PublicKey).Hex()
 }

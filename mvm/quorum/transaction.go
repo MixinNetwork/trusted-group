@@ -10,13 +10,14 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/shopspring/decimal"
 )
 
-func (e *Engine) signContractNotifierDepositTransaction(contract string, key string) string {
+func (e *Engine) signContractNotifierDepositTransaction(contract string, key string, amount decimal.Decimal, nonce uint64) (string, string) {
 	panic(0)
 }
 
-func (e *Engine) signGroupEventTransaction(contract string, evt *encoding.Event, notifier string) string {
+func (e *Engine) signGroupEventTransaction(contract string, evt *encoding.Event, notifier string) (string, string) {
 	ecdsaPriv, err := crypto.HexToECDSA(notifier)
 	if err != nil {
 		panic(err)
@@ -52,5 +53,6 @@ func (e *Engine) signGroupEventTransaction(contract string, evt *encoding.Event,
 	if err != nil {
 		panic(err)
 	}
-	return fmt.Sprintf("%x", rb)
+	id := tx.Hash().Hex()
+	return id, fmt.Sprintf("%x", rb)
 }

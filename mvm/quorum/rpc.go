@@ -13,6 +13,12 @@ import (
 
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/shopspring/decimal"
+)
+
+const (
+	quorumMinimumHeight = 8192
+	etherPrecision      = 18
 )
 
 type RPC struct {
@@ -29,7 +35,7 @@ func NewRPC(host string) (*RPC, error) {
 	if err != nil {
 		return nil, err
 	}
-	if height < 100 {
+	if height < quorumMinimumHeight {
 		return nil, fmt.Errorf("block height too small %d", height)
 	}
 	return chain, nil
@@ -96,6 +102,25 @@ func (chain *RPC) GetAddressNonce(address string) (uint64, error) {
 		return 0, resp.Error
 	}
 	return ethereumNumberToUint64(resp.Result)
+}
+
+func (chain *RPC) GetAddressBalance(address string) (decimal.Decimal, error) {
+	body, err := chain.call("eth_getBalance", []interface{}{address, "latest"})
+	if err != nil {
+		return decimal.Zero, err
+	}
+	var resp struct {
+		Result string         `json:"result"`
+		Error  *EthereumError `json:"error,omitempty"`
+	}
+	err = json.Unmarshal(body, &resp)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	if resp.Error != nil {
+		return decimal.Zero, err
+	}
+	return ethereumNumberToDecimal(resp.Result)
 }
 
 func (chain *RPC) GetLogs(address, topic string, from, to uint64) ([][]byte, error) {
@@ -217,6 +242,18 @@ func ethereumNumberToUint64(hex string) (uint64, error) {
 		return 0, fmt.Errorf("invalid uint64 %s", hex)
 	}
 	return value.Uint64(), nil
+}
+
+func ethereumNumberToDecimal(hex string) (decimal.Decimal, error) {
+	if !strings.HasPrefix(hex, "0x") {
+		return decimal.Zero, fmt.Errorf("invalid hex %s", hex)
+	}
+	value, success := new(big.Int).SetString(hex, 0)
+	if !success {
+		return decimal.Zero, fmt.Errorf("invalid hex %s", hex)
+	}
+	d, err := decimal.NewFromString(value.String())
+	return d.Div(decimal.New(1, etherPrecision)), err
 }
 
 type EthereumError struct {
