@@ -16,7 +16,7 @@ type Store interface {
 	ExpireGroupEventsWithCost(events []*encoding.Event, cost common.Integer) error
 
 	ReadAccount(pid string, asset string) (*Account, error)
-	WriteAccountChange(pid string, asset string, amount common.Integer, credit bool) error
+	WriteAccountSnapshot(as *AccountSnapshot) error
 
 	ReadEngineGroupEventsOffset(pid string) (uint64, error)
 	WriteEngineGroupEventsOffset(pid string, offset uint64) error

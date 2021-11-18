@@ -53,13 +53,6 @@ func (m *Machine) loopSendEvents(ctx context.Context, p *Process) {
 			continue
 		}
 
-		for _, e := range events {
-			err = m.store.WriteAccountChange(p.Identifier, e.Asset, e.Amount, true)
-			if err != nil {
-				panic(err)
-			}
-		}
-
 		err = engine.EnsureSendGroupEvents(p.Address, events)
 		if err != nil {
 			panic(err)
@@ -76,6 +69,7 @@ func (m *Machine) loopSendEvents(ctx context.Context, p *Process) {
 
 func (m *Machine) loopReceiveEvents(ctx context.Context, p *Process) {
 	engine := m.engines[p.Platform]
+	processed := make(map[uint64]bool)
 	for {
 		offset, err := m.store.ReadEngineGroupEventsOffset(p.Identifier)
 		if err != nil {
@@ -86,20 +80,22 @@ func (m *Machine) loopReceiveEvents(ctx context.Context, p *Process) {
 			time.Sleep(1 * time.Minute)
 			continue
 		}
-		if len(events) == 0 {
-			time.Sleep(5 * time.Second)
-			continue
-		}
 		for _, e := range events {
+			if processed[e.Nonce] {
+				continue
+			}
 			account, err := m.store.ReadAccount(p.Identifier, e.Asset)
 			if err != nil {
 				panic(err)
 			}
 			if account.Balance.Cmp(e.Amount) < 0 {
+				logger.Verbosef("Process(%s, %d) => balance %s %s %s", p.Identifier, p.Nonce, e.Asset, account.Balance, e.Amount)
 				time.Sleep(1 * time.Minute)
 				break
 			}
-			err = m.store.WriteAccountChange(p.Identifier, e.Asset, e.Amount, false)
+			processed[e.Nonce] = true
+			as := p.buildAccountSnapshot(e, false)
+			err = m.store.WriteAccountSnapshot(as)
 			if err != nil {
 				panic(err)
 			}
@@ -113,11 +109,15 @@ func (m *Machine) loopReceiveEvents(ctx context.Context, p *Process) {
 				panic(err)
 			}
 		}
+		if len(events) < 100 {
+			time.Sleep(5 * time.Second)
+		}
 	}
 }
 
 func (p *Process) buildGroupTransaction(ctx context.Context, group *mtg.Group, evt *encoding.Event) error {
-	logger.Verbosef("buildGroupTransaction(%s, %v, %d, %s)", evt.Asset, evt.Members, evt.Threshold, evt.Amount)
+	logger.Verbosef("Process(%s, %d) => buildGroupTransaction(%s, %v, %d, %s)",
+		p.Identifier, evt.Nonce, evt.Asset, evt.Members, evt.Threshold, evt.Amount)
 	amount := evt.Amount.String()
 	traceId := mixin.UniqueConversationID(p.Identifier, fmt.Sprintf("EVENT#%d", evt.Nonce))
 	memo := base64.RawURLEncoding.EncodeToString(evt.Extra)

@@ -29,8 +29,7 @@ func (bs *BadgerStore) ReadEngineGroupEventsOffset(pid string) (uint64, error) {
 }
 
 func (bs *BadgerStore) WriteEngineGroupEventsOffset(pid string, offset uint64) error {
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, offset)
+	buf := uint64Bytes(offset)
 	key := append([]byte(prefixEngineGroupEventsOffset), pid...)
 	return bs.Badger().Update(func(txn *badger.Txn) error {
 		return txn.Set(key, buf)

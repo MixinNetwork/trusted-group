@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/shopspring/decimal"
@@ -29,7 +28,7 @@ type RPC struct {
 
 func NewRPC(host string) (*RPC, error) {
 	chain := &RPC{
-		client: &http.Client{Timeout: 5 * time.Second},
+		client: &http.Client{Timeout: 30 * time.Second},
 		host:   host,
 	}
 	height, err := chain.GetBlockHeight()
@@ -128,7 +127,6 @@ func (chain *RPC) GetAddressBalance(address string) (decimal.Decimal, error) {
 }
 
 func (chain *RPC) GetLogs(address, topic string, from, to uint64) ([][]byte, error) {
-	logger.Verbosef("RPC.GetLogs(%s, %s, %d, %d)", address, topic, from, to)
 	body, err := chain.call("eth_getLogs", []interface{}{map[string]interface{}{
 		"address":   address,
 		"topics":    []string{topic},

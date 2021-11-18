@@ -3,7 +3,6 @@ package quorum
 import (
 	"encoding/hex"
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/MixinNetwork/mixin/common"
@@ -117,7 +116,6 @@ func (e *Engine) IsPublisher() bool {
 
 func (e *Engine) loopGetLogs(address string) {
 	logger.Verbosef("Engine.loopGetLogs(%s)", address)
-	nonce := e.storeReadLastContractEventNonce(address) + 1
 
 	for {
 		offset := e.storeReadContractLogsOffset(address)
@@ -125,28 +123,16 @@ func (e *Engine) loopGetLogs(address string) {
 		if err != nil {
 			panic(err)
 		}
-		var evts []*encoding.Event
 		for _, b := range logs {
 			evt, err := encoding.DecodeEvent(b)
+			logger.Verbosef("loopGetLogs(%s) => DecodeEvent(%x) => %v, %v", address, b, evt, err)
 			if err != nil {
-				logger.Verbosef("loopGetLogs(%s) => DecodeEvent(%x) => %s", address, b, err)
 				continue
-			}
-			evts = append(evts, evt)
-		}
-		sort.Slice(evts, func(i, j int) bool { return evts[i].Nonce < evts[j].Nonce })
-		for _, evt := range evts {
-			if evt.Nonce < nonce {
-				continue
-			}
-			if evt.Nonce > nonce {
-				break
 			}
 			err = e.storeWriteContractEvent(address, evt)
 			if err != nil {
 				panic(err)
 			}
-			nonce = nonce + 1
 		}
 		height, err := e.rpc.GetBlockHeight()
 		if err != nil {

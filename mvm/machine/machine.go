@@ -170,6 +170,11 @@ func (m *Machine) WriteGroupEvent(pid string, out *mtg.Output, extra []byte) {
 		Timestamp: uint64(out.CreatedAt.UnixNano()),
 		Nonce:     proc.Nonce,
 	}
+	as := proc.buildAccountSnapshot(evt, true)
+	err = m.store.WriteAccountSnapshot(as)
+	if err != nil {
+		panic(err)
+	}
 	err = m.store.WritePendingGroupEventAndNonce(evt, out.UTXOID)
 	if err != nil {
 		panic(err)

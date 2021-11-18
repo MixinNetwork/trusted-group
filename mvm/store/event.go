@@ -194,8 +194,7 @@ func (bs *BadgerStore) ExpireGroupEventsWithCost(events []*encoding.Event, cost 
 }
 
 func (bs *BadgerStore) writePendingGroupEventIdentifier(txn *badger.Txn, id string, ts uint64) error {
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, ts)
+	buf := uint64Bytes(ts)
 	key := append([]byte(prefixPendingEventIdentifier), id...)
 	return txn.Set(key, buf)
 }
@@ -216,24 +215,21 @@ func (bs *BadgerStore) readPendingGroupEventIdentifier(txn *badger.Txn, id strin
 }
 
 func buildPendingEventSignaturesKey(pid string, nonce uint64) []byte {
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, nonce)
+	buf := uint64Bytes(nonce)
 	key := append([]byte(prefixPendingEventSignatures), pid...)
 	return append(key, buf...)
 }
 
 func buildPendingEventTimedKey(evt *encoding.Event) []byte {
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, evt.Timestamp)
+	buf := uint64Bytes(evt.Timestamp)
 	key := append([]byte(prefixPendingEventQueue), buf...)
 	key = append(key, evt.Process...)
-	binary.BigEndian.PutUint64(buf, evt.Nonce)
+	buf = uint64Bytes(evt.Nonce)
 	return append(key, buf...)
 }
 
 func buildSignedEventTimedKey(evt *encoding.Event) []byte {
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, evt.Nonce)
+	buf := uint64Bytes(evt.Nonce)
 	key := append([]byte(prefixSignedEventQueue), evt.Process...)
 	return append(key, buf...)
 }

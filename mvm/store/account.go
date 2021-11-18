@@ -2,12 +2,14 @@ package store
 
 import (
 	"github.com/MixinNetwork/mixin/common"
+	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/MixinNetwork/trusted-group/mvm/machine"
 	"github.com/dgraph-io/badger/v3"
 )
 
 const (
-	prefixAccountBalance = "MVM:ACCOUNT:BALANCE:"
+	prefixAccountSnapshot = "MVM:ACCOUNT:SNAPSHOT:"
+	prefixAccountBalance  = "MVM:ACCOUNT:BALANCE:"
 )
 
 func (bs *BadgerStore) ReadAccount(pid string, asset string) (*machine.Account, error) {
@@ -25,22 +27,36 @@ func (bs *BadgerStore) ReadAccount(pid string, asset string) (*machine.Account, 
 	}, nil
 }
 
-func (bs *BadgerStore) WriteAccountChange(pid string, asset string, amount common.Integer, credit bool) error {
+func (bs *BadgerStore) WriteAccountSnapshot(as *machine.AccountSnapshot) error {
 	return bs.Badger().Update(func(txn *badger.Txn) error {
-		bal, err := bs.readAccountBalance(txn, pid, asset)
+		ask := []byte(prefixAccountSnapshot + as.Process)
+		ask = append(ask, uint64Bytes(as.Nonce)...)
+		_, err := txn.Get(ask)
+		if err == nil {
+			return nil
+		} else if err != badger.ErrKeyNotFound {
+			return err
+		}
+
+		bal, err := bs.readAccountBalance(txn, as.Process, as.Asset)
 		if err != nil {
 			return err
 		}
-		if !credit && bal.Cmp(amount) < 0 {
+		if !as.Credit && bal.Cmp(as.Amount) < 0 {
 			panic(bal)
 		}
-		if credit {
-			bal = bal.Add(amount)
+		if as.Credit {
+			bal = bal.Add(as.Amount)
 		} else {
-			bal = bal.Sub(amount)
+			bal = bal.Sub(as.Amount)
 		}
-		key := buildAccountKey(pid, asset)
-		return txn.Set(key, []byte(bal.String()))
+		key := buildAccountKey(as.Process, as.Asset)
+		err = txn.Set(key, []byte(bal.String()))
+		if err != nil {
+			return err
+		}
+
+		return txn.Set(ask, encoding.JSONMarshalPanic(as))
 	})
 }
 
