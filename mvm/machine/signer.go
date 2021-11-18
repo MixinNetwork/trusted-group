@@ -3,6 +3,7 @@ package machine
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"time"
 
@@ -46,7 +47,10 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 			}
 
 			e.Signature = partial
-			err = m.messenger.SendMessage(ctx, e.Encode())
+			now := time.Now().Unix() / 60
+			threshold := make([]byte, 8)
+			binary.BigEndian.PutUint64(threshold, uint64(now))
+			err = m.messenger.SendMessage(ctx, append(e.Encode(), threshold...))
 			if err != nil {
 				panic(err)
 			}
@@ -66,7 +70,7 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 			logger.Verbosef("ReceiveMessage() => %s", err)
 			panic(err)
 		}
-		evt, err := encoding.DecodeEvent(b)
+		evt, err := encoding.DecodeEvent(b[:len(b)-8])
 		if err != nil {
 			logger.Verbosef("DecodeEvent(%s) => %s", hex.EncodeToString(b), err)
 			continue
