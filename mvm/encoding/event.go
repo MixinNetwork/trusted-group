@@ -7,10 +7,10 @@ import (
 
 //
 // MTG => VM
-// process || nonce || asset || amount || extra || members || threshold || sig
+// process || nonce || asset || amount || extra || timestamp || members || threshold || sig
 //
 // VM => MTG
-// process || nonce || asset || amount || extra || members || threshold
+// process || nonce || asset || amount || extra || timestamp || members || threshold
 //
 type Event struct {
 	Process   string
