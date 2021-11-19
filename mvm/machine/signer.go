@@ -15,6 +15,7 @@ import (
 )
 
 func (m *Machine) loopSignGroupEvents(ctx context.Context) {
+	sm := make(map[string]time.Time)
 	for {
 		time.Sleep(3 * time.Second)
 		events, err := m.store.ListPendingGroupEvents(100)
@@ -23,6 +24,7 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 		}
 		for _, e := range events {
 			e.Signature = nil
+			logger.Verbosef("loopSignGroupEvents => %v", e)
 			msg := m.engines[ProcessPlatformQuorum].Hash(e.Encode()) // FIXME
 			partials, err := m.store.ReadPendingGroupEventSignatures(e.Process, e.Nonce)
 			if err != nil {
@@ -42,17 +44,22 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 			if err != nil {
 				panic(err)
 			}
-			if checkSignedWith(partials, partial) {
+			lst := sm[hex.EncodeToString(partial)].Add(time.Minute * 3)
+			if checkSignedWith(partials, partial) && lst.After(time.Now()) {
 				continue
 			}
+			sm[hex.EncodeToString(partial)] = time.Now()
 
 			e.Signature = partial
-			now := time.Now().Unix() / 60
 			threshold := make([]byte, 8)
-			binary.BigEndian.PutUint64(threshold, uint64(now))
+			binary.BigEndian.PutUint64(threshold, uint64(lst.UnixNano()))
 			err = m.messenger.SendMessage(ctx, append(e.Encode(), threshold...))
 			if err != nil {
 				panic(err)
+			}
+
+			if checkSignedWith(partials, partial) {
+				continue
 			}
 			partials = append(partials, partial)
 			err = m.store.WritePendingGroupEventSignatures(e.Process, e.Nonce, partials)

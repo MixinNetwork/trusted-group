@@ -173,7 +173,7 @@ func (e *Engine) loopSendGroupEvents(address string) {
 		for _, evt := range evts {
 			id, raw := e.signGroupEventTransaction(address, evt, notifier)
 			res, err := e.rpc.SendRawTransaction(raw)
-			logger.Verbosef("loopSendGroupEvents => SendRawTransaction(%s, %s) => %s, %v", id, raw, res, err)
+			logger.Verbosef("loopSendGroupEvents(%s) => SendRawTransaction(%s, %s) => %s, %v", address, id, raw, res, err)
 		}
 		time.Sleep(ClockTick)
 	}
