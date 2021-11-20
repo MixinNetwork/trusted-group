@@ -82,6 +82,21 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 			logger.Verbosef("DecodeEvent(%s) => %s", hex.EncodeToString(b), err)
 			continue
 		}
+		if len(evt.Signature) == 64 {
+			sig := evt.Signature
+			evt.Signature = nil
+			err = crypto.Verify(m.poly.Commit(), evt.Encode(), sig)
+			if err != nil {
+				continue
+			}
+			evt.Signature = sig
+			err = m.store.WriteSignedGroupEventAndExpirePending(evt)
+			if err != nil {
+				panic(err)
+			}
+			continue
+		}
+
 		partials, err := m.store.ReadPendingGroupEventSignatures(evt.Process, evt.Nonce)
 		if err != nil {
 			panic(err)

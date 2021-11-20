@@ -27,6 +27,7 @@ type Store interface {
 
 type Engine interface {
 	Hash(b []byte) []byte
+	IsPublisher() bool
 	VerifyAddress(addr string, extra []byte) error
 	SetupNotifier(addr string) error
 	EstimateCost(events []*encoding.Event) (common.Integer, error)

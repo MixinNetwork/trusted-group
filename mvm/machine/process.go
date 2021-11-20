@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"time"
 
@@ -34,6 +35,7 @@ func (m *Machine) Spawn(ctx context.Context, p *Process) {
 }
 
 func (m *Machine) loopSendEvents(ctx context.Context, p *Process) {
+	sm := make(map[string]time.Time)
 	engine := m.engines[p.Platform]
 	for {
 		events, err := m.store.ListSignedGroupEvents(p.Identifier, 100)
@@ -51,6 +53,18 @@ func (m *Machine) loopSendEvents(ctx context.Context, p *Process) {
 		if p.Credit.Cmp(cost.Mul(ProcessCreditMulplifier)) < 0 {
 			time.Sleep(1 * time.Minute)
 			continue
+		}
+
+		if !engine.IsPublisher() {
+			for _, e := range events {
+				if sm[string(e.Signature)].Add(3 * time.Minute).After(time.Now()) {
+					continue
+				}
+				sm[string(e.Signature)] = time.Now()
+				threshold := make([]byte, 8)
+				binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
+				m.messenger.SendMessage(ctx, append(e.Encode(), threshold...))
+			}
 		}
 
 		err = engine.EnsureSendGroupEvents(p.Address, events)
