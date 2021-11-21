@@ -87,7 +87,8 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 		if len(evt.Signature) == 64 {
 			sig := evt.Signature
 			evt.Signature = nil
-			err = crypto.Verify(m.poly.Commit(), evt.Encode(), sig)
+			msg := m.engines[ProcessPlatformQuorum].Hash(evt.Encode()) // FIXME
+			err = crypto.Verify(m.poly.Commit(), msg, sig)
 			if err != nil {
 				continue
 			}
