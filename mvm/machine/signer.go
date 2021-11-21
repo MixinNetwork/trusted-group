@@ -105,7 +105,8 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 		}
 		if len(partials) >= m.group.GetThreshold() && sm[evt.ID()].Add(time.Minute*60).Before(time.Now()) {
 			evt.Signature = nil
-			evt.Signature = m.recoverSignature(evt.Encode(), partials)
+			msg := m.engines[ProcessPlatformQuorum].Hash(evt.Encode()) // FIXME
+			evt.Signature = m.recoverSignature(msg, partials)
 			threshold := make([]byte, 8)
 			binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
 			m.messenger.SendMessage(ctx, append(evt.Encode(), threshold...))
