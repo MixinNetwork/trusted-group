@@ -9,8 +9,10 @@ contract Refund {
   event MixinTransaction(bytes);
   event MixinEvent(bytes);
 
-  uint128 public constant PROCESS = 83008155586578811794909286433952069095;
+  uint128 public constant PROCESS = 239748118783707599249962114563903570238;
   uint64 public NONCE = 0;
+  mapping(uint128 => uint256) public custodian;
+  mapping(address => bytes) public members;
 
   // process || nonce || asset || amount || extra || timestamp || members || threshold || sig
   function mixin(bytes calldata raw) public returns (bool) {
@@ -56,6 +58,8 @@ contract Refund {
     // TODO signature verification
 
     emit MixinEvent(raw);
+    custodian[asset] = custodian[asset] + amount;
+    members[mixinSenderToAddress(sender)] = sender;
 
     bytes memory log = encodeMixinEvent(nonce, asset, amount, extra, sender);
     emit MixinTransaction(log);
@@ -63,8 +67,10 @@ contract Refund {
   }
 
   // PROCESS || nonce || asset || amount || extra || timestamp || members || threshold || sig
-  function encodeMixinEvent(uint64 nonce, uint128 asset, uint256 amount, bytes memory extra, bytes memory sender) internal pure returns (bytes memory) {
+  function encodeMixinEvent(uint64 nonce, uint128 asset, uint256 amount, bytes memory extra, bytes memory receiver) internal returns (bytes memory) {
     require(extra.length < 128, "extra too large");
+    require(custodian[asset] > amount, "insufficient custodian");
+    custodian[asset] = custodian[asset] - amount;
     bytes memory raw = uint128ToFixedBytes(PROCESS);
     raw = raw.concat(uint64ToFixedBytes(nonce));
     raw = raw.concat(uint128ToFixedBytes(asset));
@@ -74,9 +80,13 @@ contract Refund {
     raw = raw.concat(uint16ToFixedBytes(uint16(extra.length)));
     raw = raw.concat(extra);
     raw = raw.concat(new bytes(8));
-    raw = raw.concat(sender);
+    raw = raw.concat(receiver);
     raw = raw.concat(new bytes(2));
     return raw;
+  }
+
+  function mixinSenderToAddress(bytes memory sender) internal pure returns (address) {
+    return address(uint160(uint256(keccak256(sender))));
   }
 
   function uint16ToFixedBytes(uint16 x) internal pure returns (bytes memory) {
