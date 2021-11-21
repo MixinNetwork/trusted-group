@@ -1,6 +1,8 @@
 package encoding
 
 import (
+	"fmt"
+
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/gofrs/uuid"
 )
@@ -22,6 +24,10 @@ type Event struct {
 	Timestamp uint64
 	Nonce     uint64
 	Signature []byte
+}
+
+func (e *Event) ID() string {
+	return fmt.Sprintf("%s:%16x", e.Process, e.Nonce)
 }
 
 func (e *Event) Encode() []byte {

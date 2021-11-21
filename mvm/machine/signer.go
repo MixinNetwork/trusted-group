@@ -30,6 +30,7 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 			if err != nil {
 				panic(err)
 			}
+
 			if len(partials) >= m.group.GetThreshold() {
 				e.Signature = m.recoverSignature(msg, partials)
 				err = m.store.WriteSignedGroupEventAndExpirePending(e)
@@ -44,7 +45,7 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 			if err != nil {
 				panic(err)
 			}
-			lst := sm[hex.EncodeToString(partial)].Add(time.Minute * 3)
+			lst := sm[hex.EncodeToString(partial)].Add(time.Minute * 60)
 			if checkSignedWith(partials, partial) && lst.After(time.Now()) {
 				continue
 			}
@@ -71,6 +72,7 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 }
 
 func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
+	sm := make(map[string]time.Time)
 	for {
 		b, err := m.messenger.ReceiveMessage(ctx)
 		if err != nil {
@@ -100,6 +102,15 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 		partials, err := m.store.ReadPendingGroupEventSignatures(evt.Process, evt.Nonce)
 		if err != nil {
 			panic(err)
+		}
+		if len(partials) >= m.group.GetThreshold() && sm[evt.ID()].Add(time.Minute*60).Before(time.Now()) {
+			evt.Signature = nil
+			evt.Signature = m.recoverSignature(evt.Encode(), partials)
+			threshold := make([]byte, 8)
+			binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
+			m.messenger.SendMessage(ctx, append(evt.Encode(), threshold...))
+			sm[evt.ID()] = time.Now()
+			continue
 		}
 		if checkSignedWith(partials, evt.Signature) {
 			continue
