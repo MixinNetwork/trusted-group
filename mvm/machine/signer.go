@@ -77,7 +77,7 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 	sm := make(map[string]time.Time)
 	for {
-		b, err := m.messenger.ReceiveMessage(ctx)
+		_, b, err := m.messenger.ReceiveMessage(ctx)
 		if err != nil {
 			logger.Verbosef("Machine.ReceiveMessage() => %s", err)
 			panic(err)
