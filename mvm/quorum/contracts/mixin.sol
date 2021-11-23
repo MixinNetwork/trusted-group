@@ -3,13 +3,13 @@ pragma solidity >=0.8.4 <0.9.0;
 
 import {BytesLib} from './bytes.sol';
 
-contract Refund {
+contract MixinProcess {
   using BytesLib for bytes;
 
   event MixinTransaction(bytes);
   event MixinEvent(bytes);
 
-  uint128 public constant PROCESS = 239748118783707599249962114563903570238;
+  uint128 public constant PID = 239748118783707599249962114563903570238;
   uint64 public NONCE = 0;
   mapping(uint128 => uint256) public custodian;
   mapping(address => bytes) public members;
@@ -21,7 +21,7 @@ contract Refund {
     uint256 size = 0;
     uint256 offset = 0;
     uint128 process = raw.toUint128(offset);
-    require(process == PROCESS, "invalid process");
+    require(process == PID, "invalid process");
     offset = offset + 16;
 
     uint64 nonce = raw.toUint64(offset);
@@ -66,12 +66,12 @@ contract Refund {
     return true;
   }
 
-  // PROCESS || nonce || asset || amount || extra || timestamp || members || threshold || sig
+  // pid || nonce || asset || amount || extra || timestamp || members || threshold || sig
   function encodeMixinEvent(uint64 nonce, uint128 asset, uint256 amount, bytes memory extra, bytes memory receiver) internal returns (bytes memory) {
     require(extra.length < 128, "extra too large");
     require(custodian[asset] > amount, "insufficient custodian");
     custodian[asset] = custodian[asset] - amount;
-    bytes memory raw = uint128ToFixedBytes(PROCESS);
+    bytes memory raw = uint128ToFixedBytes(PID);
     raw = raw.concat(uint64ToFixedBytes(nonce));
     raw = raw.concat(uint128ToFixedBytes(asset));
     (bytes memory ab, uint16 al) = uint256ToVarBytes(amount);
