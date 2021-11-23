@@ -89,6 +89,12 @@ func (e *Engine) SetupNotifier(address string) error {
 		panic(err)
 	}
 	notifier := hex.EncodeToString(crypto.FromECDSA(key))
+	nonce, err := e.rpc.GetAddressNonce(pub(notifier))
+	if err != nil {
+		panic(err)
+	} else if nonce > 0 {
+		return fmt.Errorf("notifier used %d", nonce)
+	}
 	old := e.storeReadContractNotifier(address)
 	if old == notifier {
 		return nil
