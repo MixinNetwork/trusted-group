@@ -7,7 +7,7 @@ members = [
 ]
 # now the threshold can only be members.length * 2 / 3 + 1
 threshold = 3
-timestamp = 1637689527905062572
+timestamp = 1637699415378769097
 
 [mtg.app]
 client-id = ""

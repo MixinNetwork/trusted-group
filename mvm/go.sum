@@ -39,8 +39,8 @@ github.com/DATA-DOG/go-sqlmock v1.3.3/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q
 github.com/DataDog/zstd v1.4.1/go.mod h1:1jcaCB/ufaK+sKp1NBhlGmpz41jOoPQ35bpF36t7BBo=
 github.com/MixinNetwork/mixin v0.13.10-0.20211123201641-8b4b66152817 h1:9RCla7wu52FIh3q6GoiWokkrpX9MFNqJhfUd8AkYug8=
 github.com/MixinNetwork/mixin v0.13.10-0.20211123201641-8b4b66152817/go.mod h1:2BOgsB8+mxpZQ+imEcqnrELOkgSLIPzzyxbjZmctupk=
-github.com/MixinNetwork/nfo v0.0.5 h1:SiMjM8TWFxSH+g/JhXs5qd3//KnQ2P0WNclgPq0EN7g=
-github.com/MixinNetwork/nfo v0.0.5/go.mod h1:7huzND+A99yEqpVXy/5/tOX8+bMhIM7WjWJKmNP1IPs=
+github.com/MixinNetwork/nfo v0.0.6-0.20211123202437-ce9c9213492d h1:46m/WdOPqlh7GBaM5iU3KVZX2RL69aPOhb01ul3grQY=
+github.com/MixinNetwork/nfo v0.0.6-0.20211123202437-ce9c9213492d/go.mod h1:7huzND+A99yEqpVXy/5/tOX8+bMhIM7WjWJKmNP1IPs=
 github.com/MixinNetwork/tip v0.0.0-20211120220859-b403025abb7d h1:avBXu8p50mlrma3UGQTFwnseNzNcUNNHJ9ih4SWle58=
 github.com/MixinNetwork/tip v0.0.0-20211120220859-b403025abb7d/go.mod h1:bAOCj1DfULDK+1nr78gr2uB9C8VGz23tLUiJHPoBUHA=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
