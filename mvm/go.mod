@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/MixinNetwork/mixin v0.13.10-0.20211117144244-82be7924ca4b
-	github.com/MixinNetwork/nfo v0.0.5-0.20211123154953-570a8201cc7a
+	github.com/MixinNetwork/nfo v0.0.5-0.20211123174146-b73ce23f9141
 	github.com/MixinNetwork/tip v0.0.0-20210723184622-79e10f05d16e
 	github.com/dgraph-io/badger/v3 v3.2103.2
 	github.com/drand/kyber v1.1.6
