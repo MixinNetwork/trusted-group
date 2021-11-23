@@ -48,7 +48,7 @@ func (e *Engine) signTransaction(to string, key string, amount decimal.Decimal, 
 	amt := amount.Mul(decimal.New(1, etherPrecision)).BigInt()
 	tx := types.NewTransaction(nonce, address, amt, GasLimit, gasPrice, data)
 	params := params.MainnetChainConfig
-	params.ChainID = big.NewInt(ChainID)
+	params.ChainID = big.NewInt(e.chainId)
 	signer := types.MakeSigner(params, params.EIP155Block)
 	tx, err = types.SignTx(tx, signer, ecdsaPriv)
 	if err != nil {

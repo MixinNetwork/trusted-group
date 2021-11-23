@@ -24,19 +24,20 @@ const (
 	ContractAgeLimit = 16
 	GasLimit         = 1000000
 	GasPrice         = 100000000000
-	ChainID          = 83927
 )
 
 type Configuration struct {
 	Store      string `toml:"store"`
 	RPC        string `toml:"rpc"`
+	ChainId    int64  `toml:"chain"`
 	PrivateKey string `toml:"key"`
 }
 
 type Engine struct {
-	db  *badger.DB
-	rpc *RPC
-	key string
+	db      *badger.DB
+	rpc     *RPC
+	chainId int64
+	key     string
 }
 
 func Boot(conf *Configuration) (*Engine, error) {
@@ -45,7 +46,7 @@ func Boot(conf *Configuration) (*Engine, error) {
 	if err != nil {
 		return nil, err
 	}
-	e := &Engine{db: db, rpc: rpc}
+	e := &Engine{db: db, rpc: rpc, chainId: conf.ChainId}
 	if conf.PrivateKey != "" {
 		priv, err := crypto.HexToECDSA(conf.PrivateKey)
 		if err != nil {
