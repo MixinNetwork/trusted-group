@@ -2,7 +2,7 @@
 
 Based on the Mixin Trusted Group technology, it's possible to make a huge MTG network that allows developers to deploy smart contracts without building their own groups. This network can be run by many nodes with some kind of PoS consensus rules, thus it could provide better reputation than every small trusted group.
 
-The network doesn't run any smart contract virtual machines, instead it needs to work with existing networks, e.g. Ethereum, EOS or Solana. Let's assume the smart contract network is Ethereum, the idea is pretty straitforward.
+The network doesn't run any smart contract virtual machines, instead it needs to work with existing networks, e.g. Ethereum, EOS or Solana. Let's assume the smart contract network is Ethereum, the idea is pretty straightforward.
 
 1. The group receives a transaction from some Mixin Messenger users.
 2. The group should invoke the group contract on Ethereum, all according to some registered rules in the transaction extra field.
