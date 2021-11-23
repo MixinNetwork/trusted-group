@@ -102,6 +102,9 @@ func (bs *BadgerStore) ReadPendingGroupEventSignatures(pid string, nonce uint64)
 	if err != nil {
 		return nil, err
 	}
+	if len(val) == 64 {
+		return [][]byte{val}, nil
+	}
 	sigs := make([][]byte, len(val)/66)
 	for i := 0; i < len(sigs); i++ {
 		sigs[i] = val[i*66 : (i+1)*66]
@@ -125,8 +128,16 @@ func (bs *BadgerStore) WritePendingGroupEventSignatures(pid string, nonce uint64
 
 func (bs *BadgerStore) WriteSignedGroupEventAndExpirePending(event *encoding.Event) error {
 	return bs.Badger().Update(func(txn *badger.Txn) error {
+		if len(event.Signature) != 64 {
+			panic(hex.EncodeToString(event.Signature))
+		}
 		pending := buildPendingEventTimedKey(event)
 		err := txn.Delete(pending)
+		if err != nil {
+			return err
+		}
+		ps := buildPendingEventSignaturesKey(event.Process, event.Nonce)
+		err = txn.Set(ps, event.Signature)
 		if err != nil {
 			return err
 		}

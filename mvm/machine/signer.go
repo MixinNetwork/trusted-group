@@ -24,13 +24,16 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 		}
 		for _, e := range events {
 			e.Signature = nil
-			logger.Verbosef("loopSignGroupEvents => %v", e)
+			logger.Verbosef("Machine.loopSignGroupEvents() => %v", e)
 			msg := m.engines[ProcessPlatformQuorum].Hash(e.Encode()) // FIXME
 			partials, err := m.store.ReadPendingGroupEventSignatures(e.Process, e.Nonce)
 			if err != nil {
 				panic(err)
 			}
 
+			if checkFullSignature(partials) {
+				continue
+			}
 			if len(partials) >= m.group.GetThreshold() {
 				e.Signature = m.recoverSignature(msg, partials)
 				err = m.store.WriteSignedGroupEventAndExpirePending(e)
@@ -76,7 +79,7 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 	for {
 		b, err := m.messenger.ReceiveMessage(ctx)
 		if err != nil {
-			logger.Verbosef("ReceiveMessage() => %s", err)
+			logger.Verbosef("Machine.ReceiveMessage() => %s", err)
 			panic(err)
 		}
 		evt, err := encoding.DecodeEvent(b[:len(b)-8])
@@ -104,14 +107,14 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 		if err != nil {
 			panic(err)
 		}
-		if len(partials) >= m.group.GetThreshold() && sm[evt.ID()].Add(time.Minute*60).Before(time.Now()) {
-			evt.Signature = nil
-			msg := m.engines[ProcessPlatformQuorum].Hash(evt.Encode()) // FIXME
-			evt.Signature = m.recoverSignature(msg, partials)
-			threshold := make([]byte, 8)
-			binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
-			m.messenger.SendMessage(ctx, append(evt.Encode(), threshold...))
-			sm[evt.ID()] = time.Now()
+		if checkFullSignature(partials) {
+			if sm[evt.ID()].Add(time.Minute * 60).Before(time.Now()) {
+				evt.Signature = partials[0]
+				threshold := make([]byte, 8)
+				binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
+				m.messenger.SendMessage(ctx, append(evt.Encode(), threshold...))
+				sm[evt.ID()] = time.Now()
+			}
 			continue
 		}
 		if checkSignedWith(partials, evt.Signature) {
@@ -145,4 +148,8 @@ func checkSignedWith(partials [][]byte, s []byte) bool {
 		}
 	}
 	return false
+}
+
+func checkFullSignature(partials [][]byte) bool {
+	return len(partials) == 1 && len(partials[0]) == 64
 }
