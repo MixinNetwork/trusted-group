@@ -69,7 +69,7 @@ contract MixinProcess {
   // pid || nonce || asset || amount || extra || timestamp || members || threshold || sig
   function encodeMixinEvent(uint64 nonce, uint128 asset, uint256 amount, bytes memory extra, bytes memory receiver) internal returns (bytes memory) {
     require(extra.length < 128, "extra too large");
-    require(custodian[asset] > amount, "insufficient custodian");
+    require(custodian[asset] >= amount, "insufficient custodian");
     custodian[asset] = custodian[asset] - amount;
     bytes memory raw = uint128ToFixedBytes(PID);
     raw = raw.concat(uint64ToFixedBytes(nonce));
