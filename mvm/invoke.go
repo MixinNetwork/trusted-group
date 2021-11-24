@@ -15,6 +15,7 @@ import (
 	"github.com/MixinNetwork/trusted-group/mvm/machine"
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/gofrs/uuid"
+	"github.com/mdp/qrterminal"
 	"github.com/shopspring/decimal"
 	"github.com/urfave/cli/v2"
 )
@@ -90,6 +91,8 @@ func invokeProcessCmd(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("mixin://codes/" + pay.CodeID)
+	url := "mixin://codes/" + pay.CodeID
+	fmt.Println(url)
+	qrterminal.GenerateHalfBlock(url, qrterminal.H, os.Stdout)
 	return nil
 }
