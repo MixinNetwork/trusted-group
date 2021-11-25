@@ -21,19 +21,17 @@ const (
 
 type Process struct {
 	Identifier string
-	Platform   string
 	Address    string
 	Credit     common.Integer
 	Nonce      uint64
 }
 
 func (m *Machine) Spawn(ctx context.Context, p *Process) {
-	logger.Verbosef("Spawn(%s, %s, %s, %d)", p.Identifier, p.Platform, p.Address, p.Nonce)
+	logger.Verbosef("Spawn(%s, %s, %s, %d)", p.Identifier, p.Address, p.Nonce)
 	go m.loopSendEvents(ctx, p)
 }
 
 func (m *Machine) loopSendEvents(ctx context.Context, p *Process) {
-	engine := m.engines[p.Platform]
 	for {
 		events, err := m.store.ListSignedGroupEvents(p.Identifier, 100)
 		if err != nil {
@@ -43,7 +41,7 @@ func (m *Machine) loopSendEvents(ctx context.Context, p *Process) {
 			time.Sleep(5 * time.Second)
 			continue
 		}
-		cost, err := engine.EstimateCost(events)
+		cost, err := m.engine.EstimateCost(events)
 		if err != nil {
 			panic(err)
 		}
@@ -52,7 +50,7 @@ func (m *Machine) loopSendEvents(ctx context.Context, p *Process) {
 			continue
 		}
 
-		err = engine.EnsureSendGroupEvents(p.Address, events)
+		err = m.engine.EnsureSendGroupEvents(p.Address, events)
 		if err != nil {
 			panic(err)
 		}
@@ -66,15 +64,14 @@ func (m *Machine) loopSendEvents(ctx context.Context, p *Process) {
 	}
 }
 
-func (m *Machine) loopReceiveEvents(ctx context.Context, platform string) {
-	engine := m.engines[platform]
+func (m *Machine) loopReceiveEvents(ctx context.Context) {
 	processed := make(map[string]bool)
 	for {
-		offset, err := m.store.ReadEngineGroupEventsOffset(platform)
+		offset, err := m.store.ReadEngineGroupEventsOffset()
 		if err != nil {
 			panic(err)
 		}
-		events, err := engine.ReceiveGroupEvents(offset)
+		events, err := m.engine.ReceiveGroupEvents(offset)
 		if err != nil {
 			time.Sleep(3 * time.Second)
 			continue
@@ -103,7 +100,7 @@ func (m *Machine) loopReceiveEvents(ctx context.Context, platform string) {
 				panic(err)
 			}
 		}
-		err = m.store.WriteEngineGroupEventsOffset(platform, offset+1)
+		err = m.store.WriteEngineGroupEventsOffset(offset + 1)
 		if err != nil {
 			panic(err)
 		}

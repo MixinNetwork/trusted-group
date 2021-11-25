@@ -18,8 +18,8 @@ type Store interface {
 	CheckAccountSnapshot(as *AccountSnapshot) (bool, error)
 	WriteAccountSnapshot(as *AccountSnapshot) error
 
-	ReadEngineGroupEventsOffset(platform string) (uint64, error)
-	WriteEngineGroupEventsOffset(platform string, offset uint64) error
+	ReadEngineGroupEventsOffset() (uint64, error)
+	WriteEngineGroupEventsOffset(offset uint64) error
 
 	ListProcesses() ([]*Process, error)
 	WriteProcess(p *Process) error

@@ -34,7 +34,8 @@ type Machine struct {
 	share     *share.PriShare
 	poly      *share.PubPoly
 	messenger messenger.Messenger
-	engines   map[string]Engine
+	platform  string
+	engine    Engine
 	processes map[string]*Process
 	mutex     *sync.Mutex
 }
@@ -59,16 +60,13 @@ func Boot(conf *Configuration, group *mtg.Group, store Store, m messenger.Messen
 		share:     share,
 		poly:      poly,
 		messenger: m,
-		engines:   make(map[string]Engine),
 		processes: make(map[string]*Process),
 		mutex:     new(sync.Mutex),
 	}, nil
 }
 
 func (m *Machine) Loop(ctx context.Context) {
-	for p := range m.engines {
-		go m.loopReceiveEvents(ctx, p)
-	}
+	go m.loopReceiveEvents(ctx)
 	processes, err := m.store.ListProcesses()
 	if err != nil {
 		panic(err)
@@ -88,7 +86,8 @@ func (m *Machine) SetEngine(platform string, engine Engine) {
 		return
 	}
 
-	m.engines[platform] = engine
+	m.platform = platform
+	m.engine = engine
 }
 
 func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address string, out *mtg.Output, extra []byte) {
@@ -107,9 +106,8 @@ func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address 
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	engine := m.engines[platform]
-	if engine == nil {
-		logger.Verbosef("AddProcess(%s, %s, %s) => engine %s", pid, platform, address, platform)
+	if m.platform != platform {
+		logger.Verbosef("AddProcess(%s, %s, %s) => engine %s", pid, platform, address, m.platform)
 		return
 	}
 	for _, old := range m.processes {
@@ -123,19 +121,18 @@ func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address 
 		}
 	}
 
-	err := engine.VerifyAddress(address, extra)
+	err := m.engine.VerifyAddress(address, extra)
 	if err != nil {
 		logger.Verbosef("VerifyAddress(%s) => %s", address, err)
 		return
 	}
-	err = engine.SetupNotifier(address)
+	err = m.engine.SetupNotifier(address)
 	if err != nil {
 		logger.Verbosef("SetupNotifier(%s) => %s", address, err)
 		return
 	}
 	proc := &Process{
 		Identifier: out.Sender,
-		Platform:   platform,
 		Address:    address,
 		Credit:     common.Zero,
 		Nonce:      0,

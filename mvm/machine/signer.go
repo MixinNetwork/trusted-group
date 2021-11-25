@@ -25,7 +25,7 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 		for _, e := range events {
 			e.Signature = nil
 			logger.Verbosef("Machine.loopSignGroupEvents() => %v", e)
-			msg := m.engines[ProcessPlatformQuorum].Hash(e.Encode()) // FIXME
+			msg := m.engine.Hash(e.Encode()) // FIXME
 			partials, err := m.store.ReadPendingGroupEventSignatures(e.Process, e.Nonce)
 			if err != nil {
 				panic(err)
@@ -90,7 +90,7 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 		if len(evt.Signature) == 64 {
 			sig := evt.Signature
 			evt.Signature = nil
-			msg := m.engines[ProcessPlatformQuorum].Hash(evt.Encode()) // FIXME
+			msg := m.engine.Hash(evt.Encode()) // FIXME
 			err = crypto.Verify(m.poly.Commit(), msg, sig)
 			if err != nil {
 				continue
