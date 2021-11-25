@@ -30,7 +30,6 @@ type Process struct {
 func (m *Machine) Spawn(ctx context.Context, p *Process) {
 	logger.Verbosef("Spawn(%s, %s, %s, %d)", p.Identifier, p.Platform, p.Address, p.Nonce)
 	go m.loopSendEvents(ctx, p)
-	go m.loopReceiveEvents(ctx, p)
 }
 
 func (m *Machine) loopSendEvents(ctx context.Context, p *Process) {
@@ -67,57 +66,54 @@ func (m *Machine) loopSendEvents(ctx context.Context, p *Process) {
 	}
 }
 
-func (m *Machine) loopReceiveEvents(ctx context.Context, p *Process) {
-	engine := m.engines[p.Platform]
-	processed := make(map[uint64]bool)
+func (m *Machine) loopReceiveEvents(ctx context.Context, platform string) {
+	engine := m.engines[platform]
+	processed := make(map[string]bool)
 	for {
-		offset, err := m.store.ReadEngineGroupEventsOffset(p.Identifier)
+		offset, err := m.store.ReadEngineGroupEventsOffset(platform)
 		if err != nil {
 			panic(err)
 		}
-		events, err := engine.ReceiveGroupEvents(p.Address, offset, 100)
+		events, err := engine.ReceiveGroupEvents(offset)
 		if err != nil {
-			time.Sleep(1 * time.Minute)
+			time.Sleep(3 * time.Second)
 			continue
 		}
 		for _, e := range events {
-			if processed[e.Nonce] {
+			if processed[e.ID()] {
 				continue
 			}
-			as := p.buildAccountSnapshot(e, false)
+			as := buildAccountSnapshot(e, false)
 			enough, err := m.store.CheckAccountSnapshot(as)
 			if err != nil {
 				panic(err)
 			} else if !enough {
-				logger.Verbosef("Process(%s, %d) => balance %s %s", p.Identifier, p.Nonce, e.Asset, e.Amount)
+				logger.Verbosef("Process(%s, %d) => balance %s %s", e.Process, e.Nonce, e.Asset, e.Amount)
 				time.Sleep(1 * time.Minute)
 				break
 			}
-			processed[e.Nonce] = true
+			processed[e.ID()] = true
 			err = m.store.WriteAccountSnapshot(as)
 			if err != nil {
 				panic(err)
 			}
 
-			err = p.buildGroupTransaction(ctx, m.group, e)
-			if err != nil {
-				panic(err)
-			}
-			err = m.store.WriteEngineGroupEventsOffset(p.Identifier, e.Nonce)
+			err = buildGroupTransaction(ctx, m.group, e)
 			if err != nil {
 				panic(err)
 			}
 		}
-		if len(events) < 100 {
-			time.Sleep(5 * time.Second)
+		err = m.store.WriteEngineGroupEventsOffset(platform, offset+1)
+		if err != nil {
+			panic(err)
 		}
 	}
 }
 
-func (p *Process) buildGroupTransaction(ctx context.Context, group *mtg.Group, evt *encoding.Event) error {
-	traceId := mixin.UniqueConversationID(group.GenesisId(), fmt.Sprintf("%s:EVENT#%d", p.Identifier, evt.Nonce))
+func buildGroupTransaction(ctx context.Context, group *mtg.Group, evt *encoding.Event) error {
+	traceId := mixin.UniqueConversationID(group.GenesisId(), fmt.Sprintf("%s:EVENT#%d", evt.Process, evt.Nonce))
 	logger.Verbosef("Process(%s, %d) => buildGroupTransaction(%s, %v, %d, %s) => %s",
-		p.Identifier, evt.Nonce, evt.Asset, evt.Members, evt.Threshold, evt.Amount, traceId)
+		evt.Process, evt.Nonce, evt.Asset, evt.Members, evt.Threshold, evt.Amount, traceId)
 	amount := evt.Amount.String()
 	memo := base64.RawURLEncoding.EncodeToString(evt.Extra)
 	return group.BuildTransaction(ctx, evt.Asset, evt.Members, evt.Threshold, amount, memo, traceId)

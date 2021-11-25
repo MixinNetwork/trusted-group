@@ -126,9 +126,8 @@ func (chain *RPC) GetAddressBalance(address string) (decimal.Decimal, error) {
 	return ethereumNumberToDecimal(resp.Result)
 }
 
-func (chain *RPC) GetLogs(address, topic string, from, to uint64) ([][]byte, error) {
+func (chain *RPC) GetLogs(topic string, from, to uint64) ([][]byte, error) {
 	body, err := chain.call("eth_getLogs", []interface{}{map[string]interface{}{
-		"address":   address,
 		"topics":    []string{topic},
 		"fromBlock": fmt.Sprintf("0x%x", from),
 		"toBlock":   fmt.Sprintf("0x%x", to),

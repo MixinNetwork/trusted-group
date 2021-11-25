@@ -66,6 +66,9 @@ func Boot(conf *Configuration, group *mtg.Group, store Store, m messenger.Messen
 }
 
 func (m *Machine) Loop(ctx context.Context) {
+	for p := range m.engines {
+		go m.loopReceiveEvents(ctx, p)
+	}
 	processes, err := m.store.ListProcesses()
 	if err != nil {
 		panic(err)
@@ -78,12 +81,13 @@ func (m *Machine) Loop(ctx context.Context) {
 	m.loopSignGroupEvents(ctx)
 }
 
-func (m *Machine) AddEngine(platform string, engine Engine) {
+func (m *Machine) SetEngine(platform string, engine Engine) {
 	switch platform {
 	case ProcessPlatformQuorum:
 	default:
 		return
 	}
+
 	m.engines[platform] = engine
 }
 
@@ -170,7 +174,7 @@ func (m *Machine) WriteGroupEvent(pid string, out *mtg.Output, extra []byte) {
 		Timestamp: uint64(out.CreatedAt.UnixNano()),
 		Nonce:     proc.Nonce,
 	}
-	as := proc.buildAccountSnapshot(evt, true)
+	as := buildAccountSnapshot(evt, true)
 	err = m.store.WriteAccountSnapshot(as)
 	if err != nil {
 		panic(err)
