@@ -82,6 +82,7 @@ func (m *Machine) Loop(ctx context.Context) {
 func (m *Machine) SetEngine(platform string, engine Engine) {
 	switch platform {
 	case ProcessPlatformQuorum:
+	case ProcessPlatformEos:
 	default:
 		return
 	}
@@ -131,6 +132,7 @@ func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address 
 		logger.Verbosef("SetupNotifier(%s) => %s", address, err)
 		return
 	}
+	m.engine.AddProcess(out.Sender, address)
 	proc := &Process{
 		Identifier: out.Sender,
 		Address:    address,

@@ -29,6 +29,7 @@ type Engine interface {
 	Hash(b []byte) []byte
 	VerifyAddress(addr string, extra []byte) error
 	SetupNotifier(addr string) error
+	AddProcess(id, address string) error
 	EstimateCost(events []*encoding.Event) (common.Integer, error)
 	EnsureSendGroupEvents(address string, events []*encoding.Event) error
 	ReceiveGroupEvents(offset uint64) ([]*encoding.Event, error)

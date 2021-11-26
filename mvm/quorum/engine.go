@@ -104,6 +104,10 @@ func (e *Engine) SetupNotifier(address string) error {
 	return e.storeWriteContractNotifier(address, notifier)
 }
 
+func (e *Engine) AddProcess(id, address string) error {
+	return nil
+}
+
 func (e *Engine) EstimateCost(events []*encoding.Event) (common.Integer, error) {
 	// TODO should do it
 	return common.Zero, nil

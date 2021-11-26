@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	ProcessPlatformQuorum = "quorum"
-
+	ProcessPlatformQuorum   = "quorum"
+	ProcessPlatformEos      = "eos"
 	ProcessCreditMulplifier = 10
 )
 

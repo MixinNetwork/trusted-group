@@ -209,7 +209,7 @@ func (e *Engine) ReceiveGroupEvents(block uint64) ([]*encoding.Event, error) {
 			continue
 		}
 
-		evt := convertTxRequestToEvent(notify)
+		evt := convertTxRequestToEvent(txLog)
 		// evt, err := encoding.DecodeEvent(b)
 		logger.Verbosef("loopGetLogs(%s) => DecodeEvent(%x) => %v, %v", e.mixinContract, b, evt, err)
 		if err != nil {

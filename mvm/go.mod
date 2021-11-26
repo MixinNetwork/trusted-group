@@ -6,6 +6,7 @@ require (
 	github.com/MixinNetwork/mixin v0.13.10-0.20211123201641-8b4b66152817
 	github.com/MixinNetwork/nfo v0.0.6-0.20211123202437-ce9c9213492d
 	github.com/MixinNetwork/tip v0.0.0-20211120220859-b403025abb7d
+	github.com/akamensky/base58 v0.0.0-20210829145138-ce8bf8802e8f
 	github.com/dgraph-io/badger/v3 v3.2103.2
 	github.com/drand/kyber v1.1.7
 	github.com/ethereum/go-ethereum v1.10.13
@@ -15,6 +16,7 @@ require (
 	github.com/pelletier/go-toml v1.9.4
 	github.com/shopspring/decimal v1.3.1
 	github.com/urfave/cli/v2 v2.3.0
+	golang.org/x/crypto v0.0.0-20211108221036-ceb1ce70b4fa
 )
 
 require (
@@ -49,7 +51,6 @@ require (
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
 	go.dedis.ch/fixbuf v1.0.3 // indirect
 	go.opencensus.io v0.22.5 // indirect
-	golang.org/x/crypto v0.0.0-20211108221036-ceb1ce70b4fa // indirect
 	golang.org/x/net v0.0.0-20210805182204-aaa1db679c0d // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
 	golang.org/x/sys v0.0.0-20210816183151-1e6c022a8912 // indirect
