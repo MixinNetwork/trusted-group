@@ -31,6 +31,12 @@ func main() {
 						Value:   "~/.mixin/mvm/data",
 						Usage:   "The database directory path",
 					},
+					&cli.StringFlag{
+						Name:    "platform",
+						Aliases: []string{"p"},
+						Value:   "quorum",
+						Usage:   `platform: quorum or eos`,
+					},
 				},
 			},
 			{
@@ -87,6 +93,12 @@ func main() {
 						Name:    "process",
 						Aliases: []string{"p"},
 						Usage:   "The app ID",
+					},
+					&cli.StringFlag{
+						Name:    "amount",
+						Aliases: []string{"a"},
+						Value:   "0.123",
+						Usage:   "asset amount",
 					},
 					&cli.StringFlag{
 						Name:    "extra",

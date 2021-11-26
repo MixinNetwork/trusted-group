@@ -79,9 +79,15 @@ func invokeProcessCmd(c *cli.Context) error {
 		Process: c.String("process"),
 		Extra:   []byte(c.String("extra")),
 	}
+
+	amount, err := decimal.NewFromString(c.String("amount"))
+	if err != nil {
+		panic(err)
+	}
+
 	input := mixin.TransferInput{
 		AssetID: machine.ProcessRegistrationAssetId,
-		Amount:  decimal.NewFromFloat(0.123),
+		Amount:  amount,
 		TraceID: trace.String(),
 	}
 	input.OpponentMultisig.Receivers = conf.MTG.Genesis.Members
