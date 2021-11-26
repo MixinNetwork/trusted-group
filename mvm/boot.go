@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os/user"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/MixinNetwork/nfo/mtg"
 	"github.com/MixinNetwork/tip/messenger"
 	"github.com/MixinNetwork/trusted-group/mvm/config"
+	"github.com/MixinNetwork/trusted-group/mvm/eos"
 	"github.com/MixinNetwork/trusted-group/mvm/machine"
 	"github.com/MixinNetwork/trusted-group/mvm/quorum"
 	"github.com/MixinNetwork/trusted-group/mvm/store"
@@ -50,15 +52,28 @@ func bootCmd(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	en, err := quorum.Boot(conf.Quorum)
-	if err != nil {
-		return err
-	}
 	im, err := machine.Boot(conf.Machine, group, db, messenger)
 	if err != nil {
 		return err
 	}
-	im.SetEngine(machine.ProcessPlatformQuorum, en)
+
+	platform := c.String("platform")
+	if platform == machine.ProcessPlatformQuorum {
+		en, err := quorum.Boot(conf.Quorum)
+		if err != nil {
+			return err
+		}
+		im.SetEngine(machine.ProcessPlatformQuorum, en)
+	} else if platform == machine.ProcessPlatformEos {
+		en, err := eos.Boot(conf.Eos)
+		if err != nil {
+			return err
+		}
+		im.SetEngine(machine.ProcessPlatformEos, en)
+	} else {
+		return cli.Exit(fmt.Errorf("unsupported platform %s", platform), 1)
+	}
+
 	go im.Loop(ctx)
 
 	group.AddWorker(im)
