@@ -18,8 +18,8 @@ type Store interface {
 	CheckAccountSnapshot(as *AccountSnapshot) (bool, error)
 	WriteAccountSnapshot(as *AccountSnapshot) error
 
-	ReadEngineGroupEventsOffset() (uint64, error)
-	WriteEngineGroupEventsOffset(offset uint64) error
+	ReadEngineGroupEventsOffset(pid string) (uint64, error)
+	WriteEngineGroupEventsOffset(pid string, offset uint64) error
 
 	ListProcesses() ([]*Process, error)
 	WriteProcess(p *Process) error
@@ -31,5 +31,5 @@ type Engine interface {
 	SetupNotifier(addr string) error
 	EstimateCost(events []*encoding.Event) (common.Integer, error)
 	EnsureSendGroupEvents(address string, events []*encoding.Event) error
-	ReceiveGroupEvents(offset uint64) ([]*encoding.Event, error)
+	ReceiveGroupEvents(address string, offset uint64, limit int) ([]*encoding.Event, error)
 }

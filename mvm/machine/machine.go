@@ -34,8 +34,7 @@ type Machine struct {
 	share     *share.PriShare
 	poly      *share.PubPoly
 	messenger messenger.Messenger
-	platform  string
-	engine    Engine
+	engines   map[string]Engine
 	processes map[string]*Process
 	mutex     *sync.Mutex
 }
@@ -60,13 +59,13 @@ func Boot(conf *Configuration, group *mtg.Group, store Store, m messenger.Messen
 		share:     share,
 		poly:      poly,
 		messenger: m,
+		engines:   make(map[string]Engine),
 		processes: make(map[string]*Process),
 		mutex:     new(sync.Mutex),
 	}, nil
 }
 
 func (m *Machine) Loop(ctx context.Context) {
-	go m.loopReceiveEvents(ctx)
 	processes, err := m.store.ListProcesses()
 	if err != nil {
 		panic(err)
@@ -79,15 +78,13 @@ func (m *Machine) Loop(ctx context.Context) {
 	m.loopSignGroupEvents(ctx)
 }
 
-func (m *Machine) SetEngine(platform string, engine Engine) {
+func (m *Machine) AddEngine(platform string, engine Engine) {
 	switch platform {
 	case ProcessPlatformQuorum:
 	default:
 		return
 	}
-
-	m.platform = platform
-	m.engine = engine
+	m.engines[platform] = engine
 }
 
 func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address string, out *mtg.Output, extra []byte) {
@@ -106,8 +103,9 @@ func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address 
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	if m.platform != platform {
-		logger.Verbosef("AddProcess(%s, %s, %s) => engine %s", pid, platform, address, m.platform)
+	engine := m.engines[platform]
+	if engine == nil {
+		logger.Verbosef("AddProcess(%s, %s, %s) => engine %s", pid, platform, address, platform)
 		return
 	}
 	for _, old := range m.processes {
@@ -121,18 +119,19 @@ func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address 
 		}
 	}
 
-	err := m.engine.VerifyAddress(address, extra)
+	err := engine.VerifyAddress(address, extra)
 	if err != nil {
 		logger.Verbosef("VerifyAddress(%s) => %s", address, err)
 		return
 	}
-	err = m.engine.SetupNotifier(address)
+	err = engine.SetupNotifier(address)
 	if err != nil {
 		logger.Verbosef("SetupNotifier(%s) => %s", address, err)
 		return
 	}
 	proc := &Process{
 		Identifier: out.Sender,
+		Platform:   platform,
 		Address:    address,
 		Credit:     common.Zero,
 		Nonce:      0,
@@ -171,7 +170,7 @@ func (m *Machine) WriteGroupEvent(pid string, out *mtg.Output, extra []byte) {
 		Timestamp: uint64(out.CreatedAt.UnixNano()),
 		Nonce:     proc.Nonce,
 	}
-	as := buildAccountSnapshot(evt, true)
+	as := proc.buildAccountSnapshot(evt, true)
 	err = m.store.WriteAccountSnapshot(as)
 	if err != nil {
 		panic(err)

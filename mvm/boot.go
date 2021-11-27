@@ -58,7 +58,7 @@ func bootCmd(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	im.SetEngine(machine.ProcessPlatformQuorum, en)
+	im.AddEngine(machine.ProcessPlatformQuorum, en)
 	go im.Loop(ctx)
 
 	group.AddWorker(im)

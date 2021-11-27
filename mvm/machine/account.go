@@ -13,12 +13,9 @@ type AccountSnapshot struct {
 	Credit  bool
 }
 
-func buildAccountSnapshot(e *encoding.Event, credit bool) *AccountSnapshot {
-	if e.Process == "" {
-		panic(e)
-	}
+func (p *Process) buildAccountSnapshot(e *encoding.Event, credit bool) *AccountSnapshot {
 	return &AccountSnapshot{
-		Process: e.Process,
+		Process: p.Identifier,
 		Nonce:   e.Nonce,
 		Asset:   e.Asset,
 		Amount:  e.Amount,
