@@ -10,7 +10,7 @@ import (
 
 const (
 	prefixProcessPayload          = "MVM:PROCESS:PAYLOAD:"
-	prefixEngineGroupEventsOffset = "MVM:ENGINE:GROUP:EVENTS:OFFSET"
+	prefixEngineGroupEventsOffset = "MVM:ENGINE:GROUP:EVENTS:OFFSET:"
 )
 
 func (bs *BadgerStore) ReadEngineGroupEventsOffset(pid string) (uint64, error) {

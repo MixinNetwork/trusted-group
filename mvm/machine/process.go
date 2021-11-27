@@ -84,6 +84,9 @@ func (m *Machine) loopReceiveEvents(ctx context.Context, p *Process) {
 			if processed[e.Nonce] {
 				continue
 			}
+			if e.Amount.Sign() <= 0 {
+				continue
+			}
 			as := p.buildAccountSnapshot(e, false)
 			enough, err := m.store.CheckAccountSnapshot(as)
 			if err != nil {

@@ -14,6 +14,9 @@ type AccountSnapshot struct {
 }
 
 func (p *Process) buildAccountSnapshot(e *encoding.Event, credit bool) *AccountSnapshot {
+	if p.Identifier != e.Process {
+		panic(e.Process)
+	}
 	return &AccountSnapshot{
 		Process: p.Identifier,
 		Nonce:   e.Nonce,
