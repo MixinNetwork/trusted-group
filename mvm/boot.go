@@ -61,6 +61,7 @@ func bootCmd(c *cli.Context) error {
 	im.AddEngine(machine.ProcessPlatformQuorum, en)
 	go im.Loop(ctx)
 
+	group.SetOutputGrouper(machine.OutputGrouper)
 	group.AddWorker(im)
 	group.Run(ctx)
 

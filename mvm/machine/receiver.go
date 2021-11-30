@@ -10,7 +10,7 @@ import (
 )
 
 func (m *Machine) ProcessOutput(ctx context.Context, out *mtg.Output) {
-	op, err := m.parseOperation(out.Memo)
+	op, err := parseOperation(out.Memo)
 	if err != nil {
 		logger.Verbosef("parseOperation(%s) => %s", out.Memo, err)
 		return
@@ -26,7 +26,7 @@ func (m *Machine) ProcessOutput(ctx context.Context, out *mtg.Output) {
 func (m *Machine) ProcessCollectibleOutput(context.Context, *mtg.CollectibleOutput) {
 }
 
-func (m *Machine) parseOperation(memo string) (*encoding.Operation, error) {
+func parseOperation(memo string) (*encoding.Operation, error) {
 	b, err := base64.RawURLEncoding.DecodeString(memo)
 	if err != nil {
 		return nil, err
