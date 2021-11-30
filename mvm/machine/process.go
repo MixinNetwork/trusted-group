@@ -81,6 +81,9 @@ func (m *Machine) loopReceiveEvents(ctx context.Context, p *Process) {
 			continue
 		}
 		for _, e := range events {
+			if e.Process != p.Identifier {
+				continue
+			}
 			if processed[e.Nonce] {
 				continue
 			}
@@ -118,10 +121,13 @@ func (m *Machine) loopReceiveEvents(ctx context.Context, p *Process) {
 }
 
 func (p *Process) buildGroupTransaction(ctx context.Context, group *mtg.Group, evt *encoding.Event) error {
+	if p.Identifier != evt.Process {
+		panic(evt)
+	}
 	traceId := mixin.UniqueConversationID(group.GenesisId(), fmt.Sprintf("%s:EVENT#%d", p.Identifier, evt.Nonce))
 	logger.Verbosef("Process(%s, %d) => buildGroupTransaction(%s, %v, %d, %s) => %s",
 		p.Identifier, evt.Nonce, evt.Asset, evt.Members, evt.Threshold, evt.Amount, traceId)
 	amount := evt.Amount.String()
 	memo := base64.RawURLEncoding.EncodeToString(evt.Extra)
-	return group.BuildTransaction(ctx, evt.Asset, evt.Members, evt.Threshold, amount, memo, traceId)
+	return group.BuildTransaction(ctx, evt.Asset, evt.Members, evt.Threshold, amount, memo, traceId, p.Identifier)
 }
