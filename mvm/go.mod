@@ -4,13 +4,13 @@ go 1.17
 
 require (
 	github.com/MixinNetwork/mixin v0.13.10-0.20211130090246-732558212cef
-	github.com/MixinNetwork/nfo v0.0.7
+	github.com/MixinNetwork/nfo v0.0.8-0.20211130170107-c6f437bcd087
 	github.com/MixinNetwork/tip v0.0.0-20211120220859-b403025abb7d
 	github.com/dgraph-io/badger/v3 v3.2103.2
 	github.com/drand/kyber v1.1.7
 	github.com/ethereum/go-ethereum v1.10.13
 	github.com/fox-one/mixin-sdk-go v1.5.5
-	github.com/gofrs/uuid v4.1.0+incompatible
+	github.com/gofrs/uuid v4.2.0+incompatible
 	github.com/mdp/qrterminal v1.0.1
 	github.com/pelletier/go-toml v1.9.4
 	github.com/shopspring/decimal v1.3.1

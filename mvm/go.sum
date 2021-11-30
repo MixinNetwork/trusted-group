@@ -39,8 +39,8 @@ github.com/DATA-DOG/go-sqlmock v1.3.3/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q
 github.com/DataDog/zstd v1.4.1/go.mod h1:1jcaCB/ufaK+sKp1NBhlGmpz41jOoPQ35bpF36t7BBo=
 github.com/MixinNetwork/mixin v0.13.10-0.20211130090246-732558212cef h1:1IOWty25Eq3n4WlKzxTFx/qqIl/1ik+4IqootDS9zcQ=
 github.com/MixinNetwork/mixin v0.13.10-0.20211130090246-732558212cef/go.mod h1:2BOgsB8+mxpZQ+imEcqnrELOkgSLIPzzyxbjZmctupk=
-github.com/MixinNetwork/nfo v0.0.7 h1:CnxOj3q9f06fJrBSVBDO6qFZviBjmqbdKUGsgptIZ64=
-github.com/MixinNetwork/nfo v0.0.7/go.mod h1:7huzND+A99yEqpVXy/5/tOX8+bMhIM7WjWJKmNP1IPs=
+github.com/MixinNetwork/nfo v0.0.8-0.20211130170107-c6f437bcd087 h1:CvgHxpqzDxc282VhcnGCqGLhRvSRa7eMykr9mXSel04=
+github.com/MixinNetwork/nfo v0.0.8-0.20211130170107-c6f437bcd087/go.mod h1:+iGFkTqFT3+tu8yHBNWx3CBnYysjACNtJTASVGKGnh8=
 github.com/MixinNetwork/tip v0.0.0-20211120220859-b403025abb7d h1:avBXu8p50mlrma3UGQTFwnseNzNcUNNHJ9ih4SWle58=
 github.com/MixinNetwork/tip v0.0.0-20211120220859-b403025abb7d/go.mod h1:bAOCj1DfULDK+1nr78gr2uB9C8VGz23tLUiJHPoBUHA=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
@@ -188,8 +188,9 @@ github.com/go-sql-driver/mysql v1.4.1/go.mod h1:zAC/RDZ24gD3HViQzih4MyKcchzm+sOG
 github.com/go-stack/stack v1.8.0/go.mod h1:v0f6uXyyMGvRgIKkXu+yp6POWl0qKG85gN/melR3HDY=
 github.com/gofrs/uuid v3.3.0+incompatible/go.mod h1:b2aQJv3Z4Fp6yNu3cdSllBxTCLRxnplIgP/c0N/04lM=
 github.com/gofrs/uuid v4.0.0+incompatible/go.mod h1:b2aQJv3Z4Fp6yNu3cdSllBxTCLRxnplIgP/c0N/04lM=
-github.com/gofrs/uuid v4.1.0+incompatible h1:sIa2eCvUTwgjbqXrPLfNwUf9S3i3mpH1O1atV+iL/Wk=
 github.com/gofrs/uuid v4.1.0+incompatible/go.mod h1:b2aQJv3Z4Fp6yNu3cdSllBxTCLRxnplIgP/c0N/04lM=
+github.com/gofrs/uuid v4.2.0+incompatible h1:yyYWMnhkhrKwwr8gAOcOCYxOOscHgDS9yZgBrnJfGa0=
+github.com/gofrs/uuid v4.2.0+incompatible/go.mod h1:b2aQJv3Z4Fp6yNu3cdSllBxTCLRxnplIgP/c0N/04lM=
 github.com/gogo/protobuf v1.1.1/go.mod h1:r8qH/GZQm5c6nD/R0oafs1akxWv10x8SbQlK7atdtwQ=
 github.com/gogo/protobuf v1.3.1/go.mod h1:SlYgWuQ5SjCEi6WLHjHCa1yvBfUnHcTbrrZtXPKa29o=
 github.com/gogo/protobuf v1.3.2 h1:Ov1cvc58UF3b5XjBnZv7+opcTcQFZebYjWzi34vdm4Q=
