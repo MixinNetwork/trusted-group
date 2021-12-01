@@ -9,7 +9,9 @@ contract MixinProcess {
   event MixinTransaction(bytes);
   event MixinEvent(bytes);
 
-  uint128 public constant PID = 239748118783707599249962114563903570238;
+  // PID is the app id in Mixin which the contract will process, e.g. c6d0c728-2624-429b-8e0d-d9d19b6592fa
+  // The app id will add 0x as prefix and delete '-'
+  uint128 public constant PID = 0xc6d0c7282624429b8e0dd9d19b6592fa;
   uint64 public NONCE = 0;
   mapping(uint128 => uint256) public custodian;
   mapping(address => bytes) public members;
