@@ -1,0 +1,1 @@
+pidof mvm | xargs kill

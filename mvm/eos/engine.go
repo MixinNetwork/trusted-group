@@ -1,55 +1,120 @@
 package eos
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/nfo/mtg"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 
 	"github.com/MixinNetwork/trusted-group/mvm/eos/chain"
+	"github.com/MixinNetwork/trusted-group/mvm/eos/secp256k1"
 	"github.com/dgraph-io/badger/v3"
 	"github.com/ethereum/go-ethereum/crypto"
 	// "github.com/uuosio/go-uuoskit/uuoskit"
 )
 
 const (
-	KEY_NONCE     = 1
-	TX_LOG_ACTION = "ontxlog"
-	ClockTick     = 3 * time.Second
+	KEY_NONCE               = 1
+	MIXIN_CONTRACT_SEQUENCE = 1
+	TX_LOG_ACTION           = "ontxlog"
+	ClockTick               = 3 * time.Second
+	DEBUG                   = true
 )
 
 type Configuration struct {
-	Store         string `toml:"store"`
-	RPC           string `toml:"rpc"`
-	PrivateKey    string `toml:"key"`
-	MixinContract string `toml:"mixin_contract"`
+	Store         string   `toml:"store"`
+	RPC           string   `toml:"rpc"`
+	PrivateKey    string   `toml:"key"`
+	MixinContract string   `toml:"mixin_contract"`
+	ChainId       string   `toml:"chain_id"`
+	PublicKeys    []string `toml:"public_keys"`
+	Publisher     bool     `toml:"publisher"`
 }
 
 type Engine struct {
 	db            *badger.DB
 	rpc           *chain.ChainApi
-	key           string
 	mixinContract string
+	chainId       *chain.Bytes32
+	key           *secp256k1.PrivateKey
+	publicKeys    []*secp256k1.PublicKey
+	publisher     bool
+	threshold     int
 }
 
-func Boot(conf *Configuration) (*Engine, error) {
+func Boot(conf *Configuration, threshold int) (*Engine, error) {
+	if threshold <= 0 {
+		panic(fmt.Errorf("invalid threshold value %d", threshold))
+	}
+
 	rpc := chain.NewChainApi(conf.RPC)
 	db := openBadger(conf.Store)
-	e := &Engine{db: db, rpc: rpc, key: conf.PrivateKey, mixinContract: conf.MixinContract}
-	if e.key != "" {
+	if conf.ChainId == "" {
+		panic("chain_id not specified!")
+	}
+	_chainId, err := chain.NewBytes32FromHex(conf.ChainId)
+	if err != nil {
+		panic(fmt.Errorf("Invalid chain id: %s", conf.ChainId))
+	}
+
+	key, err := secp256k1.NewPrivateKeyFromBase58(conf.PrivateKey)
+	if err != nil {
+		panic(fmt.Errorf("Invalid private key: %s", conf.PrivateKey))
+	}
+
+	pubs := make([]*secp256k1.PublicKey, 0, len(conf.PublicKeys))
+	for _, pub := range conf.PublicKeys {
+		_pub, err := secp256k1.NewPublicKeyFromBase58(pub)
+		if err != nil {
+			panic(fmt.Errorf("Invalid public key: %s", pub))
+		}
+		pubs = append(pubs, _pub)
+	}
+
+	if conf.MixinContract == "" {
+		panic("mixin contract not specified!")
+	}
+	logger.Verbosef("++++conf.Publisher: %v", conf.Publisher)
+	e := &Engine{
+		db:            db,
+		rpc:           rpc,
+		mixinContract: conf.MixinContract,
+		chainId:       _chainId,
+		key:           key,
+		publicKeys:    pubs,
+		publisher:     conf.Publisher,
+		threshold:     threshold,
+	}
+
+	if e.key != nil {
 		chain.GetWallet().Import("test", conf.PrivateKey)
 	}
 	go e.loopHandleContracts()
+	go e.loopContractEvents()
 	return e, nil
 }
 
 func (e *Engine) Hash(b []byte) []byte {
 	return crypto.Keccak256(b)
+}
+
+func (e *Engine) SignTx(address string, event *encoding.Event) ([]byte, error) {
+	logger.Verbosef("+++++++SignTx chain id: %s", e.chainId.HexString())
+	tx, err := BuildEventTransaction(e.mixinContract, address, event)
+	if err != nil {
+		return nil, err
+	}
+	signature, err := tx.Sign(e.key, e.chainId)
+	if err != nil {
+		return nil, err
+	}
+	return signature.Data[:], nil
 }
 
 func (e *Engine) VerifyAddress(addr string, extra []byte) error {
@@ -71,7 +136,7 @@ func (e *Engine) VerifyAddress(addr string, extra []byte) error {
 }
 
 func (e *Engine) SetupNotifier(address string) error {
-	notifier := e.key
+	notifier := e.key.String()
 	if notifier == "" {
 		notifier = address
 	}
@@ -84,22 +149,36 @@ func (e *Engine) SetupNotifier(address string) error {
 	return e.storeWriteContractNotifier(address, notifier)
 }
 
-func (e *Engine) AddProcess(id, address string) error {
-	if !e.IsPublisher() {
-		return nil
+func (e *Engine) VerifyEvent(address string, event *encoding.Event) bool {
+	logger.Verbosef("+++++++verifyEvent")
+	tx, err := BuildEventTransaction(e.mixinContract, address, event)
+	if err != nil {
+		return false
 	}
 
-	_id := chain.Uint128{}
-	copy(_id[:], uuidToBytes(id))
-	action := chain.NewAction(
-		chain.PermissionLevel{Actor: chain.NewName(e.mixinContract), Permission: chain.NewName("active")},
-		chain.NewName(e.mixinContract),
-		chain.NewName("addprocess"),
-		chain.NewName(address),
-		&_id,
-	)
-	e.rpc.PushAction(action)
-	return nil
+	signature := secp256k1.NewSignature(event.Signature)
+	digest := tx.Id(e.chainId)
+	pub, err := secp256k1.Recover(digest[:], signature)
+	if err != nil {
+		logger.Verbosef("VerifyEvent: secp256k1.Recover(%v, %v) => %v", digest[:], signature, err)
+		return false
+	}
+	logger.Verbosef("+++++++++Recover public key: %s", pub.StringEOS())
+	for _, pk := range e.publicKeys {
+		if bytes.Compare(pk.Data[:], pub.Data[:]) == 0 {
+			return true
+		}
+	}
+	logger.Verbosef("VerifyEvent return false, %s not found!", pub.StringEOS())
+	return false
+}
+
+func (e *Engine) VerifyMTGTx(pid string, out *mtg.Output, extra []byte) bool {
+	if len(extra) < 24 {
+		logger.Verbosef("VerifyMTGTx: invalid reference block")
+		return false
+	}
+	return true
 }
 
 func (e *Engine) EstimateCost(events []*encoding.Event) (common.Integer, error) {
@@ -110,26 +189,44 @@ func (e *Engine) EnsureSendGroupEvents(address string, events []*encoding.Event)
 	return e.storeWriteGroupEvents(address, events)
 }
 
-func (e *Engine) ReceiveGroupEvents(block uint64) ([]*encoding.Event, error) {
-	events := make([]*encoding.Event, 0, 1)
+func (e *Engine) loopContractEvents() {
+	for {
+		count, err := e.PullContractEvent()
+		if err != nil {
+			logger.Verbosef("PullContractEvent return error: %v", err)
+		}
+		if count == 0 {
+			time.Sleep(ClockTick)
+		}
+	}
+}
+
+func (e *Engine) PullContractEvent() (int, error) {
+	seq, err := e.GetTxRequestSequence()
+	if err != nil {
+		return 0, err
+	}
 	offset := e.storeReadContractLogsOffset(e.mixinContract)
+	logger.Verbosef("+++++++PullContractEvent seq: %d, offset: %d", seq, offset)
+
 	r, err := e.rpc.GetActions(e.mixinContract, int(offset), 10)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	actions, err := r.GetArray("actions")
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	if len(actions) == 0 {
-		return nil, errors.New("no new action record")
+		return 0, nil
 	}
 
 	logger.Verbosef("ReceiveGroupEvents offset %d, actions size:%d", offset, len(actions))
 
 	lastIndex := uint64(0)
+	count := 0
 	for _, action := range actions {
 		obj, ok := chain.NewJsonObjectFromInterface(action)
 		if !ok {
@@ -138,85 +235,92 @@ func (e *Engine) ReceiveGroupEvents(block uint64) ([]*encoding.Event, error) {
 
 		seq, err := obj.GetUint64("account_action_seq")
 		if err != nil {
-			continue
+			panic(err)
 		}
 		lastIndex = seq
 
-		receiver, err := obj.GetString("action_trace", "receiver")
-		if err != nil {
-			continue
-		}
-		if receiver != e.mixinContract {
-			continue
-		}
 		actionObj, err := obj.GetJsonObject("action_trace", "act")
 		if err != nil {
-			continue
-		}
-		account, err := actionObj.GetString("account")
-		if err != nil {
-			continue
-		}
-		if account != e.mixinContract {
-			continue
+			panic(err)
 		}
 
-		action_name, err := actionObj.GetString("name")
-		if err != nil {
-			continue
-		}
-		if action_name != TX_LOG_ACTION {
-			continue
-		}
+		if DEBUG {
+			receiver, err := obj.GetString("action_trace", "receiver")
+			if err != nil {
+				panic(err)
+			}
 
-		actor, err := actionObj.GetString("authorization", 0, "actor")
-		if err != nil {
-			continue
-		}
+			if receiver != e.mixinContract {
+				panic(fmt.Errorf("receiver not match: expected: %s, got: %s", e.mixinContract, receiver))
+			}
 
-		if actor != e.mixinContract {
-			continue
-		}
+			account, err := actionObj.GetString("account")
+			if err != nil {
+				panic(err)
+			}
+			if account != e.mixinContract {
+				panic("Invalid main account")
+			}
 
-		permission, err := actionObj.GetString("authorization", 0, "permission")
-		if err != nil {
-			continue
-		}
-		if permission != "active" {
-			continue
+			action_name, err := actionObj.GetString("name")
+			if err != nil {
+				panic(err)
+			}
+			if action_name != TX_LOG_ACTION {
+				panic(fmt.Errorf("Invalid action name, expected: %s, got: %s", TX_LOG_ACTION, action_name))
+			}
+
+			actor, err := actionObj.GetString("authorization", 0, "actor")
+			if err != nil {
+				panic(err)
+			}
+
+			if actor != e.mixinContract {
+				panic(fmt.Errorf("Invalid permission actor, expected: %s, got: %s", e.mixinContract, actor))
+			}
+
+			permission, err := actionObj.GetString("authorization", 0, "permission")
+			if err != nil {
+				panic(err)
+			}
+			if permission != "active" {
+				panic(fmt.Errorf("Invalid permission, expected: active, got: %s", permission))
+			}
 		}
 
 		data, err := actionObj.GetString("hex_data")
 		if err != nil {
 			data, err = actionObj.GetString("data")
 			if err != nil {
-				continue
+				panic(err)
 			}
 		}
 
 		b, err := hex.DecodeString(data)
 		if err != nil {
-			continue
+			panic(err)
 		}
 		txLog := &TxLog{}
 		size, err := txLog.Unpack(b)
 		if err != nil {
-			continue
+			panic(err)
 		}
 
 		if size != len(b) {
-			logger.Verbosef("txLog.Unpack: binary size does not as expected: %d, got %d", len(b), size)
-			continue
+			panic(fmt.Errorf("txLog.Unpack: binary size mismatch: %d, got %d", size, len(b)))
 		}
 
-		evt := convertTxRequestToEvent(txLog)
+		evt := convertTxLogToEvent(txLog)
 		// evt, err := encoding.DecodeEvent(b)
 		logger.Verbosef("loopGetLogs(%s) => DecodeEvent(%x) => %v, %v", e.mixinContract, b, evt, err)
 		if err != nil {
-			continue
+			panic(err)
 		}
-		events = append(events, evt)
-		//FIXME: check if process id belongs to contract
+		err = e.storeWriteContractEvent(txLog.contract.String(), evt)
+		if err != nil {
+			panic(err)
+		}
+		count += 1
 	}
 
 	//FIXME: consensus on last finished tx request index
@@ -224,11 +328,50 @@ func (e *Engine) ReceiveGroupEvents(block uint64) ([]*encoding.Event, error) {
 	// 	e.clearFinishedTxRequest(e.mixinContract, lastIndex)
 	// }
 	e.storeWriteContractLogsOffset(e.mixinContract, lastIndex+1)
-	return events, nil
+	return count, nil
+}
+
+func (e *Engine) ReceiveGroupEvents(address string, offset uint64, limit int) ([]*encoding.Event, error) {
+	return e.storeListContractEvents(address, offset, limit)
 }
 
 func (e *Engine) IsPublisher() bool {
-	return e.key != ""
+	return e.publisher
+}
+
+func (e *Engine) GetTxRequestSequence() (uint64, error) {
+	key := fmt.Sprintf("%d", MIXIN_CONTRACT_SEQUENCE)
+	result, err := e.rpc.GetTableRows(
+		false,           //json bool,
+		e.mixinContract, //code string,
+		e.mixinContract, //scope string,
+		"counters",      //table string,
+		key,             //lowerbound string,
+		key,             //upperbound string,
+		10,              //limit int,
+		"i64",           //keyType string,
+		1,               //indexPosition int
+		false,           //reverse bool,
+		false,           //showPayer bool,
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	nonce, err := result.GetString("rows", 0)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(nonce) != 32 {
+		return 0, fmt.Errorf("bad nonce value")
+	}
+
+	b, err := hex.DecodeString(nonce)
+	if err != nil {
+		return 0, err
+	}
+	return binary.LittleEndian.Uint64(b[8:]), nil
 }
 
 func (e *Engine) GetAddressNonce(address string) (uint64, error) {
@@ -250,7 +393,6 @@ func (e *Engine) GetAddressNonce(address string) (uint64, error) {
 		return 0, err
 	}
 
-	// logger.Verbosef("+++++address: %s, result: %v", address, result)
 	nonce, err := result.GetString("rows", 0)
 	if err != nil {
 		return 0, err
@@ -268,7 +410,6 @@ func (e *Engine) GetAddressNonce(address string) (uint64, error) {
 }
 
 func (e *Engine) loopSendGroupEvents(address string) {
-	logger.Verbosef("Engine.loopSendGroupEvents(%s)", address)
 	for e.IsPublisher() {
 		time.Sleep(ClockTick)
 		nonce, err := e.GetAddressNonce(address)
@@ -276,6 +417,7 @@ func (e *Engine) loopSendGroupEvents(address string) {
 			logger.Verbosef("+++GetAddressNonce(%v) => %v", address, err)
 			nonce = 0
 		}
+		logger.Verbosef("Engine.loopSendGroupEvents, address: %s nonce: %d", address, nonce)
 
 		evts, err := e.storeListGroupEvents(address, nonce, 100)
 		if err != nil {
@@ -283,7 +425,7 @@ func (e *Engine) loopSendGroupEvents(address string) {
 		}
 		for _, evt := range evts {
 			err := e.pushEvent(address, evt, true)
-			logger.Verbosef("pushEvent(%v, %v) => (err: %v)", address, evt, err)
+			logger.Verbosef("pushEvent => (err: %v)", err)
 			//TODO: refund on error
 			if err != nil {
 			}
@@ -313,23 +455,11 @@ func (e *Engine) loopHandleContracts() {
 	}
 }
 
-func (e *Engine) pushEvent(address string, evt *encoding.Event, good bool) error {
-	var actionName chain.Name
-	if good {
-		actionName = chain.NewName("onevent")
-	} else {
-		actionName = chain.NewName("onbadevent")
-	}
-	action := chain.NewAction(
-		chain.PermissionLevel{Actor: chain.NewName(e.mixinContract), Permission: chain.NewName("active")},
-		chain.NewName(address),
-		actionName,
-	)
-
+func convertEventToTxEvent(evt *encoding.Event) (*TxEvent, error) {
 	process := uuidToBytes(evt.Process)
 	asset := uuidToBytes(evt.Asset)
 
-	txEvent := TxEvent{}
+	txEvent := &TxEvent{}
 
 	txEvent.nonce = evt.Nonce
 
@@ -343,7 +473,7 @@ func (e *Engine) pushEvent(address string, evt *encoding.Event, good bool) error
 
 	amount, err := evt.Amount.MarshalMsgpack()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	amount = reverseBytes(amount)
 	//FIXME: amount overflow
@@ -352,11 +482,26 @@ func (e *Engine) pushEvent(address string, evt *encoding.Event, good bool) error
 	txEvent.extra = evt.Extra
 	txEvent.timestamp = evt.Timestamp
 	txEvent.signature = evt.Signature
+	return txEvent, nil
+}
 
-	action.Data = txEvent.Pack()
-	r, err := e.rpc.PushAction(action)
+func (e *Engine) pushEvent(address string, evt *encoding.Event, good bool) error {
+	tx, err := BuildEventTransaction(e.mixinContract, address, evt)
 	if err != nil {
-		logger.Verbosef("++++++PushAction => err: %v", err)
+		return err
+	}
+
+	if len(evt.Signature)/65 < e.threshold {
+		return fmt.Errorf("not enough signatures")
+	}
+
+	signatures := make([]string, 0, e.threshold)
+	for i := 0; i < e.threshold; i += 1 {
+		sign := secp256k1.NewSignature(evt.Signature[i*65 : (i+1)*65])
+		signatures = append(signatures, sign.String())
+	}
+	r, err := e.rpc.PushTransaction(tx, signatures, false)
+	if err != nil {
 		return err
 	}
 	console, err := r.GetString("processed", "action_traces", 0, "console")

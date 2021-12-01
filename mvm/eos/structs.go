@@ -32,7 +32,10 @@ func (t *TxEvent) Pack() []byte {
 	enc.WriteBytes(t.amount[:])
 	enc.PackBytes(t.extra)
 	enc.PackUint64(t.timestamp)
-	enc.PackBytes(t.signature)
+
+	//ignore signature for now
+	enc.WriteUint8(uint8(0))
+	//enc.PackBytes(t.signature)
 	return enc.GetBytes()
 }
 
@@ -96,18 +99,10 @@ func (t *TxEvent) Unpack(data []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	{
-		length, err := dec.UnpackLength()
-		if err != nil {
-			return 0, err
-		}
-		t.signature = make([]byte, length)
-		for i := 0; i < length; i++ {
-			t.signature[i], err = dec.UnpackUint8()
-			if err != nil {
-				return 0, err
-			}
-		}
+
+	t.signature, err = dec.UnpackBytes()
+	if err != nil {
+		return 0, err
 	}
 
 	return dec.Pos(), nil

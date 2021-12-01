@@ -10,6 +10,31 @@ import (
 	"time"
 )
 
+type Bytes32 [32]byte
+
+func NewBytes32(v []byte) *Bytes32 {
+	if len(v) != 32 {
+		panic("invalid bytes length")
+	}
+	ret := &Bytes32{}
+	copy(ret[:], v)
+	return ret
+}
+
+func NewBytes32FromHex(s string) (*Bytes32, error) {
+	bs, err := hex.DecodeString(s)
+	if err != nil {
+		return nil, err
+	}
+	ret := &Bytes32{}
+	copy(ret[:], bs)
+	return ret, err
+}
+
+func (t *Bytes32) HexString() string {
+	return hex.EncodeToString(t[:])
+}
+
 type Bytes []byte
 
 func (t Bytes) MarshalJSON() ([]byte, error) {
@@ -248,7 +273,7 @@ func NewJsonObjectFromInterface(obj interface{}) (JsonObject, bool) {
 	return JsonObject(_obj), true
 }
 
-//return string, []JsonObject, or map[string]JsonObject
+//return string, []JsonObject, or map[string]interface{}
 func (b JsonObject) Get(keys ...interface{}) (interface{}, error) {
 	if len(keys) == 0 {
 		return nil, newErrorf("empty keys")

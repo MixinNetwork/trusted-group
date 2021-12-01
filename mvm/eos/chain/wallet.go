@@ -46,7 +46,7 @@ func (w *Wallet) GetPrivateKey(pubKey string) (*secp256k1.PrivateKey, error) {
 	return priv, nil
 }
 
-func (w *Wallet) Sign(digest []byte, pubKey string) (*secp256k1.Signature, error) {
+func (w *Wallet) Sign(digest *Bytes32, pubKey string) (*secp256k1.Signature, error) {
 	pub, err := secp256k1.NewPublicKeyFromBase58(pubKey)
 	if err != nil {
 		return nil, newError(err)
@@ -56,7 +56,7 @@ func (w *Wallet) Sign(digest []byte, pubKey string) (*secp256k1.Signature, error
 	if !ok {
 		return nil, newErrorf("not found")
 	}
-	sig, err := priv.Sign(digest)
+	sig, err := priv.Sign(digest[:])
 	if err != nil {
 		return nil, newError(err)
 	}

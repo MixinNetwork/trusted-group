@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os/user"
 	"path/filepath"
 	"strings"
@@ -57,22 +56,17 @@ func bootCmd(c *cli.Context) error {
 		return err
 	}
 
-	platform := c.String("platform")
-	if platform == machine.ProcessPlatformQuorum {
-		en, err := quorum.Boot(conf.Quorum)
-		if err != nil {
-			return err
-		}
-		im.SetEngine(machine.ProcessPlatformQuorum, en)
-	} else if platform == machine.ProcessPlatformEos {
-		en, err := eos.Boot(conf.Eos)
-		if err != nil {
-			return err
-		}
-		im.SetEngine(machine.ProcessPlatformEos, en)
-	} else {
-		return cli.Exit(fmt.Errorf("unsupported platform %s", platform), 1)
+	en, err := quorum.Boot(conf.Quorum)
+	if err != nil {
+		return err
 	}
+	im.AddEngine(machine.ProcessPlatformQuorum, en)
+
+	enEos, err := eos.Boot(conf.Eos, group.GetThreshold())
+	if err != nil {
+		return err
+	}
+	im.AddEngine(machine.ProcessPlatformEos, enEos)
 
 	go im.Loop(ctx)
 

@@ -10,14 +10,14 @@ import (
 
 const (
 	prefixProcessPayload          = "MVM:PROCESS:PAYLOAD:"
-	prefixEngineGroupEventsOffset = "MVM:ENGINE:GROUP:EVENTS:OFFSET"
+	prefixEngineGroupEventsOffset = "MVM:ENGINE:GROUP:EVENTS:OFFSET:"
 )
 
-func (bs *BadgerStore) ReadEngineGroupEventsOffset() (uint64, error) {
+func (bs *BadgerStore) ReadEngineGroupEventsOffset(pid string) (uint64, error) {
 	txn := bs.Badger().NewTransaction(false)
 	defer txn.Discard()
 
-	key := []byte(prefixEngineGroupEventsOffset)
+	key := append([]byte(prefixEngineGroupEventsOffset), pid...)
 	item, err := txn.Get(key)
 	if err == badger.ErrKeyNotFound {
 		return 0, nil
@@ -28,9 +28,9 @@ func (bs *BadgerStore) ReadEngineGroupEventsOffset() (uint64, error) {
 	return binary.BigEndian.Uint64(val), err
 }
 
-func (bs *BadgerStore) WriteEngineGroupEventsOffset(offset uint64) error {
+func (bs *BadgerStore) WriteEngineGroupEventsOffset(pid string, offset uint64) error {
 	buf := uint64Bytes(offset)
-	key := []byte(prefixEngineGroupEventsOffset)
+	key := append([]byte(prefixEngineGroupEventsOffset), pid...)
 	return bs.Badger().Update(func(txn *badger.Txn) error {
 		return txn.Set(key, buf)
 	})

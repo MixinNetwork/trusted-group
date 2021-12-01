@@ -1,6 +1,7 @@
 package secp256k1
 
 /*
+//go wrapper for https://github.com/ElementsProject/secp256k1-zkp
 #cgo CFLAGS: -I./libsecp256k1-zkp
 #cgo CFLAGS: -I./libsecp256k1-zkp/include
 #cgo CFLAGS: -I./libsecp256k1-zkp/src/
@@ -263,6 +264,9 @@ func NewPrivateKeyFromBase58(strPriv string) (*PrivateKey, error) {
 		return nil, err
 	}
 
+	if len(seed) != 37 {
+		return nil, errors.New("Invalid private key")
+	}
 	hash := sha256.New()
 	hash.Write(seed[:33])
 	digest := hash.Sum(nil)
@@ -328,6 +332,9 @@ type Signature struct {
 }
 
 func NewSignature(sig []byte) *Signature {
+	if len(sig) != 65 {
+		panic("Invalid signature length")
+	}
 	s := &Signature{}
 	copy(s.Data[:], sig)
 	return s

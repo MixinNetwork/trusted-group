@@ -8,6 +8,12 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/trusted-group/mvm/eos/chain"
+	"github.com/stretchr/testify/assert"
+)
+
+const (
+	MTG_XIN_CONTRACT  = "mtgxinmtgxin"
+	TX_REQUEST_ACTION = "txrequest"
 )
 
 func TestGetTable(t *testing.T) {
@@ -49,10 +55,10 @@ func TestGetTable(t *testing.T) {
 		if err != nil {
 			continue
 		}
-		notify := &TxRequest{}
+		notify := &TxLog{}
 		notify.Unpack(b)
 		t.Logf("+++++++++notify.id: %d\n", notify.id)
-		evt := convertTxRequestToEvent(notify)
+		evt := convertTxLogToEvent(notify)
 		// evt, err := encoding.DecodeEvent(b)
 		t.Logf("%v", evt)
 	}
@@ -218,4 +224,12 @@ func TestGetActions(t *testing.T) {
 		notify.Unpack(b)
 		t.Logf("%v", notify)
 	}
+}
+
+func TestGetAccount(t *testing.T) {
+	api := chain.NewChainApi("http://127.0.0.1:9000")
+	r, err := api.GetAccount("notexists")
+	assert := assert.New(t)
+	assert.NotNil(err)
+	t.Logf("%v", r)
 }

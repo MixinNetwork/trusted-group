@@ -560,10 +560,10 @@ func (enc *Encoder) Pack(i interface{}) error {
 		enc.WriteInt64(v)
 	case uint64:
 		enc.WriteUint64(v)
-	// case Uint128:
-	// 	enc.PackBytes(v[:])
-	// case Uint256:
-	// 	enc.PackBytes(v[:])
+	case Uint128:
+		enc.PackBytes(v[:])
+	case Uint256:
+		enc.PackBytes(v[:])
 	case float32:
 		enc.PackFloat32(v)
 	case float64:

@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/MixinNetwork/tip/logger"
+	"github.com/MixinNetwork/mixin/logger"
 )
 
 type GetTableRowsArgs struct {
@@ -135,12 +135,13 @@ func (t *Rpc) GetTableRows(args *GetTableRowsArgs) (JsonObject, error) {
 	return NewJsonObjectFromBytes(r)
 }
 
-func (t *Rpc) PushTransaction(packedTx *PackedTransaction) (JsonObject, error) {
+func (t *Rpc) PushTransaction(tx *Transaction, signatures []string, compress bool) (JsonObject, error) {
+	packedTx := NewPackedTransaction(tx, signatures, false)
 	_packedTx, err := json.Marshal(packedTx)
 	if err != nil {
 		return nil, err
 	}
-	logger.Verbose("Packed transaction: %s", string(_packedTx))
+	logger.Verbosef("Packed transaction: %s", string(_packedTx))
 	r, err := t.Call("chain", "push_transaction", _packedTx)
 	if err != nil {
 		return nil, err

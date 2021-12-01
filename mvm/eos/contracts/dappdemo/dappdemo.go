@@ -36,7 +36,7 @@ func (c *Contract) OnEvent(event *TxEvent) {
 		notify := TxRequest{
 			nonce:     id,
 			contract:  c.self,
-			process:   event.process,
+			process:   PROCESS_ID,
 			asset:     event.asset,
 			members:   event.members,
 			threshold: event.threshold,
@@ -95,19 +95,14 @@ func (c *Contract) ClearFinishedRequests(lastFinishedRequest uint64) {
 }
 
 //action clearnonce
-func (c *Contract) ClearNonce() {
-	key := uint64(KEY_NONCE)
-	db := NewCounterDB(c.self, c.self)
-	if it := db.Find(key); it.IsOk() {
-		chain.Println("++++it:", it.I)
-		db.Remove(it)
-	}
-}
-
-//action sayhello
-func (c *Contract) SayHello(name string) {
-	chain.Println("Hello, ", name)
-}
+// func (c *Contract) ClearNonce() {
+// 	key := uint64(KEY_NONCE)
+// 	db := NewCounterDB(c.self, c.self)
+// 	if it := db.Find(key); it.IsOk() {
+// 		chain.Println("++++it:", it.I)
+// 		db.Remove(it)
+// 	}
+// }
 
 func (c *Contract) GetNextIndex(key uint64, initialValue uint64) uint64 {
 	db := NewCounterDB(c.self, c.self)

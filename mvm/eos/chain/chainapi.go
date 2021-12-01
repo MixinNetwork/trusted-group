@@ -15,7 +15,14 @@ func NewChainApi(rpcUrl string) *ChainApi {
 }
 
 func (api *ChainApi) GetAccount(name string) (JsonObject, error) {
-	return api.rpc.GetAccount(&GetAccountArgs{AccountName: name})
+	ret, err := api.rpc.GetAccount(&GetAccountArgs{AccountName: name})
+	if err != nil {
+		return nil, newError(err)
+	}
+	if _, err := ret.Get("error"); err == nil {
+		return ret, newErrorf(ret.ToString())
+	}
+	return ret, nil
 }
 
 func (api *ChainApi) GetTableRows(
@@ -47,7 +54,7 @@ func (api *ChainApi) GetTableRows(
 	return api.rpc.GetTableRows(&args)
 }
 
-func (api *ChainApi) getRequiredKeys(actions []Action) ([]string, error) {
+func (api *ChainApi) getRequiredKeys(actions []*Action) ([]string, error) {
 	args := GetRequiredKeysArgs{
 		Transaction:   NewTransaction(0),
 		AvailableKeys: GetWallet().GetPublicKeys(),
@@ -55,7 +62,7 @@ func (api *ChainApi) getRequiredKeys(actions []Action) ([]string, error) {
 	for i := range actions {
 		a := actions[i]
 		a.Data = []byte{}
-		args.Transaction.AddAction(&a)
+		args.Transaction.AddAction(a)
 	}
 	r, err := api.rpc.GetRequiredKeys(&args)
 	if err != nil {
@@ -74,7 +81,7 @@ func (api *ChainApi) PushActions(actions []*Action) (JsonObject, error) {
 		return nil, err
 	}
 
-	expiration := int(time.Now().Unix()) + 60
+	expiration := uint32(time.Now().Unix()) + 60
 	tx := NewTransaction(expiration)
 	tx.SetReferenceBlock(chainInfo.LastIrreversibleBlockID)
 	for i := range actions {
@@ -82,35 +89,45 @@ func (api *ChainApi) PushActions(actions []*Action) (JsonObject, error) {
 		tx.AddAction(a)
 	}
 
-	chainId := chainInfo.ChainID
-
-	packedTx := NewPackedTransaction(tx)
-	packedTx.SetChainId(chainId)
-
 	pubKeys, err := api.getRequiredKeys(tx.Actions)
 	if err != nil {
 		return nil, err
 	}
 	if len(pubKeys) == 0 {
-		return nil, newErrorf("sign key not found!")
+		return nil, newErrorf("signing key not found!")
 	}
 
+	chainId, err := NewBytes32FromHex(chainInfo.ChainID)
+	if err != nil {
+		panic(err)
+	}
+
+	signatures := []string{}
 	for i := range pubKeys {
 		pub := pubKeys[i]
-		_, err = packedTx.Sign(pub)
+		sign, err := tx.SignWithPublicKey(pub, chainId)
 		if err != nil {
 			return nil, err
 		}
+		signatures = append(signatures, sign.String())
 	}
 
-	r2, err := api.rpc.PushTransaction(packedTx)
+	r2, err := api.rpc.PushTransaction(tx, signatures, false)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := r2.Get("error"); err == nil {
-		return r2, newErrorf(r2.ToString())
-	}
 	return r2, nil
+}
+
+func (t *ChainApi) PushTransaction(tx *Transaction, signatures []string, comporess bool) (JsonObject, error) {
+	r, err := t.rpc.PushTransaction(tx, signatures, comporess)
+	if err != nil {
+		return nil, newError(err)
+	}
+	if _, err := r.Get("error"); err == nil {
+		return r, newErrorf(r.ToString())
+	}
+	return r, nil
 }
 
 func (api *ChainApi) GetActions(account string, pos int, offset int) (JsonObject, error) {

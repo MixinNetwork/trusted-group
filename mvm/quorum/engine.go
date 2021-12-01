@@ -8,6 +8,7 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/domains/ethereum"
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/nfo/mtg"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/dgraph-io/badger/v3"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -62,6 +63,10 @@ func (e *Engine) Hash(b []byte) []byte {
 	return crypto.Keccak256(b)
 }
 
+func (e *Engine) SignTx(address string, event *encoding.Event) ([]byte, error) {
+	return nil, nil
+}
+
 func (e *Engine) VerifyAddress(address string, hash []byte) error {
 	err := ethereum.VerifyAddress(address)
 	if err != nil {
@@ -104,8 +109,12 @@ func (e *Engine) SetupNotifier(address string) error {
 	return e.storeWriteContractNotifier(address, notifier)
 }
 
-func (e *Engine) AddProcess(id, address string) error {
-	return nil
+func (e *Engine) VerifyEvent(address string, event *encoding.Event) bool {
+	return false
+}
+
+func (e *Engine) VerifyMTGTx(pid string, out *mtg.Output, extra []byte) bool {
+	return true
 }
 
 func (e *Engine) EstimateCost(events []*encoding.Event) (common.Integer, error) {
@@ -117,32 +126,47 @@ func (e *Engine) EnsureSendGroupEvents(address string, events []*encoding.Event)
 	return e.storeWriteGroupEvents(address, events)
 }
 
-func (e *Engine) ReceiveGroupEvents(block uint64) ([]*encoding.Event, error) {
-	height, err := e.rpc.GetBlockHeight()
-	if err != nil {
-		return nil, err
-	}
-	if block > height {
-		return nil, fmt.Errorf("block in the future %d %d", block, height)
-	}
-	logs, err := e.rpc.GetLogs(EventTopic, block, block)
-	if err != nil {
-		return nil, err
-	}
-	var events []*encoding.Event
-	for _, b := range logs {
-		evt, err := encoding.DecodeEvent(b)
-		logger.Verbosef("ReceiveGroupEvents(%d) => DecodeEvent(%x) => %v, %v", block, b, evt, err)
-		if err != nil {
-			continue
-		}
-		events = append(events, evt)
-	}
-	return events, nil
+func (e *Engine) ReceiveGroupEvents(address string, offset uint64, limit int) ([]*encoding.Event, error) {
+	return e.storeListContractEvents(address, offset, limit)
 }
 
 func (e *Engine) IsPublisher() bool {
 	return e.key != ""
+}
+
+func (e *Engine) loopGetLogs(address string) {
+	logger.Verbosef("Engine.loopGetLogs(%s)", address)
+
+	for {
+		offset := e.storeReadContractLogsOffset(address)
+		logs, err := e.rpc.GetLogs(address, EventTopic, offset, offset+10)
+		if err != nil {
+			panic(err)
+		}
+		for _, b := range logs {
+			evt, err := encoding.DecodeEvent(b)
+			logger.Verbosef("loopGetLogs(%s) => DecodeEvent(%x) => %v, %v", address, b, evt, err)
+			if err != nil {
+				continue
+			}
+			err = e.storeWriteContractEvent(address, evt)
+			if err != nil {
+				panic(err)
+			}
+		}
+		height, err := e.rpc.GetBlockHeight()
+		if err != nil {
+			panic(err)
+		}
+		if offset+10 > height {
+			time.Sleep(ClockTick)
+			continue
+		}
+		err = e.storeWriteContractLogsOffset(address, offset+10)
+		if err != nil {
+			panic(err)
+		}
+	}
 }
 
 func (e *Engine) loopSendGroupEvents(address string) {
@@ -189,6 +213,7 @@ func (e *Engine) loopHandleContracts() {
 				continue
 			}
 			contracts[c] = true
+			go e.loopGetLogs(c)
 			go e.loopSendGroupEvents(c)
 		}
 		if !e.IsPublisher() {
