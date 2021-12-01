@@ -12,6 +12,7 @@ require (
 	github.com/ethereum/go-ethereum v1.10.13
 	github.com/fox-one/mixin-sdk-go v1.5.5
 	github.com/gofrs/uuid v4.2.0+incompatible
+	github.com/mdp/qrterminal v1.0.1
 	github.com/pelletier/go-toml v1.9.4
 	github.com/shopspring/decimal v1.3.1
 	github.com/stretchr/testify v1.7.0
@@ -62,4 +63,5 @@ require (
 	google.golang.org/grpc v1.41.0 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
+	rsc.io/qr v0.2.0 // indirect
 )
