@@ -70,6 +70,7 @@ func bootCmd(c *cli.Context) error {
 
 	go im.Loop(ctx)
 
+	group.SetOutputGrouper(machine.OutputGrouper)
 	group.AddWorker(im)
 	group.Run(ctx)
 

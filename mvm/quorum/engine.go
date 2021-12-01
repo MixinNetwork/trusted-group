@@ -141,7 +141,8 @@ func (e *Engine) loopGetLogs(address string) {
 		offset := e.storeReadContractLogsOffset(address)
 		logs, err := e.rpc.GetLogs(address, EventTopic, offset, offset+10)
 		if err != nil {
-			panic(err)
+			time.Sleep(1 * time.Minute)
+			continue
 		}
 		for _, b := range logs {
 			evt, err := encoding.DecodeEvent(b)
@@ -155,10 +156,7 @@ func (e *Engine) loopGetLogs(address string) {
 			}
 		}
 		height, err := e.rpc.GetBlockHeight()
-		if err != nil {
-			panic(err)
-		}
-		if offset+10 > height {
+		if err != nil || offset+10 > height {
 			time.Sleep(ClockTick)
 			continue
 		}

@@ -188,6 +188,14 @@ func (m *Machine) WriteGroupEvent(pid string, out *mtg.Output, extra []byte) {
 	proc.Nonce = proc.Nonce + 1
 }
 
+func OutputGrouper(out *mtg.Output) string {
+	op, err := parseOperation(out.Memo)
+	if err != nil {
+		return ""
+	}
+	return op.Process
+}
+
 func unmarshalPrivShare(b []byte) *share.PriShare {
 	var ps share.PriShare
 	ps.V = mod.NewInt64(0, bn256.Order).SetBytes(b[4:])

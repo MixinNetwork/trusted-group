@@ -129,5 +129,5 @@ func (p *Process) buildGroupTransaction(ctx context.Context, group *mtg.Group, e
 		p.Identifier, evt.Nonce, evt.Asset, evt.Members, evt.Threshold, evt.Amount, traceId)
 	amount := evt.Amount.String()
 	memo := base64.RawURLEncoding.EncodeToString(evt.Extra)
-	return group.BuildTransaction(ctx, evt.Asset, evt.Members, evt.Threshold, amount, memo, traceId)
+	return group.BuildTransaction(ctx, evt.Asset, evt.Members, evt.Threshold, amount, memo, traceId, p.Identifier)
 }
