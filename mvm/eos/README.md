@@ -31,11 +31,11 @@ publisher=true
 
 Explanation:
 
-1. `store` specify the directory for store eos engine data
+1. `store` specify the directory for storing eos engine data
 2. `rpc` is the Eos testnet node url
-3. `public_keys` contains all the public keys of mixin contract action permission which is multisigned by MVM nodes.
-4. `chain_id` specify the chain id of Eos network or Eos testnet.
-5. `mixin_contract` specify the mixin account which will run contract at `contracts/mtg.xin`.
+3. `public_keys` contains all the public keys of mixin contract `active` permission which is multisigned by MVM nodes.
+4. `chain_id` specifies the chain id of the Eos network or Eos testnet.
+5. `mixin_contract` specifies the mixin account which will run contract at `contracts/mtg.xin`.
 5. `publisher` specify the Eos transaction publisher
 
 
@@ -43,7 +43,7 @@ Explanation:
 
 Launch python interactive console with `python3 -i` command.
 
-Import the following scripts:
+Run the following scripts line by line:
 ```python
 from pyeoskit import testnet
 test = testnet.Testnet(host='127.0.0.1', extra='--filter-on="mtgxinmtgxin:ontxlog:mtgxinmtgxin" --plugin=eosio::db_size_api_plugin', show_log=False)
@@ -63,7 +63,7 @@ To stop Eos testnet, run:
 test.stop()
 ```
 
-Pay attention to `--filter-on="mtgxinmtgxin:ontxlog:mtgxinmtgxin"`, this filter is  critical to make Eos engine of MVM works. Currently Eos engine leverage history-plugin to fetch action trace history. It's practical since the size of each record of action history is pretty small. Eos engine will add support for `state-history-plugin` which requires heavy server resources.
+Pay attention to `--filter-on="mtgxinmtgxin:ontxlog:mtgxinmtgxin"`, this filter is  critical to make Eos engine of MVM works. Currently, Eos engine leverage history-plugin to fetch action trace history. It's practical since the size of each record of action history is pretty small. Eos engine will add support for `state-history-plugin` which requires heavy server resources.
 
 
 ## Connecting to a Testnet
@@ -72,9 +72,9 @@ nodeos --verbose-http-errors  --http-max-response-time-ms 100 --p2p-listen-endpo
 ```
 
 The following arguments need to modify accordingly.
-1. `--p2p-listen-endpoint` specify address for listen to incomming p2p connections. 
+1. `--p2p-listen-endpoint` specify address for listening to incoming p2p connections. 
 2. `--p2p-peer-address` specify p2p address for connecting to, in this example, it's `127.0.0.1:9100` which is specified in launch Eos testnet command
-3. `--http-server-address` specify rpc address for Eos engine to connecting to.
+3. `--http-server-address` specifies rpc address for Eos engine to connecting to.
 
 
 ## Deploying mtg.xin Contract to Testnet
@@ -98,10 +98,10 @@ Alongside deploying mtg.xin contract to `mtgxinmtgxin` account, `deploy.sh` will
 
 1. `test1.toml` is the MVM config file
 2. `bot.json` is the mixin bot configure file which was fetched from mixin developers dashboard.
-3. `-e` specify the first 24 hex charactors of referenced block id which used to build an Eos transaction. The referenced block id can be fetched from get_info rpc api
-4. `-a` specify the account which Smart Contract deployed on.
+3. `-e` specifies the first 24 hex characters of referenced block id which used to build an Eos transaction. The referenced block id can be fetched from get_info rpc api
+4. `-a` specifies the account which Smart Contract deployed on.
 
-There's a `publish.py` script file in `scripts` directory which can be modified accordingly for easing the work.
+There's a `publish.py` script file in the `scripts` directory that can be modified accordingly for easing the work.
 
 ## Interacting with Smart Contract in MVM network
 
@@ -111,6 +111,6 @@ There's a `publish.py` script file in `scripts` directory which can be modified 
 
 1. `-p` specify the mixin bot client id which has been binded to an Eos account.
 
-2. Just like publish command, `-e `specify the first 24 hex charactors of referenced block id.
+2. Just like publish command, `-e `specify the first 24 hex characters of referenced block id.
 
-There's a `invoke.py` script file in `scripts` directory which can be modified accordingly for easing the work.
+There's a `invoke.py` script file in the `scripts` directory that can be modified accordingly for easing the work.
