@@ -161,7 +161,8 @@ func (e *Engine) loopSendGroupEvents(address string) {
 	for e.IsPublisher() {
 		balance, err := e.rpc.GetAddressBalance(pub(notifier))
 		if err != nil {
-			panic(err)
+			time.Sleep(5 * time.Second)
+			continue
 		}
 		if balance.Cmp(decimal.NewFromInt(1)) < 0 {
 			time.Sleep(5 * time.Second)
@@ -169,7 +170,8 @@ func (e *Engine) loopSendGroupEvents(address string) {
 		}
 		nonce, err := e.rpc.GetAddressNonce(pub(notifier))
 		if err != nil {
-			panic(err)
+			time.Sleep(5 * time.Second)
+			continue
 		}
 		evts, err := e.storeListGroupEvents(address, nonce, 100)
 		if err != nil {
@@ -207,13 +209,14 @@ func (e *Engine) loopHandleContracts() {
 
 		nonce, err := e.rpc.GetAddressNonce(pub(e.key))
 		if err != nil {
-			panic(err)
+			time.Sleep(1 * time.Minute)
+			continue
 		}
 		for _, c := range all {
 			notifier := e.storeReadContractNotifier(c)
 			balance, err := e.rpc.GetAddressBalance(pub(notifier))
 			if err != nil {
-				panic(err)
+				break
 			}
 			if balance.Cmp(decimal.NewFromInt(10)) > 0 {
 				continue
