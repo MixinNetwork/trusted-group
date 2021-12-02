@@ -117,6 +117,14 @@ func (e *Engine) SignTx(address string, event *encoding.Event) ([]byte, error) {
 }
 
 func (e *Engine) VerifyAddress(addr string, extra []byte) error {
+	if addr == e.mixinContract {
+		return fmt.Errorf("Mixin contract account can not set as Process address!")
+	}
+
+	if !chain.IsNameValid(addr) {
+		return fmt.Errorf("Invalid Eos account name: %s", addr)
+	}
+
 	info, err := e.rpc.GetAccount(addr)
 	if err != nil {
 		return err
