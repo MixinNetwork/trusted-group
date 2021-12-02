@@ -16,6 +16,15 @@ contract MixinProcess {
   mapping(uint128 => uint256) public custodian;
   mapping(address => bytes) public members;
 
+  function work(address sender, uint64 nonce, uint128 asset, uint256 amount, uint64 timestamp, bytes memory extra) internal returns (bool) {
+    // the contract should implement this method, the following code just refund
+
+    bytes memory log = encodeMixinEvent(nonce, asset, amount, extra, members[sender]);
+    emit MixinTransaction(log);
+
+    return true;
+  }
+
   // process || nonce || asset || amount || extra || timestamp || members || threshold || sig
   function mixin(bytes calldata raw) public returns (bool) {
     require(raw.length >= 141, "event data too small");
@@ -63,9 +72,7 @@ contract MixinProcess {
     custodian[asset] = custodian[asset] + amount;
     members[mixinSenderToAddress(sender)] = sender;
 
-    bytes memory log = encodeMixinEvent(nonce, asset, amount, extra, sender);
-    emit MixinTransaction(log);
-    return true;
+    return work(mixinSenderToAddress(sender), nonce, asset, amount, timestamp, extra);
   }
 
   // pid || nonce || asset || amount || extra || timestamp || members || threshold || sig
