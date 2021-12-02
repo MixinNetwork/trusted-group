@@ -104,8 +104,5 @@ pub_keys = [
 update_auth('mtgxinmtgxin', pub_keys, 3)
 deploy_contract('mtgxinmtgxin', './mtg.xin/mtg.xin')
 
-# update_auth('helloworld11', [pub_key], 1)
-# deploy_contract('helloworld11', './dappdemo/dappdemo')
-
-# update_auth('helloworld12', ['EOS89jesRgvvnFVuNtLg4rkFXcBg2Qq26wjzppssdHj2a8PSoWMhx'], 1)
-# deploy_contract('helloworld12', './dappdemo2/dappdemo')
+update_auth('helloworld11', [pub_key], 1)
+deploy_contract('helloworld11', './dappdemo/dappdemo')
