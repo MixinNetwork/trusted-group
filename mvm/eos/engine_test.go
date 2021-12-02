@@ -9,8 +9,8 @@ import (
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
-	"github.com/MixinNetwork/trusted-group/mvm/eos/chain"
-	"github.com/MixinNetwork/trusted-group/mvm/eos/secp256k1"
+	"github.com/learnforpractice/goeoslib/chain"
+	"github.com/learnforpractice/goeoslib/crypto/secp256k1"
 )
 
 func TestBuildEventTx(t *testing.T) {

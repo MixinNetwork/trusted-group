@@ -1,7 +1,7 @@
 package eos
 
 import (
-	"github.com/MixinNetwork/trusted-group/mvm/eos/chain"
+	"github.com/learnforpractice/goeoslib/chain"
 )
 
 type TxEvent struct {

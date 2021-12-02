@@ -6,22 +6,22 @@ require (
 	github.com/MixinNetwork/mixin v0.13.10-0.20211130090246-732558212cef
 	github.com/MixinNetwork/nfo v0.0.8-0.20211130170107-c6f437bcd087
 	github.com/MixinNetwork/tip v0.0.0-20211120220859-b403025abb7d
-	github.com/akamensky/base58 v0.0.0-20210829145138-ce8bf8802e8f
 	github.com/dgraph-io/badger/v3 v3.2103.2
 	github.com/drand/kyber v1.1.7
 	github.com/ethereum/go-ethereum v1.10.13
 	github.com/fox-one/mixin-sdk-go v1.5.5
 	github.com/gofrs/uuid v4.2.0+incompatible
+	github.com/learnforpractice/goeoslib v0.0.0-20211202004107-a4e67be3ac37
 	github.com/mdp/qrterminal v1.0.1
 	github.com/pelletier/go-toml v1.9.4
 	github.com/shopspring/decimal v1.3.1
 	github.com/stretchr/testify v1.7.0
 	github.com/urfave/cli/v2 v2.3.0
-	golang.org/x/crypto v0.0.0-20211108221036-ceb1ce70b4fa
 )
 
 require (
 	filippo.io/edwards25519 v1.0.0-rc.1 // indirect
+	github.com/akamensky/base58 v0.0.0-20210829145138-ce8bf8802e8f // indirect
 	github.com/btcsuite/btcd v0.22.0-beta // indirect
 	github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f // indirect
 	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce // indirect
@@ -54,7 +54,8 @@ require (
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
 	go.dedis.ch/fixbuf v1.0.3 // indirect
 	go.opencensus.io v0.22.5 // indirect
-	golang.org/x/net v0.0.0-20210805182204-aaa1db679c0d // indirect
+	golang.org/x/crypto v0.0.0-20211117183948-ae814b36b871 // indirect
+	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
 	golang.org/x/sys v0.0.0-20210816183151-1e6c022a8912 // indirect
 	golang.org/x/text v0.3.6 // indirect

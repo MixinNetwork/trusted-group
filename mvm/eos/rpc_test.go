@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/MixinNetwork/trusted-group/mvm/eos/chain"
+	"github.com/learnforpractice/goeoslib/chain"
 	"github.com/stretchr/testify/assert"
 )
 

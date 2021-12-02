@@ -31,12 +31,12 @@ publisher=true
 
 Explanation:
 
-1. `store` specify the directory for storing eos engine data
+1. `store` specifies the directory for storing eos engine data
 2. `rpc` is the Eos testnet node url
 3. `public_keys` contains all the public keys of mixin contract `active` permission which is multisigned by MVM nodes.
 4. `chain_id` specifies the chain id of the Eos network or Eos testnet.
 5. `mixin_contract` specifies the mixin account which will run contract at `contracts/mtg.xin`.
-5. `publisher` specify the Eos transaction publisher
+5. `publisher` specifies the Eos transaction publisher
 
 
 ## Launching an Eos testnet
@@ -72,9 +72,9 @@ nodeos --verbose-http-errors  --http-max-response-time-ms 100 --p2p-listen-endpo
 ```
 
 The following arguments need to modify accordingly.
-1. `--p2p-listen-endpoint` specify address for listening to incoming p2p connections. 
-2. `--p2p-peer-address` specify p2p address for connecting to, in this example, it's `127.0.0.1:9100` which is specified in launch Eos testnet command
-3. `--http-server-address` specifies rpc address for Eos engine to connecting to.
+1. `--p2p-listen-endpoint` specifies address for listening to incoming p2p connections. 
+2. `--p2p-peer-address` specifies p2p address for connecting to, in this example, it's `127.0.0.1:9100` which is specified in launching Eos testnet command
+3. `--http-server-address` specifies RPC address for Eos engine to connecting to.
 
 
 ## Deploying mtg.xin Contract to Testnet
@@ -88,7 +88,7 @@ cd contracts
 
 Alongside deploying mtg.xin contract to `mtgxinmtgxin` account, `deploy.sh` will also deploy dappdemo contract to `helloworld11` account
 
-## Publishing Eos Smart Contracts to MVM
+## Publishing an Eos Smart Contracts to MVM
 1. First deploy your Eos contract for MVM. For an example, please refer to `contracts/dappdemo` directory.
 2. Publish contract to MVM network with the following command:
 
@@ -98,19 +98,19 @@ Alongside deploying mtg.xin contract to `mtgxinmtgxin` account, `deploy.sh` will
 
 1. `test1.toml` is the MVM config file
 2. `bot.json` is the mixin bot configure file which was fetched from mixin developers dashboard.
-3. `-e` specifies the first 24 hex characters of referenced block id which used to build an Eos transaction. The referenced block id can be fetched from get_info rpc api
+3. `-e` specifies the first 24 hex characters of referenced block id which used to build an Eos transaction. The referenced block id can be fetched from get_info RPC api
 4. `-a` specifies the account which Smart Contract deployed on.
 
 There's a `publish.py` script file in the `scripts` directory that can be modified accordingly for easing the work.
 
-## Interacting with Smart Contract in MVM network
+## Interacting with the Smart Contract in MVM network
 
 ```
 ./mvm invoke -m test1.toml -k test4.json -p 49b00892-6954-4826-aaec-371ca165558a -a 0.145 -e 00000016434f895e3a242657
 ```
 
-1. `-p` specify the mixin bot client id which has been binded to an Eos account.
+1. `-p` specifies the mixin bot client id which has been binded to an Eos account.
 
-2. Just like publish command, `-e `specify the first 24 hex characters of referenced block id.
+2. Just like publish command, `-e `specifies the first 24 hex characters of referenced block id.
 
 There's a `invoke.py` script file in the `scripts` directory that can be modified accordingly for easing the work.

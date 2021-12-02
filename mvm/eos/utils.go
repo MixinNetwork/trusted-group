@@ -8,10 +8,10 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
-	"github.com/MixinNetwork/trusted-group/mvm/eos/chain"
-	"github.com/MixinNetwork/trusted-group/mvm/eos/secp256k1"
 	"github.com/drand/kyber/share"
 	"github.com/gofrs/uuid"
+	"github.com/learnforpractice/goeoslib/chain"
+	"github.com/learnforpractice/goeoslib/crypto/secp256k1"
 )
 
 func uuidToBytes(id string) []byte {

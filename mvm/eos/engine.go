@@ -12,11 +12,10 @@ import (
 	"github.com/MixinNetwork/nfo/mtg"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 
-	"github.com/MixinNetwork/trusted-group/mvm/eos/chain"
-	"github.com/MixinNetwork/trusted-group/mvm/eos/secp256k1"
 	"github.com/dgraph-io/badger/v3"
 	"github.com/ethereum/go-ethereum/crypto"
-	// "github.com/uuosio/go-uuoskit/uuoskit"
+	"github.com/learnforpractice/goeoslib/chain"
+	"github.com/learnforpractice/goeoslib/crypto/secp256k1"
 )
 
 const (
