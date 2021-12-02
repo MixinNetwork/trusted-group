@@ -12,6 +12,7 @@ const (
 	prefixEosContractLogOffset  = "EOS:CONTRACT:LOG:OFFSET:"
 	prefixEosContractEventQueue = "EOS:CONTRACT:EVENT:QUEUE:"
 	prefixEosGroupEventQueue    = "EOS:GROUP:EVENT:QUEUE:"
+	prefixTxRequestNonce        = "EOS:TXREQUEST:OFFSET:"
 )
 
 func (e *Engine) storeWriteContractNotifier(address, notifier string) error {
@@ -86,6 +87,32 @@ func (e *Engine) storeReadContractLogsOffset(address string) uint64 {
 
 func (e *Engine) storeWriteContractLogsOffset(address string, offset uint64) error {
 	key := []byte(prefixEosContractLogOffset + address)
+	return e.db.Update(func(txn *badger.Txn) error {
+		return txn.Set(key, uint64Bytes(offset))
+	})
+}
+
+func (e *Engine) storeReadTxRequestNonce() uint64 {
+	txn := e.db.NewTransaction(false)
+	defer txn.Discard()
+
+	key := []byte(prefixTxRequestNonce)
+	item, err := txn.Get(key)
+	if err == badger.ErrKeyNotFound {
+		return 0
+	} else if err != nil {
+		panic(err)
+	}
+
+	val, err := item.ValueCopy(nil)
+	if err != nil {
+		panic(err)
+	}
+	return binary.BigEndian.Uint64(val)
+}
+
+func (e *Engine) storeWriteTxRequestNonce(offset uint64) error {
+	key := []byte(prefixTxRequestNonce)
 	return e.db.Update(func(txn *badger.Txn) error {
 		return txn.Set(key, uint64Bytes(offset))
 	})

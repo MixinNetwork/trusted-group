@@ -24,6 +24,7 @@ const (
 	TX_LOG_ACTION           = "ontxlog"
 	ClockTick               = 3 * time.Second
 	DEBUG                   = true
+	MAX_ACTIONS             = 100
 )
 
 type Configuration struct {
@@ -121,10 +122,6 @@ func (e *Engine) VerifyAddress(addr string, extra []byte) error {
 		return fmt.Errorf("Mixin contract account can not set as Process address!")
 	}
 
-	if !chain.IsNameValid(addr) {
-		return fmt.Errorf("Invalid Eos account name: %s", addr)
-	}
-
 	info, err := e.rpc.GetAccount(addr)
 	if err != nil {
 		return err
@@ -198,9 +195,9 @@ func (e *Engine) EnsureSendGroupEvents(address string, events []*encoding.Event)
 
 func (e *Engine) loopContractEvents() {
 	for {
-		count, err := e.PullContractEvent()
+		count, err := e.PullContractEvents()
 		if err != nil {
-			logger.Verbosef("PullContractEvent return error: %v", err)
+			logger.Verbosef("PullContractEvents return error: %v", err)
 		}
 		if count == 0 {
 			time.Sleep(ClockTick)
@@ -208,15 +205,121 @@ func (e *Engine) loopContractEvents() {
 	}
 }
 
-func (e *Engine) PullContractEvent() (int, error) {
-	seq, err := e.GetTxRequestSequence()
+func (e *Engine) ParseTxLogFromActionTrace(obj chain.JsonObject) *TxLog {
+	actionObj, err := obj.GetJsonObject("action_trace", "act")
+	if err != nil {
+		panic(err)
+	}
+
+	if DEBUG {
+		receiver, err := obj.GetString("action_trace", "receiver")
+		if err != nil {
+			panic(err)
+		}
+
+		if receiver != e.mixinContract {
+			panic(fmt.Errorf("receiver not match: expected: %s, got: %s", e.mixinContract, receiver))
+		}
+
+		account, err := actionObj.GetString("account")
+		if err != nil {
+			panic(err)
+		}
+		if account != e.mixinContract {
+			panic("Invalid main account")
+		}
+
+		action_name, err := actionObj.GetString("name")
+		if err != nil {
+			panic(err)
+		}
+		if action_name != TX_LOG_ACTION {
+			panic(fmt.Errorf("Invalid action name, expected: %s, got: %s", TX_LOG_ACTION, action_name))
+		}
+
+		actor, err := actionObj.GetString("authorization", 0, "actor")
+		if err != nil {
+			panic(err)
+		}
+
+		if actor != e.mixinContract {
+			panic(fmt.Errorf("Invalid permission actor, expected: %s, got: %s", e.mixinContract, actor))
+		}
+
+		permission, err := actionObj.GetString("authorization", 0, "permission")
+		if err != nil {
+			panic(err)
+		}
+		if permission != "active" {
+			panic(fmt.Errorf("Invalid permission, expected: active, got: %s", permission))
+		}
+	}
+
+	data, err := actionObj.GetString("hex_data")
+	if err != nil {
+		data, err = actionObj.GetString("data")
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	b, err := hex.DecodeString(data)
+	if err != nil {
+		panic(err)
+	}
+	txLog := &TxLog{}
+	size, err := txLog.Unpack(b)
+	if err != nil {
+		panic(err)
+	}
+
+	if size != len(b) {
+		panic(fmt.Errorf("txLog.Unpack: binary size mismatch: %d, got %d", size, len(b)))
+	}
+	return txLog
+}
+
+func (e *Engine) AdjustOffset(txReqeustIndex uint64) uint64 {
+	//Fetch the first action trace for calculating the offset
+	r, err := e.rpc.GetActions(e.mixinContract, 0, 1)
+	if err != nil {
+		panic(err)
+	}
+
+	actions, err := r.GetArray("actions")
+	if err != nil {
+		panic(err)
+	}
+	if len(actions) == 0 {
+		panic("no actions found while trying to reset offset.")
+	}
+
+	obj, ok := chain.NewJsonObjectFromInterface(actions[0])
+	if !ok {
+		panic("invalid action")
+	}
+
+	txLog := e.ParseTxLogFromActionTrace(obj)
+
+	if txReqeustIndex < txLog.id {
+		panic(fmt.Errorf("new action history is not overlapped with the old one, txLog.id: %d, txReqeustIndex: %d", txLog.id, txReqeustIndex))
+	}
+
+	return txReqeustIndex - txLog.id
+}
+
+func (e *Engine) PullContractEvents() (int, error) {
+	txRequestCount, err := e.GetTxRequestsCount()
 	if err != nil {
 		return 0, err
 	}
-	offset := e.storeReadContractLogsOffset(e.mixinContract)
-	logger.Verbosef("+++++++PullContractEvent seq: %d, offset: %d", seq, offset)
 
-	r, err := e.rpc.GetActions(e.mixinContract, int(offset), 10)
+	txReqeustIndex := e.storeReadTxRequestNonce()
+
+	offset := e.storeReadContractLogsOffset(e.mixinContract)
+	logger.Verbosef("+++++++PullContractEvents txRequestCount: %d, txReqeustIndex: %d, offset: %d", txRequestCount, txReqeustIndex, offset)
+
+	r, err := e.rpc.GetActions(e.mixinContract, int(offset), MAX_ACTIONS)
 	if err != nil {
 		return 0, err
 	}
@@ -227,14 +330,32 @@ func (e *Engine) PullContractEvent() (int, error) {
 	}
 
 	if len(actions) == 0 {
-		return 0, nil
+		if txReqeustIndex > 0 && txRequestCount >= txReqeustIndex+1 {
+			//Eos node has been started from a new snapshoot, try to reset offset accordingly
+			offset = e.AdjustOffset(txReqeustIndex)
+			r, err = e.rpc.GetActions(e.mixinContract, int(offset), MAX_ACTIONS)
+			if err != nil {
+				panic(err)
+			}
+
+			actions, err = r.GetArray("actions")
+			if err != nil {
+				panic(err)
+			}
+
+			if len(actions) == 0 {
+				panic("no actions found while trying to reset offset.")
+			}
+		} else {
+			return 0, nil
+		}
 	}
 
 	logger.Verbosef("ReceiveGroupEvents offset %d, actions size:%d", offset, len(actions))
 
 	lastIndex := uint64(0)
 	count := 0
-	for _, action := range actions {
+	for i, action := range actions {
 		obj, ok := chain.NewJsonObjectFromInterface(action)
 		if !ok {
 			continue
@@ -246,80 +367,18 @@ func (e *Engine) PullContractEvent() (int, error) {
 		}
 		lastIndex = seq
 
-		actionObj, err := obj.GetJsonObject("action_trace", "act")
-		if err != nil {
-			panic(err)
+		txLog := e.ParseTxLogFromActionTrace(obj)
+		if txReqeustIndex > txLog.id {
+			panic("bad txLog.id")
 		}
 
-		if DEBUG {
-			receiver, err := obj.GetString("action_trace", "receiver")
-			if err != nil {
-				panic(err)
-			}
-
-			if receiver != e.mixinContract {
-				panic(fmt.Errorf("receiver not match: expected: %s, got: %s", e.mixinContract, receiver))
-			}
-
-			account, err := actionObj.GetString("account")
-			if err != nil {
-				panic(err)
-			}
-			if account != e.mixinContract {
-				panic("Invalid main account")
-			}
-
-			action_name, err := actionObj.GetString("name")
-			if err != nil {
-				panic(err)
-			}
-			if action_name != TX_LOG_ACTION {
-				panic(fmt.Errorf("Invalid action name, expected: %s, got: %s", TX_LOG_ACTION, action_name))
-			}
-
-			actor, err := actionObj.GetString("authorization", 0, "actor")
-			if err != nil {
-				panic(err)
-			}
-
-			if actor != e.mixinContract {
-				panic(fmt.Errorf("Invalid permission actor, expected: %s, got: %s", e.mixinContract, actor))
-			}
-
-			permission, err := actionObj.GetString("authorization", 0, "permission")
-			if err != nil {
-				panic(err)
-			}
-			if permission != "active" {
-				panic(fmt.Errorf("Invalid permission, expected: active, got: %s", permission))
-			}
-		}
-
-		data, err := actionObj.GetString("hex_data")
-		if err != nil {
-			data, err = actionObj.GetString("data")
-			if err != nil {
-				panic(err)
-			}
-		}
-
-		b, err := hex.DecodeString(data)
-		if err != nil {
-			panic(err)
-		}
-		txLog := &TxLog{}
-		size, err := txLog.Unpack(b)
-		if err != nil {
-			panic(err)
-		}
-
-		if size != len(b) {
-			panic(fmt.Errorf("txLog.Unpack: binary size mismatch: %d, got %d", size, len(b)))
+		if i+1 == len(actions) {
+			txReqeustIndex = txLog.id
 		}
 
 		evt := convertTxLogToEvent(txLog)
 		// evt, err := encoding.DecodeEvent(b)
-		logger.Verbosef("loopGetLogs(%s) => DecodeEvent(%x) => %v, %v", e.mixinContract, b, evt, err)
+		logger.Verbosef("loopGetLogs(%s) => DecodeEvent(%x) => %v, %v", e.mixinContract, evt, err)
 		if err != nil {
 			panic(err)
 		}
@@ -330,10 +389,17 @@ func (e *Engine) PullContractEvent() (int, error) {
 		count += 1
 	}
 
+	if DEBUG {
+		if count != len(actions) {
+			panic(fmt.Errorf("count != len(actions), count: %d, len(actions): %d", count, len(actions)))
+		}
+	}
+
 	//FIXME: consensus on last finished tx request index
 	// if e.IsPublisher() && lastIndex != 0 {
 	// 	e.clearFinishedTxRequest(e.mixinContract, lastIndex)
 	// }
+	e.storeWriteTxRequestNonce(txReqeustIndex + 1)
 	e.storeWriteContractLogsOffset(e.mixinContract, lastIndex+1)
 	return count, nil
 }
@@ -346,7 +412,7 @@ func (e *Engine) IsPublisher() bool {
 	return e.publisher
 }
 
-func (e *Engine) GetTxRequestSequence() (uint64, error) {
+func (e *Engine) GetTxRequestsCount() (uint64, error) {
 	key := fmt.Sprintf("%d", MIXIN_CONTRACT_SEQUENCE)
 	result, err := e.rpc.GetTableRows(
 		false,           //json bool,

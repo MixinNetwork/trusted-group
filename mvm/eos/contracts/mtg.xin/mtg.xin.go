@@ -115,19 +115,20 @@ func (c *Contract) OnTxLog(log *TxLog) {
 	chain.RequireAuth(c.self)
 }
 
-func (c *Contract) GetNextIndex(key uint64, initialValue uint64) uint64 {
+func (c *Contract) GetNextIndex(key uint64) uint64 {
 	db := NewCounterDB(c.self, c.self)
 	if it, item := db.Get(key); it.IsOk() {
+		index := item.Count
 		item.Count += 1
-		db.Update(it, item, chain.Name{N: 0})
-		return item.Count
+		db.Update(it, item, chain.SamePayer)
+		return index
 	} else {
-		item := Counter{Id: key, Count: initialValue}
+		item := Counter{Id: key, Count: 1}
 		db.Store(&item, c.self)
-		return item.Count
+		return 0
 	}
 }
 
 func (c *Contract) GetNextSeq() uint64 {
-	return c.GetNextIndex(KEY_TX_REQUEST_SEQ, 1)
+	return c.GetNextIndex(KEY_TX_REQUEST_SEQ)
 }
