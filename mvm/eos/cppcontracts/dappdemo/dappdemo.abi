@@ -1,0 +1,91 @@
+{
+    "____comment": "This file was generated with eosio-abigen. DO NOT EDIT ",
+    "version": "eosio::abi/1.1",
+    "types": [],
+    "structs": [
+        {
+            "name": "counter",
+            "base": "",
+            "fields": [
+                {
+                    "name": "id",
+                    "type": "uint64"
+                },
+                {
+                    "name": "count",
+                    "type": "uint64"
+                }
+            ]
+        },
+        {
+            "name": "onevent",
+            "base": "",
+            "fields": [
+                {
+                    "name": "event",
+                    "type": "tx_event"
+                }
+            ]
+        },
+        {
+            "name": "tx_event",
+            "base": "",
+            "fields": [
+                {
+                    "name": "nonce",
+                    "type": "uint64"
+                },
+                {
+                    "name": "process",
+                    "type": "uint128"
+                },
+                {
+                    "name": "asset",
+                    "type": "uint128"
+                },
+                {
+                    "name": "members",
+                    "type": "uint128[]"
+                },
+                {
+                    "name": "threshold",
+                    "type": "int32"
+                },
+                {
+                    "name": "amount",
+                    "type": "uint128"
+                },
+                {
+                    "name": "extra",
+                    "type": "uint8[]"
+                },
+                {
+                    "name": "timestamp",
+                    "type": "uint64"
+                },
+                {
+                    "name": "signature",
+                    "type": "uint8[]"
+                }
+            ]
+        }
+    ],
+    "actions": [
+        {
+            "name": "onevent",
+            "type": "onevent",
+            "ricardian_contract": ""
+        }
+    ],
+    "tables": [
+        {
+            "name": "counters",
+            "type": "counter",
+            "index_type": "i64",
+            "key_names": [],
+            "key_types": []
+        }
+    ],
+    "ricardian_clauses": [],
+    "variants": []
+}
