@@ -2,12 +2,22 @@
 pragma solidity >=0.8.4 <0.9.0;
 
 import {BytesLib} from './bytes.sol';
+import {BLS} from './bls.sol';
 
 contract MixinProcess {
   using BytesLib for bytes;
+  using BLS for uint256[2];
+  using BLS for bytes;
 
   event MixinTransaction(bytes);
-  event MixinEvent(bytes);
+  event MixinEvent(address indexed sender, uint256 nonce, uint128 asset, uint256 amount, uint64 timestamp, bytes extra);
+
+  uint256[4] public GROUP = [
+    0x14eabfc14ba52a99a68bf1d88f7c1c076561ee4e036b6088de79028dd9d75ce4, // x.y
+    0x2f7c255a66ab13ffdd65e05da98be7c4cc700af94136acab88f0268c190108e7, // x.x
+    0x1d249df0c25e417621f87941fd9a8250ca1f2899933c3065a0393ee1d720c65c, // y.y
+    0x109a878d52d9394579f0be3ba0f165f68fed22a07d555120175a729d7080ef4a // y.x
+  ];
 
   // PID is the app id in Mixin which the contract will process, e.g. c6d0c728-2624-429b-8e0d-d9d19b6592fa
   // The app id will add 0x as prefix and delete '-'
@@ -17,6 +27,7 @@ contract MixinProcess {
   mapping(address => bytes) public members;
 
   function work(address sender, uint64 nonce, uint128 asset, uint256 amount, uint64 timestamp, bytes memory extra) internal returns (bool) {
+    require(timestamp > 0, "invalid timestamp");
     // the contract should implement this method, the following code just refund
 
     bytes memory log = encodeMixinEvent(nonce, asset, amount, extra, members[sender]);
@@ -63,15 +74,15 @@ contract MixinProcess {
     offset = offset + size;
 
     offset = offset + 2;
-    bytes memory sig = raw.slice(offset, 64);
+    require(verifySignature(raw, offset), "invalid signature");
+
     offset = offset + 64;
     require(raw.length == offset, "malformed event encoding");
-    // TODO signature verification
 
-    emit MixinEvent(raw);
     custodian[asset] = custodian[asset] + amount;
     members[mixinSenderToAddress(sender)] = sender;
 
+    emit MixinEvent(mixinSenderToAddress(sender), nonce, asset, amount, timestamp, extra);
     return work(mixinSenderToAddress(sender), nonce, asset, amount, timestamp, extra);
   }
 
@@ -92,6 +103,12 @@ contract MixinProcess {
     raw = raw.concat(receiver);
     raw = raw.concat(new bytes(2));
     return raw;
+  }
+
+  function verifySignature(bytes memory raw, uint256 offset) internal view returns (bool) {
+    uint256[2] memory sig = [raw.toUint256(offset), raw.toUint256(offset+32)];
+    uint256[2] memory message = raw.slice(0, offset - 2).hashToPoint();
+    return sig.verifySingle(GROUP, message);
   }
 
   function mixinSenderToAddress(bytes memory sender) internal pure returns (address) {
