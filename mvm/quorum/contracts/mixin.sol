@@ -13,10 +13,10 @@ contract MixinProcess {
   event MixinEvent(address indexed sender, uint256 nonce, uint128 asset, uint256 amount, uint64 timestamp, bytes extra);
 
   uint256[4] public GROUP = [
-    0x14eabfc14ba52a99a68bf1d88f7c1c076561ee4e036b6088de79028dd9d75ce4, // x.y
-    0x2f7c255a66ab13ffdd65e05da98be7c4cc700af94136acab88f0268c190108e7, // x.x
-    0x1d249df0c25e417621f87941fd9a8250ca1f2899933c3065a0393ee1d720c65c, // y.y
-    0x109a878d52d9394579f0be3ba0f165f68fed22a07d555120175a729d7080ef4a // y.x
+    0x2f741961cea2e88cfa2680eeaac040d41f41f3fedb01e38c06f4c6058fd7e425, // x.y
+    0x007d68aef83f9690b04f463e13eadd9b18f4869041f1b67e7f1a30c9d1d2c42c, // x.x
+    0x2a32fa1736807486256ad8dc6a8740dfb91917cf8d15848133819275be92b673, // y.y
+    0x257ad901f02f8a442ccf4f1b1d0d7d3a8e8fe791102706e575d36de1c2a4a40f  // y.x
   ];
 
   // PID is the app id in Mixin which the contract will process, e.g. c6d0c728-2624-429b-8e0d-d9d19b6592fa
@@ -107,7 +107,7 @@ contract MixinProcess {
 
   function verifySignature(bytes memory raw, uint256 offset) internal view returns (bool) {
     uint256[2] memory sig = [raw.toUint256(offset), raw.toUint256(offset+32)];
-    uint256[2] memory message = raw.slice(0, offset - 2).hashToPoint();
+    uint256[2] memory message = raw.slice(0, offset).hashToPoint();
     return sig.verifySingle(GROUP, message);
   }
 
