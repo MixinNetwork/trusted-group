@@ -9,8 +9,8 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/tip/crypto"
+	"github.com/MixinNetwork/tip/crypto/en256"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
-	"github.com/drand/kyber/pairing/bn256"
 	"github.com/drand/kyber/sign/tbls"
 )
 
@@ -43,7 +43,7 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 				continue
 			}
 
-			scheme := tbls.NewThresholdSchemeOnG1(bn256.NewSuiteG2())
+			scheme := tbls.NewThresholdSchemeOnG1(en256.NewSuiteG2())
 			partial, err := scheme.Sign(m.share, msg)
 			if err != nil {
 				panic(err)
@@ -129,7 +129,7 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 }
 
 func (m *Machine) recoverSignature(msg []byte, partials [][]byte) []byte {
-	scheme := tbls.NewThresholdSchemeOnG1(bn256.NewSuiteG2())
+	scheme := tbls.NewThresholdSchemeOnG1(en256.NewSuiteG2())
 	sig, err := scheme.Recover(m.poly, msg, partials, m.group.GetThreshold(), len(m.group.GetMembers()))
 	if err != nil {
 		panic(err)
