@@ -1,3 +1,6 @@
+*.abi
+*.wasm
+generated.go
 multisig
 multisig.1
 multisig.2
