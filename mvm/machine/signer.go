@@ -48,7 +48,7 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 			if err != nil {
 				panic(err)
 			}
-			lst := sm[hex.EncodeToString(partial)].Add(time.Minute * 60)
+			lst := sm[hex.EncodeToString(partial)].Add(time.Minute * 5)
 			if checkSignedWith(partials, partial) && lst.After(time.Now()) {
 				continue
 			}
@@ -108,7 +108,7 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 			panic(err)
 		}
 		if checkFullSignature(partials) {
-			if sm[evt.ID()].Add(time.Minute * 60).Before(time.Now()) {
+			if sm[evt.ID()].Add(time.Minute * 5).Before(time.Now()) {
 				evt.Signature = partials[0]
 				threshold := make([]byte, 8)
 				binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
