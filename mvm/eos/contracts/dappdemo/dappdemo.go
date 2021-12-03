@@ -4,6 +4,58 @@ import (
 	"github.com/uuosio/chain"
 )
 
+const (
+	KEY_NONCE            = 1
+	KEY_TX_REQUEST_INDEX = 2
+	KEY_FINISHED_REQUEST = 3
+)
+
+const (
+	MAX_REMOVE_RECORD_COUNT = 30
+)
+
+var (
+	MTG_CONTRACT = chain.NewName("mtgxinmtgxin")
+	//uuid: 49b00892-6954-4826-aaec-371ca165558a
+	PROCESS_ID = chain.Uint128([16]byte{0x49, 0xb0, 0x08, 0x92, 0x69, 0x54, 0x48, 0x26, 0xaa, 0xec, 0x37, 0x1c, 0xa1, 0x65, 0x55, 0x8a})
+)
+
+//table txevents
+type TxEvent struct {
+	nonce     uint64 //primary : t.nonce
+	process   chain.Uint128
+	asset     chain.Uint128
+	members   []chain.Uint128
+	threshold int32
+	amount    chain.Uint128
+	extra     []byte
+	timestamp uint64
+	signature []byte
+}
+
+//table txrequests
+type TxRequest struct {
+	nonce     uint64 //primary : t.nonce
+	contract  chain.Name
+	process   chain.Uint128
+	asset     chain.Uint128
+	members   []chain.Uint128
+	threshold int32
+	amount    chain.Uint128
+	extra     []byte
+	timestamp uint64
+}
+
+//table counters
+type Counter struct {
+	id    uint64 //primary : t.id
+	count uint64
+}
+
+func check(b bool, msg string) {
+	chain.Check(b, msg)
+}
+
 //contract dappdemo
 type Contract struct {
 	self, firstReceiver, action chain.Name
@@ -13,13 +65,10 @@ func NewContract(receiver, firstReceiver, action chain.Name) *Contract {
 	return &Contract{receiver, firstReceiver, action}
 }
 
-//needs MTG multisig permission
 //action onevent
 func (c *Contract) OnEvent(event *TxEvent) {
 	chain.RequireAuth(MTG_CONTRACT)
 	c.CheckAndIncNonce(event.nonce)
-	// nonce := c.GetNextNonce()
-	// check(nonce == event.nonce, "Invalid nonce")
 	payer := c.self
 	check(event.process == PROCESS_ID, "Invalid process id")
 	chain.Println("+++OnEvent")
@@ -32,7 +81,7 @@ func (c *Contract) OnEvent(event *TxEvent) {
 
 	txRequestCount := 3
 	for i := 0; i < txRequestCount; i++ {
-		id := c.GetNextTxRequestIndex()
+		id := c.GetNextTxRequestNonce()
 		notify := TxRequest{
 			nonce:     id,
 			contract:  c.self,
@@ -43,17 +92,13 @@ func (c *Contract) OnEvent(event *TxEvent) {
 			amount:    event.amount,
 			extra:     event.extra,
 		}
+
+		check(event.amount.Cmp(chain.NewUint128(chain.MAX_AMOUNT, 0)) < 0, "Invalid amount")
+
 		amount := event.amount.Uint64() / uint64(txRequestCount)
 		chain.Println("+++++++set amount:", amount)
 		notify.amount.SetUint64(amount)
 
-		//two methods of query event log
-		//1. query event log by action history
-		//2. query event log from on-chain database(needs to clean finished requests)
-
-		//current used method: 1
-
-		//send event to a specified account for log query by action trace history
 		chain.NewAction(
 			chain.PermissionLevel{c.self, chain.ActiveName},
 			MTG_CONTRACT,
@@ -61,97 +106,29 @@ func (c *Contract) OnEvent(event *TxEvent) {
 			&notify,
 		).Send()
 	}
-
-	//remove as mush as finished requests
-	// lastFinishedRequest := c.GetLastFinishedRequestIndex()
-	// if lastFinishedRequest != 0 {
-	// 	c.ClearFinishedRequests(lastFinishedRequest)
-	// }
 }
-
-//action clearreqs
-func (c *Contract) ClearFinishedRequests(lastFinishedRequest uint64) {
-	chain.RequireAuth(c.self)
-	db := NewTxRequestDB(c.self, c.self)
-	count := 0
-
-	for {
-		it := db.Lowerbound(uint64(0))
-		if !it.IsOk() {
-			break
-		}
-		data, err := db.GetByIterator(it)
-		if err != nil {
-			break
-		}
-		if data.nonce <= lastFinishedRequest {
-			db.Remove(it)
-		}
-		count += 1
-		if count >= MAX_REMOVE_RECORD_COUNT {
-			c.SetLastFinishedRequestIndex(lastFinishedRequest)
-		}
-	}
-}
-
-//action clearnonce
-// func (c *Contract) ClearNonce() {
-// 	key := uint64(KEY_NONCE)
-// 	db := NewCounterDB(c.self, c.self)
-// 	if it := db.Find(key); it.IsOk() {
-// 		chain.Println("++++it:", it.I)
-// 		db.Remove(it)
-// 	}
-// }
 
 func (c *Contract) GetNextIndex(key uint64, initialValue uint64) uint64 {
 	db := NewCounterDB(c.self, c.self)
 	if it, item := db.Get(key); it.IsOk() {
-		item.Count += 1
+		item.count += 1
 		db.Update(it, item, chain.Name{N: 0})
-		return item.Count
+		return item.count
 	} else {
-		item := Counter{Id: key, Count: initialValue}
+		item := Counter{id: key, count: initialValue}
 		db.Store(&item, c.self)
-		return item.Count
+		return item.count
 	}
 }
 
 func (c *Contract) SetCounterValue(key uint64, value uint64) {
 	db := NewCounterDB(c.self, c.self)
 	if it, item := db.Get(key); it.IsOk() {
-		item.Count = value
+		item.count = value
 		db.Update(it, item, chain.SamePayer)
 	} else {
-		item := Counter{Id: key, Count: value}
+		item := Counter{id: key, count: value}
 		db.Store(&item, c.self)
-	}
-}
-
-func (c *Contract) SetLastFinishedRequestIndex(index uint64) {
-	db := NewCounterDB(c.self, c.self)
-	if it, item := db.Get(KEY_FINISHED_REQUEST); it.IsOk() {
-		item.Count = index
-		db.Update(it, item, chain.SamePayer)
-	} else {
-		item := Counter{Id: KEY_FINISHED_REQUEST, Count: index}
-		db.Store(&item, c.self)
-	}
-}
-
-func (c *Contract) GetLastFinishedRequestIndex() uint64 {
-	db := NewCounterDB(c.self, c.self)
-	if it, item := db.Get(KEY_FINISHED_REQUEST); it.IsOk() {
-		return item.Count
-	}
-	return 0
-}
-
-func (c *Contract) RemoveLastFinishedRequestIndex() {
-	db := NewCounterDB(c.self, c.self)
-	it := db.Find(KEY_FINISHED_REQUEST)
-	if it.IsOk() {
-		db.Remove(it)
 	}
 }
 
@@ -163,16 +140,16 @@ func (c *Contract) CheckAndIncNonce(oldNonce uint64) {
 	key := uint64(KEY_NONCE)
 	db := NewCounterDB(c.self, c.self)
 	if it, item := db.Get(key); it.IsOk() {
-		chain.Println("++++CheckAndIncNonce:", item.Count, oldNonce)
-		//		check(item.Count == oldNonce, "Invalid nonce")
-		item.Count = oldNonce + 1
+		chain.Println("++++CheckAndIncNonce:", item.count, oldNonce)
+		//		check(item.count == oldNonce, "Invalid nonce")
+		item.count = oldNonce + 1
 		db.Update(it, item, chain.SamePayer)
 	} else {
-		item := Counter{Id: key, Count: oldNonce + 1}
+		item := Counter{id: key, count: oldNonce + 1}
 		db.Store(&item, c.self)
 	}
 }
 
-func (c *Contract) GetNextTxRequestIndex() uint64 {
+func (c *Contract) GetNextTxRequestNonce() uint64 {
 	return c.GetNextIndex(KEY_TX_REQUEST_INDEX, 1)
 }

@@ -8,6 +8,32 @@ const (
 	KEY_TX_REQUEST_SEQ = 1
 )
 
+//table processes
+type Process struct {
+	contract chain.Name    //primary : t.contract.N
+	process  chain.Uint128 //IDX128 : ByProcess : t.process : t.process
+}
+
+//table logs
+type TxLog struct {
+	id        uint64 //primary : t.id
+	nonce     uint64
+	contract  chain.Name
+	process   chain.Uint128
+	asset     chain.Uint128
+	members   []chain.Uint128
+	threshold int32
+	amount    chain.Uint128
+	extra     []byte
+	timestamp uint64
+}
+
+//table counters
+type Counter struct {
+	id    uint64 //primary : t.id
+	count uint64
+}
+
 //contract mtg.xin
 type Contract struct {
 	self, firstReceiver, action chain.Name
@@ -118,12 +144,12 @@ func (c *Contract) OnTxLog(log *TxLog) {
 func (c *Contract) GetNextIndex(key uint64) uint64 {
 	db := NewCounterDB(c.self, c.self)
 	if it, item := db.Get(key); it.IsOk() {
-		index := item.Count
-		item.Count += 1
+		index := item.count
+		item.count += 1
 		db.Update(it, item, chain.SamePayer)
 		return index
 	} else {
-		item := Counter{Id: key, Count: 1}
+		item := Counter{id: key, count: 1}
 		db.Store(&item, c.self)
 		return 0
 	}
@@ -131,4 +157,8 @@ func (c *Contract) GetNextIndex(key uint64) uint64 {
 
 func (c *Contract) GetNextSeq() uint64 {
 	return c.GetNextIndex(KEY_TX_REQUEST_SEQ)
+}
+
+func check(b bool, msg string) {
+	chain.Check(b, msg)
 }
