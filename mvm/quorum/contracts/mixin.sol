@@ -107,7 +107,7 @@ contract MixinProcess {
 
   function verifySignature(bytes memory raw, uint256 offset) internal view returns (bool) {
     uint256[2] memory sig = [raw.toUint256(offset), raw.toUint256(offset+32)];
-    uint256[2] memory message = raw.slice(0, offset).hashToPoint();
+    uint256[2] memory message = raw.slice(0, offset-2).concat(new bytes(2)).hashToPoint();
     return sig.verifySingle(GROUP, message);
   }
 
