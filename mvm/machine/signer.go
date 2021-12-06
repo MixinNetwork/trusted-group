@@ -91,9 +91,11 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 			sig := evt.Signature
 			evt.Signature = nil
 			msg := evt.Encode()
-			err = crypto.Verify(m.poly.Commit(), msg, sig)
-			if err != nil {
-				continue
+			if evt.Timestamp > 1638789832002675803 { // FIXME remove this timestamp check
+				err = crypto.Verify(m.poly.Commit(), msg, sig)
+				if err != nil {
+					continue
+				}
 			}
 			evt.Signature = sig
 			err = m.store.WriteSignedGroupEventAndExpirePending(evt)
