@@ -154,26 +154,37 @@ func (e *Engine) SetupNotifier(address string) error {
 }
 
 func (e *Engine) VerifyEvent(address string, event *encoding.Event) bool {
-	logger.Verbosef("+++++++verifyEvent")
 	tx, err := BuildEventTransaction(e.mixinContract, address, event)
 	if err != nil {
 		return false
 	}
 
-	signature := secp256k1.NewSignature(event.Signature)
+	if len(event.Signature) != 65 {
+		return false
+	}
+
 	digest := tx.Id(e.chainId)
+
+	signature := secp256k1.NewSignature(event.Signature)
+	if !e.VerifySignature(digest, signature) {
+		return false
+	}
+
+	return true
+}
+
+func (e *Engine) VerifySignature(digest *chain.Bytes32, signature *secp256k1.Signature) bool {
 	pub, err := secp256k1.Recover(digest[:], signature)
 	if err != nil {
 		logger.Verbosef("VerifyEvent: secp256k1.Recover(%v, %v) => %v", digest[:], signature, err)
 		return false
 	}
-	logger.Verbosef("+++++++++Recover public key: %s", pub.StringEOS())
+
 	for _, pk := range e.publicKeys {
 		if bytes.Compare(pk.Data[:], pub.Data[:]) == 0 {
 			return true
 		}
 	}
-	logger.Verbosef("VerifyEvent return false, %s not found!", pub.StringEOS())
 	return false
 }
 
@@ -308,6 +319,19 @@ func (e *Engine) AdjustOffset(txReqeustIndex uint64) uint64 {
 	return txReqeustIndex - txLog.id
 }
 
+func (e *Engine) FetchActions(offset uint64) []interface{} {
+	r, err := e.rpc.GetActions(e.mixinContract, int(offset), MAX_ACTIONS)
+	if err != nil {
+		panic(err)
+	}
+
+	actions, err := r.GetArray("actions")
+	if err != nil {
+		panic(err)
+	}
+	return actions
+}
+
 func (e *Engine) PullContractEvents() (int, error) {
 	txRequestCount, err := e.GetTxRequestsCount()
 	if err != nil {
@@ -319,35 +343,35 @@ func (e *Engine) PullContractEvents() (int, error) {
 	offset := e.storeReadContractLogsOffset(e.mixinContract)
 	logger.Verbosef("+++++++PullContractEvents txRequestCount: %d, txReqeustIndex: %d, offset: %d", txRequestCount, txReqeustIndex, offset)
 
-	r, err := e.rpc.GetActions(e.mixinContract, int(offset), MAX_ACTIONS)
-	if err != nil {
-		return 0, err
-	}
-
-	actions, err := r.GetArray("actions")
-	if err != nil {
-		return 0, err
-	}
+	actions := e.FetchActions(offset)
 
 	if len(actions) == 0 {
 		if txReqeustIndex > 0 && txRequestCount >= txReqeustIndex+1 {
 			//Eos node has been started from a new snapshoot, try to reset offset accordingly
 			offset = e.AdjustOffset(txReqeustIndex)
-			r, err = e.rpc.GetActions(e.mixinContract, int(offset), MAX_ACTIONS)
-			if err != nil {
-				panic(err)
-			}
-
-			actions, err = r.GetArray("actions")
-			if err != nil {
-				panic(err)
-			}
-
-			if len(actions) == 0 {
-				panic("no actions found while trying to reset offset.")
-			}
+			actions = e.FetchActions(offset)
 		} else {
 			return 0, nil
+		}
+	} else {
+		//Make sure action sequence number match is euqal to offset
+		//There is a rare situation that a node exited abnormally
+		//which make the offset stale, if it was connected to a node started
+		//from a new snapshot, it'is possible to read action from the offset,
+		//but in this situation the offset is incorrect, we need to adjust it acoordingly
+		obj, ok := chain.NewJsonObjectFromInterface(actions[0])
+		if !ok {
+			panic("invalid action")
+		}
+
+		seq, err := obj.GetUint64("account_action_seq")
+		if err != nil {
+			panic(err)
+		}
+
+		if seq != offset {
+			offset = e.AdjustOffset(txReqeustIndex)
+			actions = e.FetchActions(offset)
 		}
 	}
 
@@ -358,7 +382,7 @@ func (e *Engine) PullContractEvents() (int, error) {
 	for i, action := range actions {
 		obj, ok := chain.NewJsonObjectFromInterface(action)
 		if !ok {
-			continue
+			panic("invalid action")
 		}
 
 		seq, err := obj.GetUint64("account_action_seq")
@@ -377,8 +401,6 @@ func (e *Engine) PullContractEvents() (int, error) {
 		}
 
 		evt := convertTxLogToEvent(txLog)
-		// evt, err := encoding.DecodeEvent(b)
-		logger.Verbosef("loopGetLogs(%s) => DecodeEvent(%x) => %v, %v", e.mixinContract, evt, err)
 		if err != nil {
 			panic(err)
 		}

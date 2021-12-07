@@ -105,7 +105,7 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 		}
 
 		if proc.Platform == ProcessPlatformEos {
-			m.handleEosGroupMessages(ctx, evt, sm)
+			m.handleEosGroupMessages(ctx, proc, evt, sm)
 			continue
 		}
 
@@ -193,7 +193,7 @@ func (m *Machine) signEosEvents(ctx context.Context, proc *Process, e *encoding.
 		for _, partial := range partials {
 			e.Signature = append(e.Signature, partial...)
 		}
-		e.Signature = append(e.Signature, byte(1))
+		e.Signature = append(e.Signature, byte(len(partials)))
 		err = m.store.WriteSignedGroupEventAndExpirePending(e, constants.SignTypeSECP256K1)
 		if err != nil {
 			panic(err)
@@ -236,7 +236,7 @@ func (m *Machine) signEosEvents(ctx context.Context, proc *Process, e *encoding.
 	}
 }
 
-func (m *Machine) handleEosGroupMessages(ctx context.Context, evt *encoding.Event, sm map[string]time.Time) {
+func (m *Machine) handleEosGroupMessages(ctx context.Context, proc *Process, evt *encoding.Event, sm map[string]time.Time) {
 	process, ok := m.processes[evt.Process]
 	if !ok {
 		logger.Verbosef("handleEosGroupMessages: Process %s does not exists!", evt.Process)
@@ -254,7 +254,6 @@ func (m *Machine) handleEosGroupMessages(ctx context.Context, evt *encoding.Even
 		return
 	}
 
-	proc := m.processes[evt.Process]
 	if proc == nil {
 		panic(fmt.Errorf("unknown process %v", evt.Process))
 	}

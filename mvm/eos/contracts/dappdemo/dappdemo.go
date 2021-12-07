@@ -121,17 +121,6 @@ func (c *Contract) GetNextIndex(key uint64, initialValue uint64) uint64 {
 	}
 }
 
-func (c *Contract) SetCounterValue(key uint64, value uint64) {
-	db := NewCounterDB(c.self, c.self)
-	if it, item := db.Get(key); it.IsOk() {
-		item.count = value
-		db.Update(it, item, chain.SamePayer)
-	} else {
-		item := Counter{id: key, count: value}
-		db.Store(&item, c.self)
-	}
-}
-
 func (c *Contract) GetNextNonce() uint64 {
 	return c.GetNextIndex(KEY_NONCE, 0)
 }
