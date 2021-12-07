@@ -22,7 +22,7 @@ const (
 	EventMethod = "0x5cae8005"
 
 	ContractAgeLimit = 16
-	GasLimit         = 1000000
+	GasLimit         = 8000000
 	GasPrice         = 100000000000
 )
 
