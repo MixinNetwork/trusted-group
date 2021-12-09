@@ -5,19 +5,20 @@ import {MixinProcess} from './mixin.sol';
 
 // a simple contract to refund everything
 contract RefundWorker is MixinProcess {
-  // PID is the app id in Mixin which the contract will process, e.g. c6d0c728-2624-429b-8e0d-d9d19b6592fa
+  // PID is the app id in Mixin which the contract will process, e.g. 27d0c319-a4e3-38b4-93ff-cb45da8adbe1
   // The app id will add 0x as prefix and delete '-'
-  uint128 public constant PID = 0x4cfc560f993a3fef92d14f92f7a0b662;
+  uint128 public constant PID = 0x27d0c319a4e338b493ffcb45da8adbe1;
 
   function _pid() internal pure override(MixinProcess) returns (uint128) {
     return PID;
   }
 
   // just refund everything
-  function _work(address sender, uint64 nonce, uint128 asset, uint256 amount, uint64 timestamp, bytes memory extra) internal override(MixinProcess) returns (bool) {
-    require(timestamp > 0, "invalid timestamp");
+  function _work(Event memory evt) internal override(MixinProcess) returns (bool) {
+    require(evt.timestamp > 0, "invalid timestamp");
 
-    bytes memory log = encodeMixinEvent(nonce, asset, amount, extra, members[sender]);
+    address sender = mixinSenderToAddress(evt.sender);
+    bytes memory log = encodeMixinEvent(evt.nonce, evt.asset, evt.amount, evt.extra, members[sender]);
     emit MixinTransaction(log);
 
     return true;

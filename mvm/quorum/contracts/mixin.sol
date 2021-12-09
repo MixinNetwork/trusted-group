@@ -9,6 +9,17 @@ abstract contract MixinProcess {
   using BLS for uint256[2];
   using BLS for bytes;
 
+  struct Event {
+    uint128 process;
+    uint64 nonce;
+    uint128 asset;
+    uint256 amount;
+    bytes extra;
+    uint64 timestamp;
+    bytes sender;
+    uint256[2] sig;
+  }
+
   event MixinTransaction(bytes);
   event MixinEvent(address indexed sender, uint256 nonce, uint128 asset, uint256 amount, uint64 timestamp, bytes extra);
 
@@ -27,57 +38,61 @@ abstract contract MixinProcess {
   function _pid() internal pure virtual returns (uint128);
 
   // the contract should implement this method
-  function _work(address sender, uint64 nonce, uint128 asset, uint256 amount, uint64 timestamp, bytes memory extra) internal virtual returns (bool);
+  function _work(Event memory evt) internal virtual returns (bool);
 
   // process || nonce || asset || amount || extra || timestamp || members || threshold || sig
   function mixin(bytes calldata raw) public returns (bool) {
     require(_pid() > 0);
     require(raw.length >= 141, "event data too small");
 
+    Event memory evt;
+
     uint256 size = 0;
     uint256 offset = 0;
-    uint128 process = raw.toUint128(offset);
-    require(process == _pid(), "invalid process");
+    evt.process = raw.toUint128(offset);
+    require(evt.process == _pid(), "invalid process");
     offset = offset + 16;
 
-    uint64 nonce = raw.toUint64(offset);
-    require(nonce == NONCE, "invalid nonce");
+    evt.nonce = raw.toUint64(offset);
+    require(evt.nonce == NONCE, "invalid nonce");
     NONCE = NONCE + 1;
     offset = offset + 8;
 
-    uint128 asset = raw.toUint128(offset);
+    evt.asset = raw.toUint128(offset);
     offset = offset + 16;
 
     size = raw.toUint16(offset);
     offset = offset + 2;
     require(size <= 32, "integer out of bounds");
-    uint256 amount = new bytes(32 - size).concat(raw.slice(offset, size)).toUint256(0);
+    evt.amount = new bytes(32 - size).concat(raw.slice(offset, size)).toUint256(0);
     offset = offset + size;
 
     size = raw.toUint16(offset);
     offset = offset + 2;
-    bytes memory extra = raw.slice(offset, size);
+    evt.extra = raw.slice(offset, size);
     offset = offset + size;
 
-    uint64 timestamp = raw.toUint64(offset);
+    evt.timestamp = raw.toUint64(offset);
     offset = offset + 8;
 
     size = raw.toUint16(offset);
     size = 2 + size * 16 + 2;
-    bytes memory sender = raw.slice(offset, size);
+    evt.sender = raw.slice(offset, size);
     offset = offset + size;
 
     offset = offset + 2;
-    require(verifySignature(raw, offset), "invalid signature");
+    evt.sig = [raw.toUint256(offset), raw.toUint256(offset+32)];
+    uint256[2] memory message = raw.slice(0, offset-2).concat(new bytes(2)).hashToPoint();
+    require(evt.sig.verifySingle(GROUP, message), "invalid signature");
 
     offset = offset + 64;
     require(raw.length == offset, "malformed event encoding");
 
-    custodian[asset] = custodian[asset] + amount;
-    members[mixinSenderToAddress(sender)] = sender;
+    custodian[evt.asset] = custodian[evt.asset] + evt.amount;
+    members[mixinSenderToAddress(evt.sender)] = evt.sender;
 
-    emit MixinEvent(mixinSenderToAddress(sender), nonce, asset, amount, timestamp, extra);
-    return _work(mixinSenderToAddress(sender), nonce, asset, amount, timestamp, extra);
+    emit MixinEvent(mixinSenderToAddress(evt.sender), evt.nonce, evt.asset, evt.amount, evt.timestamp, evt.extra);
+    return _work(evt);
   }
 
   // pid || nonce || asset || amount || extra || timestamp || members || threshold || sig
@@ -97,12 +112,6 @@ abstract contract MixinProcess {
     raw = raw.concat(receiver);
     raw = raw.concat(new bytes(2));
     return raw;
-  }
-
-  function verifySignature(bytes memory raw, uint256 offset) internal view returns (bool) {
-    uint256[2] memory sig = [raw.toUint256(offset), raw.toUint256(offset+32)];
-    uint256[2] memory message = raw.slice(0, offset-2).concat(new bytes(2)).hashToPoint();
-    return sig.verifySingle(GROUP, message);
   }
 
   function mixinSenderToAddress(bytes memory sender) internal pure returns (address) {
