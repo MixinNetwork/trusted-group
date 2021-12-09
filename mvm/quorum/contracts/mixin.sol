@@ -16,7 +16,8 @@ abstract contract MixinProcess {
     uint256 amount;
     bytes extra;
     uint64 timestamp;
-    bytes sender;
+    bytes members;
+    address sender;
     uint256[2] sig;
   }
 
@@ -77,7 +78,8 @@ abstract contract MixinProcess {
 
     size = raw.toUint16(offset);
     size = 2 + size * 16 + 2;
-    evt.sender = raw.slice(offset, size);
+    evt.members = raw.slice(offset, size);
+    evt.sender = mixinSenderToAddress(evt.members);
     offset = offset + size;
 
     offset = offset + 2;
@@ -89,9 +91,9 @@ abstract contract MixinProcess {
     require(raw.length == offset, "malformed event encoding");
 
     custodian[evt.asset] = custodian[evt.asset] + evt.amount;
-    members[mixinSenderToAddress(evt.sender)] = evt.sender;
+    members[evt.sender] = evt.members;
 
-    emit MixinEvent(mixinSenderToAddress(evt.sender), evt.nonce, evt.asset, evt.amount, evt.timestamp, evt.extra);
+    emit MixinEvent(evt.sender, evt.nonce, evt.asset, evt.amount, evt.timestamp, evt.extra);
     return _work(evt);
   }
 
