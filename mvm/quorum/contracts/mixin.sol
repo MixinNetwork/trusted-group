@@ -4,7 +4,7 @@ pragma solidity >=0.8.4 <0.9.0;
 import {BytesLib} from './bytes.sol';
 import {BLS} from './bls.sol';
 
-contract MixinProcess {
+abstract contract MixinProcess {
   using BytesLib for bytes;
   using BLS for uint256[2];
   using BLS for bytes;
@@ -19,31 +19,25 @@ contract MixinProcess {
     0x257ad901f02f8a442ccf4f1b1d0d7d3a8e8fe791102706e575d36de1c2a4a40f  // y.x
   ];
 
-  // PID is the app id in Mixin which the contract will process, e.g. c6d0c728-2624-429b-8e0d-d9d19b6592fa
-  // The app id will add 0x as prefix and delete '-'
-  uint128 public constant PID = 0xc6d0c7282624429b8e0dd9d19b6592fa;
   uint64 public NONCE = 0;
   mapping(uint128 => uint256) public custodian;
   mapping(address => bytes) public members;
 
-  function work(address sender, uint64 nonce, uint128 asset, uint256 amount, uint64 timestamp, bytes memory extra) internal returns (bool) {
-    require(timestamp > 0, "invalid timestamp");
-    // the contract should implement this method, the following code just refund
+  // the contract should return a valid PID
+  function _pid() internal pure virtual returns (uint128);
 
-    bytes memory log = encodeMixinEvent(nonce, asset, amount, extra, members[sender]);
-    emit MixinTransaction(log);
-
-    return true;
-  }
+  // the contract should implement this method
+  function _work(address sender, uint64 nonce, uint128 asset, uint256 amount, uint64 timestamp, bytes memory extra) internal virtual returns (bool);
 
   // process || nonce || asset || amount || extra || timestamp || members || threshold || sig
   function mixin(bytes calldata raw) public returns (bool) {
+    require(_pid() > 0);
     require(raw.length >= 141, "event data too small");
 
     uint256 size = 0;
     uint256 offset = 0;
     uint128 process = raw.toUint128(offset);
-    require(process == PID, "invalid process");
+    require(process == _pid(), "invalid process");
     offset = offset + 16;
 
     uint64 nonce = raw.toUint64(offset);
@@ -83,7 +77,7 @@ contract MixinProcess {
     members[mixinSenderToAddress(sender)] = sender;
 
     emit MixinEvent(mixinSenderToAddress(sender), nonce, asset, amount, timestamp, extra);
-    return work(mixinSenderToAddress(sender), nonce, asset, amount, timestamp, extra);
+    return _work(mixinSenderToAddress(sender), nonce, asset, amount, timestamp, extra);
   }
 
   // pid || nonce || asset || amount || extra || timestamp || members || threshold || sig
@@ -91,7 +85,7 @@ contract MixinProcess {
     require(extra.length < 128, "extra too large");
     require(custodian[asset] >= amount, "insufficient custodian");
     custodian[asset] = custodian[asset] - amount;
-    bytes memory raw = uint128ToFixedBytes(PID);
+    bytes memory raw = uint128ToFixedBytes(_pid());
     raw = raw.concat(uint64ToFixedBytes(nonce));
     raw = raw.concat(uint128ToFixedBytes(asset));
     (bytes memory ab, uint16 al) = uint256ToVarBytes(amount);
