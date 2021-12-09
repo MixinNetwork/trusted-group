@@ -26,7 +26,7 @@ type RPC struct {
 	host   string
 }
 
-func NewRPC(host string) (*RPC, error) {
+func NewRPC(host string, base uint64) (*RPC, error) {
 	chain := &RPC{
 		client: &http.Client{Timeout: 30 * time.Second},
 		host:   host,
@@ -35,7 +35,10 @@ func NewRPC(host string) (*RPC, error) {
 	if err != nil {
 		return nil, err
 	}
-	if height < quorumMinimumHeight {
+	if base < quorumMinimumHeight {
+		return nil, fmt.Errorf("block base too small %d", base)
+	}
+	if height < base {
 		return nil, fmt.Errorf("block height too small %d", height)
 	}
 	return chain, nil
@@ -126,9 +129,13 @@ func (chain *RPC) GetAddressBalance(address string) (decimal.Decimal, error) {
 	return ethereumNumberToDecimal(resp.Result)
 }
 
-func (chain *RPC) GetLogs(address, topic string, from, to uint64) ([][]byte, error) {
+type Log struct {
+	address string
+	data    []byte
+}
+
+func (chain *RPC) GetLogs(topic string, from, to uint64) ([]*Log, error) {
 	body, err := chain.call("eth_getLogs", []interface{}{map[string]interface{}{
-		"address":   address,
 		"topics":    []string{topic},
 		"fromBlock": fmt.Sprintf("0x%x", from),
 		"toBlock":   fmt.Sprintf("0x%x", to),
@@ -138,7 +145,8 @@ func (chain *RPC) GetLogs(address, topic string, from, to uint64) ([][]byte, err
 	}
 	var resp struct {
 		Result []struct {
-			Data string `json:"data"`
+			Address string `json:"address"`
+			Data    string `json:"data"`
 		} `json:"result"`
 		Error *EthereumError `json:"error,omitempty"`
 	}
@@ -149,7 +157,7 @@ func (chain *RPC) GetLogs(address, topic string, from, to uint64) ([][]byte, err
 	if resp.Error != nil {
 		return nil, resp.Error
 	}
-	var logs [][]byte
+	var logs []*Log
 	for _, r := range resp.Result {
 		b, err := hex.DecodeString(r.Data[2:])
 		if err != nil {
@@ -175,7 +183,11 @@ func (chain *RPC) GetLogs(address, topic string, from, to uint64) ([][]byte, err
 		if bi.Int64() > 512 {
 			return nil, fmt.Errorf("invalid log %s", r.Data)
 		}
-		logs = append(logs, b[64:64+bi.Int64()])
+		log := &Log{
+			address: r.Address,
+			data:    b[64 : 64+bi.Int64()],
+		}
+		logs = append(logs, log)
 	}
 	return logs, nil
 }

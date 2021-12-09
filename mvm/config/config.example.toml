@@ -26,6 +26,10 @@ share = ""
 store = "/mvm/quorum"
 rpc = "http://127.0.0.1:8545"
 chain = 83927
+# the base block height to scan logs
+base = 1736171
+# only the publisher need to set this private key with enough ether balance
+key = ""
 
 [messenger]
 user = ""
