@@ -8,8 +8,9 @@ import (
 )
 
 const (
-	prefixAccountSnapshot = "MVM:ACCOUNT:SNAPSHOT:"
-	prefixAccountBalance  = "MVM:ACCOUNT:BALANCE:"
+	prefixAccountSnapshotInc = "MVM:ACCOUNT:SNAPSHOT:INC"
+	prefixAccountSnapshotDec = "MVM:ACCOUNT:SNAPSHOT:DEC:"
+	prefixAccountBalance     = "MVM:ACCOUNT:BALANCE:"
 )
 
 func (bs *BadgerStore) CheckAccountSnapshot(as *machine.AccountSnapshot) (bool, error) {
@@ -19,7 +20,14 @@ func (bs *BadgerStore) CheckAccountSnapshot(as *machine.AccountSnapshot) (bool, 
 		panic(as.Amount)
 	}
 
-	ask := []byte(prefixAccountSnapshot + as.Process)
+	var prefix string
+	if as.Credit {
+		prefix = prefixAccountSnapshotInc
+	} else {
+		prefix = prefixAccountSnapshotDec
+	}
+
+	ask := []byte(prefix + as.Process)
 	ask = append(ask, uint64Bytes(as.Nonce)...)
 	_, err := txn.Get(ask)
 	if err == nil {
@@ -37,7 +45,13 @@ func (bs *BadgerStore) CheckAccountSnapshot(as *machine.AccountSnapshot) (bool, 
 
 func (bs *BadgerStore) WriteAccountSnapshot(as *machine.AccountSnapshot) error {
 	return bs.Badger().Update(func(txn *badger.Txn) error {
-		ask := []byte(prefixAccountSnapshot + as.Process)
+		var prefix string
+		if as.Credit {
+			prefix = prefixAccountSnapshotInc
+		} else {
+			prefix = prefixAccountSnapshotDec
+		}
+		ask := []byte(prefix + as.Process)
 		ask = append(ask, uint64Bytes(as.Nonce)...)
 		_, err := txn.Get(ask)
 		if err == nil {
