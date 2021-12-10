@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	prefixAccountSnapshotInc = "MVM:ACCOUNT:SNAPSHOT:INC"
+	prefixAccountSnapshotInc = "MVM:ACCOUNT:SNAPSHOT:INC:"
 	prefixAccountSnapshotDec = "MVM:ACCOUNT:SNAPSHOT:DEC:"
 	prefixAccountBalance     = "MVM:ACCOUNT:BALANCE:"
 )
@@ -20,15 +20,7 @@ func (bs *BadgerStore) CheckAccountSnapshot(as *machine.AccountSnapshot) (bool, 
 		panic(as.Amount)
 	}
 
-	var prefix string
-	if as.Credit {
-		prefix = prefixAccountSnapshotInc
-	} else {
-		prefix = prefixAccountSnapshotDec
-	}
-
-	ask := []byte(prefix + as.Process)
-	ask = append(ask, uint64Bytes(as.Nonce)...)
+	ask := buildAccountSnapshotKey(as)
 	_, err := txn.Get(ask)
 	if err == nil {
 		return true, nil
@@ -45,14 +37,7 @@ func (bs *BadgerStore) CheckAccountSnapshot(as *machine.AccountSnapshot) (bool, 
 
 func (bs *BadgerStore) WriteAccountSnapshot(as *machine.AccountSnapshot) error {
 	return bs.Badger().Update(func(txn *badger.Txn) error {
-		var prefix string
-		if as.Credit {
-			prefix = prefixAccountSnapshotInc
-		} else {
-			prefix = prefixAccountSnapshotDec
-		}
-		ask := []byte(prefix + as.Process)
-		ask = append(ask, uint64Bytes(as.Nonce)...)
+		ask := buildAccountSnapshotKey(as)
 		_, err := txn.Get(ask)
 		if err == nil {
 			return nil
@@ -72,7 +57,7 @@ func (bs *BadgerStore) WriteAccountSnapshot(as *machine.AccountSnapshot) error {
 		} else {
 			bal = bal.Sub(as.Amount)
 		}
-		key := buildAccountKey(as.Process, as.Asset)
+		key := buildAccountBalanceKey(as.Process, as.Asset)
 		err = txn.Set(key, []byte(bal.String()))
 		if err != nil {
 			return err
@@ -83,7 +68,7 @@ func (bs *BadgerStore) WriteAccountSnapshot(as *machine.AccountSnapshot) error {
 }
 
 func (bs *BadgerStore) readAccountBalance(txn *badger.Txn, pid, asset string) (common.Integer, error) {
-	key := buildAccountKey(pid, asset)
+	key := buildAccountBalanceKey(pid, asset)
 	item, err := txn.Get(key)
 	if err == badger.ErrKeyNotFound {
 		return common.Zero, nil
@@ -97,7 +82,16 @@ func (bs *BadgerStore) readAccountBalance(txn *badger.Txn, pid, asset string) (c
 	return common.NewIntegerFromString(string(val)), nil
 }
 
-func buildAccountKey(pid, asset string) []byte {
+func buildAccountSnapshotKey(as *machine.AccountSnapshot) []byte {
+	prefix := prefixAccountSnapshotDec
+	if as.Credit {
+		prefix = prefixAccountSnapshotInc
+	}
+	ask := []byte(prefix + as.Process)
+	return append(ask, uint64Bytes(as.Nonce)...)
+}
+
+func buildAccountBalanceKey(pid, asset string) []byte {
 	key := append([]byte(prefixAccountBalance), pid...)
 	return append(key, asset...)
 }
