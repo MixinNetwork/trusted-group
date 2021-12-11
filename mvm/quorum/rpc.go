@@ -184,7 +184,7 @@ func (chain *RPC) GetLogs(topic string, from, to uint64) ([]*Log, error) {
 			return nil, fmt.Errorf("invalid log %s", r.Data)
 		}
 		log := &Log{
-			address: r.Address,
+			address: formatAddress(r.Address),
 			data:    b[64 : 64+bi.Int64()],
 		}
 		logs = append(logs, log)
