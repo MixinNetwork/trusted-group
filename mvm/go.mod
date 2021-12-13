@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/MixinNetwork/mixin v0.13.10-0.20211130090246-732558212cef
-	github.com/MixinNetwork/nfo v0.0.9
+	github.com/MixinNetwork/nfo v0.1.0
 	github.com/MixinNetwork/tip v0.0.0-20211203090648-26e664ba5ea4
 	github.com/dgraph-io/badger/v3 v3.2103.2
 	github.com/drand/kyber v1.1.7
@@ -30,7 +30,6 @@ require (
 	github.com/dgraph-io/ristretto v0.1.0 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/fox-one/msgpack v1.0.0 // indirect
-	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/go-resty/resty/v2 v2.6.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
@@ -46,7 +45,6 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/russross/blackfriday/v2 v2.0.1 // indirect
 	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
-	github.com/unrolled/render v1.4.1 // indirect
 	github.com/vmihailenco/msgpack/v4 v4.3.12 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
 	go.dedis.ch/fixbuf v1.0.3 // indirect
