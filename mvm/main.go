@@ -32,6 +32,12 @@ func main() {
 						Value:   "~/.mixin/mvm/data",
 						Usage:   "The database directory path",
 					},
+					&cli.IntFlag{
+						Name:    "port",
+						Aliases: []string{"p"},
+						Value:   9000,
+						Usage:   "The RPC server http port",
+					},
 				},
 			},
 			{
