@@ -15,7 +15,7 @@ const (
 )
 
 var (
-	MTG_CONTRACT = chain.NewName("mtgxinmtgxin")
+	MTG_PUBLISHER = chain.NewName("mtgpublisher")
 	//uuid: 49b00892-6954-4826-aaec-371ca165558a
 	PROCESS_ID = chain.Uint128([16]byte{0x49, 0xb0, 0x08, 0x92, 0x69, 0x54, 0x48, 0x26, 0xaa, 0xec, 0x37, 0x1c, 0xa1, 0x65, 0x55, 0x8a})
 )
@@ -67,7 +67,7 @@ func NewContract(receiver, firstReceiver, action chain.Name) *Contract {
 
 //action onevent
 func (c *Contract) OnEvent(event *TxEvent) {
-	chain.RequireAuth(MTG_CONTRACT)
+	chain.RequireAuth(MTG_PUBLISHER)
 	c.CheckAndIncNonce(event.nonce)
 	payer := c.self
 	check(event.process == PROCESS_ID, "Invalid process id")
@@ -101,11 +101,37 @@ func (c *Contract) OnEvent(event *TxEvent) {
 
 		chain.NewAction(
 			chain.PermissionLevel{c.self, chain.ActiveName},
-			MTG_CONTRACT,
+			MTG_PUBLISHER,
 			chain.NewName("txrequest"),
 			&notify,
 		).Send()
 	}
+}
+
+//action onerror
+func (c *Contract) OnError(event *TxEvent, code uint64, reason string) {
+	chain.RequireAuth(MTG_PUBLISHER)
+
+	c.CheckAndIncNonce(event.nonce)
+
+	id := c.GetNextTxRequestNonce()
+	notify := TxRequest{
+		nonce:     id,
+		contract:  c.self,
+		process:   PROCESS_ID,
+		asset:     event.asset,
+		members:   event.members,
+		threshold: event.threshold,
+		amount:    event.amount,
+		extra:     event.extra,
+	}
+
+	chain.NewAction(
+		chain.PermissionLevel{c.self, chain.ActiveName},
+		MTG_PUBLISHER,
+		chain.NewName("txrequest"),
+		&notify,
+	).Send()
 }
 
 func (c *Contract) GetNextIndex(key uint64, initialValue uint64) uint64 {
@@ -130,7 +156,7 @@ func (c *Contract) CheckAndIncNonce(oldNonce uint64) {
 	db := NewCounterDB(c.self, c.self)
 	if it, item := db.Get(key); it.IsOk() {
 		chain.Println("++++CheckAndIncNonce:", item.count, oldNonce)
-		//		check(item.count == oldNonce, "Invalid nonce")
+		check(item.count == oldNonce, "Invalid nonce")
 		item.count = oldNonce + 1
 		db.Update(it, item, chain.SamePayer)
 	} else {

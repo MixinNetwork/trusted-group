@@ -96,46 +96,6 @@ func (c *Contract) TxRequest(nonce uint64,
 	//TODO: emit transfer event so block explorer can show it
 }
 
-//node call push event error, refund
-//action refundreq
-func (c *Contract) RefundRequest(nonce uint64,
-	contract chain.Name,
-	process chain.Uint128,
-	asset chain.Uint128,
-	members []chain.Uint128,
-	threshold int32,
-	amount chain.Uint128,
-	extra []byte) {
-
-	chain.RequireAuth(contract)
-	db := NewProcessDB(c.self, c.self)
-	it, item := db.Get(contract.N)
-	check(it.IsOk(), "process not found!")
-	check(item.process == process, "invalid process!")
-
-	seq := c.GetNextSeq()
-	log := TxLog{
-		id:        seq,
-		nonce:     nonce,
-		contract:  contract,
-		process:   process,
-		asset:     asset,
-		members:   members,
-		threshold: threshold,
-		amount:    amount,
-		extra:     extra,
-		timestamp: chain.CurrentTime().Elapsed * 1000,
-	}
-
-	chain.NewAction(
-		chain.PermissionLevel{c.self, chain.ActiveName},
-		c.self,
-		chain.NewName("ontxlog"),
-		&log,
-	).Send()
-	//TODO: emit transfer event so block explorer can show it
-}
-
 //action ontxlog ignore
 func (c *Contract) OnTxLog(log *TxLog) {
 	chain.RequireAuth(c.self)

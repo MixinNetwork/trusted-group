@@ -84,7 +84,7 @@ func genPrivateKey(share *share.PriShare) *secp256k1.PrivateKey {
 	return key
 }
 
-func BuildEventTransaction(mixincontract string, address string, event *encoding.Event) (*chain.Transaction, error) {
+func BuildEventTransaction(mixincontract, mtgPublisherContract, address string, event *encoding.Event) (*chain.Transaction, error) {
 	if len(event.Extra) < 24 {
 		return nil, errors.New("Invalid reference block")
 	}
@@ -112,7 +112,7 @@ func BuildEventTransaction(mixincontract string, address string, event *encoding
 			return nil, err
 		}
 		action = chain.NewAction(
-			chain.PermissionLevel{Actor: chain.NewName(mixincontract), Permission: chain.NewName("active")},
+			chain.PermissionLevel{Actor: chain.NewName(mtgPublisherContract), Permission: chain.NewName("active")},
 			chain.NewName(address),
 			chain.NewName("onevent"),
 			txEvent,

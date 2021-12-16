@@ -101,7 +101,8 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 		}
 		proc := m.processes[evt.Process]
 		if proc == nil {
-			panic(fmt.Errorf("unknown process %v", evt.Process))
+			logger.Verbosef("unknown process %v", evt.Process)
+			continue
 		}
 
 		if proc.Platform == ProcessPlatformEos {
@@ -214,7 +215,7 @@ func (m *Machine) signEosEvents(ctx context.Context, proc *Process, e *encoding.
 		return
 	}
 
-	lst := sm[hex.EncodeToString(partial)].Add(time.Minute * 60)
+	lst := sm[hex.EncodeToString(partial)].Add(time.Minute * 5)
 	if checkSignedWith(partials, partial) && lst.After(time.Now()) {
 		return
 	}

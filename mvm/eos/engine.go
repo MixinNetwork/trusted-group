@@ -32,20 +32,22 @@ type Configuration struct {
 	RPC           string   `toml:"rpc"`
 	PrivateKey    string   `toml:"key"`
 	MixinContract string   `toml:"mixin_contract"`
+	MTGPublisher  string   `toml:"mtg_publisher"`
 	ChainId       string   `toml:"chain_id"`
 	PublicKeys    []string `toml:"public_keys"`
 	Publisher     bool     `toml:"publisher"`
 }
 
 type Engine struct {
-	db            *badger.DB
-	rpc           *chain.ChainApi
-	mixinContract string
-	chainId       *chain.Bytes32
-	key           *secp256k1.PrivateKey
-	publicKeys    []*secp256k1.PublicKey
-	publisher     bool
-	threshold     int
+	db                   *badger.DB
+	rpc                  *chain.ChainApi
+	mixinContract        string
+	mtgPublisherContract string
+	chainId              *chain.Bytes32
+	key                  *secp256k1.PrivateKey
+	publicKeys           []*secp256k1.PublicKey
+	publisher            bool
+	threshold            int
 }
 
 func Boot(conf *Configuration, threshold int) (*Engine, error) {
@@ -82,14 +84,15 @@ func Boot(conf *Configuration, threshold int) (*Engine, error) {
 	}
 	logger.Verbosef("++++conf.Publisher: %v", conf.Publisher)
 	e := &Engine{
-		db:            db,
-		rpc:           rpc,
-		mixinContract: conf.MixinContract,
-		chainId:       _chainId,
-		key:           key,
-		publicKeys:    pubs,
-		publisher:     conf.Publisher,
-		threshold:     threshold,
+		db:                   db,
+		rpc:                  rpc,
+		mixinContract:        conf.MixinContract,
+		mtgPublisherContract: conf.MTGPublisher,
+		chainId:              _chainId,
+		key:                  key,
+		publicKeys:           pubs,
+		publisher:            conf.Publisher,
+		threshold:            threshold,
 	}
 
 	if e.key != nil {
@@ -105,8 +108,8 @@ func (e *Engine) Hash(b []byte) []byte {
 }
 
 func (e *Engine) SignTx(address string, event *encoding.Event) ([]byte, error) {
-	logger.Verbosef("+++++++SignTx chain id: %s", e.chainId.HexString())
-	tx, err := BuildEventTransaction(e.mixinContract, address, event)
+	logger.Verbosef("+++++++SignTx %s %v", address, event)
+	tx, err := BuildEventTransaction(e.mixinContract, e.mtgPublisherContract, address, event)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +157,7 @@ func (e *Engine) SetupNotifier(address string) error {
 }
 
 func (e *Engine) VerifyEvent(address string, event *encoding.Event) bool {
-	tx, err := BuildEventTransaction(e.mixinContract, address, event)
+	tx, err := BuildEventTransaction(e.mixinContract, e.mtgPublisherContract, address, event)
 	if err != nil {
 		return false
 	}
@@ -319,17 +322,17 @@ func (e *Engine) AdjustOffset(txReqeustIndex uint64) uint64 {
 	return txReqeustIndex - txLog.id
 }
 
-func (e *Engine) FetchActions(offset uint64) []interface{} {
+func (e *Engine) FetchActions(offset uint64) ([]interface{}, error) {
 	r, err := e.rpc.GetActions(e.mixinContract, int(offset), MAX_ACTIONS)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	actions, err := r.GetArray("actions")
 	if err != nil {
 		panic(err)
 	}
-	return actions
+	return actions, nil
 }
 
 func (e *Engine) PullContractEvents() (int, error) {
@@ -343,13 +346,19 @@ func (e *Engine) PullContractEvents() (int, error) {
 	offset := e.storeReadContractLogsOffset(e.mixinContract)
 	logger.Verbosef("+++++++PullContractEvents txRequestCount: %d, txReqeustIndex: %d, offset: %d", txRequestCount, txReqeustIndex, offset)
 
-	actions := e.FetchActions(offset)
+	actions, err := e.FetchActions(offset)
+	if err != nil {
+		return 0, err
+	}
 
 	if len(actions) == 0 {
 		if txReqeustIndex > 0 && txRequestCount >= txReqeustIndex+1 {
 			//Eos node has been started from a new snapshoot, try to reset offset accordingly
 			offset = e.AdjustOffset(txReqeustIndex)
-			actions = e.FetchActions(offset)
+			actions, err = e.FetchActions(offset)
+			if err != nil {
+				panic(err)
+			}
 		} else {
 			return 0, nil
 		}
@@ -371,11 +380,14 @@ func (e *Engine) PullContractEvents() (int, error) {
 
 		if seq != offset {
 			offset = e.AdjustOffset(txReqeustIndex)
-			actions = e.FetchActions(offset)
+			actions, err = e.FetchActions(offset)
+			if err != nil {
+				panic(err)
+			}
 		}
 	}
 
-	logger.Verbosef("ReceiveGroupEvents offset %d, actions size:%d", offset, len(actions))
+	logger.Verbosef("PullContractEvents offset %d, actions size:%d", offset, len(actions))
 
 	lastIndex := uint64(0)
 	count := 0
@@ -417,10 +429,6 @@ func (e *Engine) PullContractEvents() (int, error) {
 		}
 	}
 
-	//FIXME: consensus on last finished tx request index
-	// if e.IsPublisher() && lastIndex != 0 {
-	// 	e.clearFinishedTxRequest(e.mixinContract, lastIndex)
-	// }
 	e.storeWriteTxRequestNonce(txReqeustIndex + 1)
 	e.storeWriteContractLogsOffset(e.mixinContract, lastIndex+1)
 	return count, nil
@@ -512,17 +520,17 @@ func (e *Engine) loopSendGroupEvents(address string) {
 			logger.Verbosef("+++GetAddressNonce(%v) => %v", address, err)
 			nonce = 0
 		}
-		logger.Verbosef("Engine.loopSendGroupEvents, address: %s nonce: %d", address, nonce)
-
 		evts, err := e.storeListGroupEvents(address, nonce, 100)
+		// logger.Verbosef("Engine.loopSendGroupEvents, address: %s nonce: %d, len(evts) %d", address, nonce, len(evts))
+
 		if err != nil {
 			panic(err)
 		}
 		for _, evt := range evts {
 			err := e.pushEvent(address, evt, true)
 			logger.Verbosef("pushEvent => (err: %v)", err)
-			//TODO: refund on error
 			if err != nil {
+				break
 			}
 		}
 	}
@@ -581,13 +589,13 @@ func convertEventToTxEvent(evt *encoding.Event) (*TxEvent, error) {
 }
 
 func (e *Engine) pushEvent(address string, evt *encoding.Event, good bool) error {
-	tx, err := BuildEventTransaction(e.mixinContract, address, evt)
+	tx, err := BuildEventTransaction(e.mixinContract, e.mtgPublisherContract, address, evt)
 	if err != nil {
 		return err
 	}
 
 	if len(evt.Signature)/65 < e.threshold {
-		return fmt.Errorf("not enough signatures")
+		panic("not enough signatures")
 	}
 
 	signatures := make([]string, 0, e.threshold)
@@ -604,20 +612,5 @@ func (e *Engine) pushEvent(address string, evt *encoding.Event, good bool) error
 		panic(err)
 	}
 	logger.Verbosef("++++++pushEvent:%s => %s", address, console)
-	return nil
-}
-
-func (e *Engine) clearFinishedTxRequest(address string, lastIndex uint64) error {
-	action := chain.NewAction(
-		chain.PermissionLevel{Actor: chain.NewName(e.mixinContract), Permission: chain.NewName("active")},
-		chain.NewName(address),
-		chain.NewName("clearreqs"),
-		lastIndex,
-	)
-
-	_, err := e.rpc.PushAction(action)
-	if err != nil {
-		return err
-	}
 	return nil
 }
