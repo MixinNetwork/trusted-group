@@ -10,11 +10,11 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/nfo/mtg"
 	"github.com/MixinNetwork/tip/crypto"
+	"github.com/MixinNetwork/tip/crypto/en256"
 	"github.com/MixinNetwork/tip/messenger"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/drand/kyber"
 	"github.com/drand/kyber/group/mod"
-	"github.com/drand/kyber/pairing/bn256"
 	"github.com/drand/kyber/share"
 	"github.com/shopspring/decimal"
 )
@@ -45,7 +45,7 @@ func Boot(conf *Configuration, group *mtg.Group, store Store, m messenger.Messen
 		return nil, err
 	}
 	commitments := unmarshalCommitments(pb)
-	suite := bn256.NewSuiteG2()
+	suite := en256.NewSuiteG2()
 	poly := share.NewPubPoly(suite, suite.Point().Base(), commitments)
 	sb, err := hex.DecodeString(conf.Share)
 	if err != nil {
@@ -198,7 +198,7 @@ func OutputGrouper(out *mtg.Output) string {
 
 func unmarshalPrivShare(b []byte) *share.PriShare {
 	var ps share.PriShare
-	ps.V = mod.NewInt64(0, bn256.Order).SetBytes(b[4:])
+	ps.V = mod.NewInt64(0, en256.Order).SetBytes(b[4:])
 	ps.I = int(binary.BigEndian.Uint32(b[:4]))
 	return &ps
 }

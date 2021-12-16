@@ -13,6 +13,7 @@ import (
 	"github.com/MixinNetwork/trusted-group/mvm/eos"
 	"github.com/MixinNetwork/trusted-group/mvm/machine"
 	"github.com/MixinNetwork/trusted-group/mvm/quorum"
+	"github.com/MixinNetwork/trusted-group/mvm/rpc"
 	"github.com/MixinNetwork/trusted-group/mvm/store"
 	"github.com/urfave/cli/v2"
 )
@@ -41,6 +42,17 @@ func bootCmd(c *cli.Context) error {
 		return err
 	}
 	defer db.Close()
+
+	go func() {
+		if c.Int("port") < 1000 {
+			return
+		}
+		server := rpc.NewServer(db, c.Int("port"))
+		err := server.ListenAndServe()
+		if err != nil {
+			panic(err)
+		}
+	}()
 
 	group, err := mtg.BuildGroup(ctx, db, conf.MTG)
 	if err != nil {

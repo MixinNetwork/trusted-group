@@ -4,8 +4,8 @@ go 1.17
 
 require (
 	github.com/MixinNetwork/mixin v0.13.10-0.20211130090246-732558212cef
-	github.com/MixinNetwork/nfo v0.0.8-0.20211130170107-c6f437bcd087
-	github.com/MixinNetwork/tip v0.0.0-20211120220859-b403025abb7d
+	github.com/MixinNetwork/nfo v0.1.0
+	github.com/MixinNetwork/tip v0.0.0-20211203090648-26e664ba5ea4
 	github.com/dgraph-io/badger/v3 v3.2103.2
 	github.com/drand/kyber v1.1.7
 	github.com/ethereum/go-ethereum v1.10.13
@@ -54,10 +54,10 @@ require (
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
 	go.dedis.ch/fixbuf v1.0.3 // indirect
 	go.opencensus.io v0.22.5 // indirect
-	golang.org/x/crypto v0.0.0-20211117183948-ae814b36b871 // indirect
+	golang.org/x/crypto v0.0.0-20211202192323-5770296d904e // indirect
 	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
-	golang.org/x/sys v0.0.0-20210816183151-1e6c022a8912 // indirect
+	golang.org/x/sys v0.0.0-20211124211545-fe61309f8881 // indirect
 	golang.org/x/text v0.3.6 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013 // indirect

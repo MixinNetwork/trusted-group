@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/MixinNetwork/trusted-group/mvm/machine"
 	"github.com/urfave/cli/v2"
 )
 
@@ -30,6 +31,12 @@ func main() {
 						Aliases: []string{"d"},
 						Value:   "~/.mixin/mvm/data",
 						Usage:   "The database directory path",
+					},
+					&cli.IntFlag{
+						Name:    "port",
+						Aliases: []string{"p"},
+						Value:   9000,
+						Usage:   "The RPC server http port",
 					},
 				},
 			},
@@ -89,10 +96,14 @@ func main() {
 						Usage:   "The app ID",
 					},
 					&cli.StringFlag{
-						Name:    "amount",
-						Aliases: []string{"a"},
-						Value:   "0.123",
-						Usage:   "asset amount",
+						Name:  "asset",
+						Value: machine.ProcessRegistrationAssetId,
+						Usage: "Asset ID",
+					},
+					&cli.StringFlag{
+						Name:  "amount",
+						Value: "0.123",
+						Usage: "Asset amount",
 					},
 					&cli.StringFlag{
 						Name:    "extra",

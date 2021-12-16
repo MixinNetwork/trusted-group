@@ -9,7 +9,7 @@ import (
 
 const (
 	prefixQuorumContractNotifier   = "QUORUM:CONTRACT:NOTIFIER:"
-	prefixQuorumContractLogOffset  = "QUORUM:CONTRACT:LOG:OFFSET:"
+	prefixQuorumContractLogOffset  = "QUORUM:CONTRACT:LOG:OFFSET:ALL"
 	prefixQuorumContractEventQueue = "QUORUM:CONTRACT:EVENT:QUEUE:"
 	prefixQuorumGroupEventQueue    = "QUORUM:GROUP:EVENT:QUEUE:"
 )
@@ -65,11 +65,11 @@ func (e *Engine) storeListContractAddresses() ([]string, error) {
 	return addresses, nil
 }
 
-func (e *Engine) storeReadContractLogsOffset(address string) uint64 {
+func (e *Engine) storeReadContractLogsOffset() uint64 {
 	txn := e.db.NewTransaction(false)
 	defer txn.Discard()
 
-	key := []byte(prefixQuorumContractLogOffset + address)
+	key := []byte(prefixQuorumContractLogOffset)
 	item, err := txn.Get(key)
 	if err == badger.ErrKeyNotFound {
 		return 0
@@ -84,8 +84,8 @@ func (e *Engine) storeReadContractLogsOffset(address string) uint64 {
 	return binary.BigEndian.Uint64(val)
 }
 
-func (e *Engine) storeWriteContractLogsOffset(address string, offset uint64) error {
-	key := []byte(prefixQuorumContractLogOffset + address)
+func (e *Engine) storeWriteContractLogsOffset(offset uint64) error {
+	key := []byte(prefixQuorumContractLogOffset)
 	return e.db.Update(func(txn *badger.Txn) error {
 		return txn.Set(key, uint64Bytes(offset))
 	})

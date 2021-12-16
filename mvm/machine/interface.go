@@ -27,7 +27,6 @@ type Store interface {
 }
 
 type Engine interface {
-	Hash(b []byte) []byte
 	VerifyAddress(addr string, extra []byte) error
 	SetupNotifier(addr string) error
 	VerifyEvent(address string, event *encoding.Event) bool

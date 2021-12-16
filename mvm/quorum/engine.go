@@ -23,7 +23,7 @@ const (
 	EventMethod = "0x5cae8005"
 
 	ContractAgeLimit = 16
-	GasLimit         = 1000000
+	GasLimit         = 8000000
 	GasPrice         = 100000000000
 )
 
@@ -31,6 +31,7 @@ type Configuration struct {
 	Store      string `toml:"store"`
 	RPC        string `toml:"rpc"`
 	ChainId    int64  `toml:"chain"`
+	Base       uint64 `toml:"base"`
 	PrivateKey string `toml:"key"`
 }
 
@@ -43,7 +44,7 @@ type Engine struct {
 
 func Boot(conf *Configuration) (*Engine, error) {
 	db := openBadger(conf.Store)
-	rpc, err := NewRPC(conf.RPC)
+	rpc, err := NewRPC(conf.RPC, conf.Base)
 	if err != nil {
 		return nil, err
 	}
@@ -55,6 +56,7 @@ func Boot(conf *Configuration) (*Engine, error) {
 		}
 		e.key = hex.EncodeToString(crypto.FromECDSA(priv))
 	}
+	go e.loopGetLogs(conf.Base)
 	go e.loopHandleContracts()
 	return e, nil
 }
@@ -83,8 +85,9 @@ func (e *Engine) VerifyAddress(address string, hash []byte) error {
 	if height < birth+ContractAgeLimit {
 		return fmt.Errorf("too young %d %d", birth, height)
 	}
+
 	// TODO ABI
-	return e.storeWriteContractLogsOffset(address, birth)
+	return nil
 }
 
 func (e *Engine) SetupNotifier(address string) error {
@@ -134,23 +137,26 @@ func (e *Engine) IsPublisher() bool {
 	return e.key != ""
 }
 
-func (e *Engine) loopGetLogs(address string) {
-	logger.Verbosef("Engine.loopGetLogs(%s)", address)
+func (e *Engine) loopGetLogs(base uint64) {
+	logger.Verbosef("Engine.loopGetLogs(%d)", base)
 
 	for {
-		offset := e.storeReadContractLogsOffset(address)
-		logs, err := e.rpc.GetLogs(address, EventTopic, offset, offset+10)
+		offset := e.storeReadContractLogsOffset()
+		if offset < base {
+			offset = base
+		}
+		logs, err := e.rpc.GetLogs(EventTopic, offset, offset+10)
 		if err != nil {
 			time.Sleep(1 * time.Minute)
 			continue
 		}
-		for _, b := range logs {
-			evt, err := encoding.DecodeEvent(b)
-			logger.Verbosef("loopGetLogs(%s) => DecodeEvent(%x) => %v, %v", address, b, evt, err)
+		for _, log := range logs {
+			evt, err := encoding.DecodeEvent(log.data)
+			logger.Verbosef("loopGetLogs(%s) => DecodeEvent(%x) => %v, %v", log.address, log.data, evt, err)
 			if err != nil {
 				continue
 			}
-			err = e.storeWriteContractEvent(address, evt)
+			err = e.storeWriteContractEvent(log.address, evt)
 			if err != nil {
 				panic(err)
 			}
@@ -160,7 +166,7 @@ func (e *Engine) loopGetLogs(address string) {
 			time.Sleep(ClockTick)
 			continue
 		}
-		err = e.storeWriteContractLogsOffset(address, offset+10)
+		err = e.storeWriteContractLogsOffset(offset + 10)
 		if err != nil {
 			panic(err)
 		}
@@ -174,7 +180,8 @@ func (e *Engine) loopSendGroupEvents(address string) {
 	for e.IsPublisher() {
 		balance, err := e.rpc.GetAddressBalance(pub(notifier))
 		if err != nil {
-			panic(err)
+			time.Sleep(5 * time.Second)
+			continue
 		}
 		if balance.Cmp(decimal.NewFromInt(1)) < 0 {
 			time.Sleep(5 * time.Second)
@@ -182,7 +189,8 @@ func (e *Engine) loopSendGroupEvents(address string) {
 		}
 		nonce, err := e.rpc.GetAddressNonce(pub(notifier))
 		if err != nil {
-			panic(err)
+			time.Sleep(5 * time.Second)
+			continue
 		}
 		evts, err := e.storeListGroupEvents(address, nonce, 100)
 		if err != nil {
@@ -211,7 +219,6 @@ func (e *Engine) loopHandleContracts() {
 				continue
 			}
 			contracts[c] = true
-			go e.loopGetLogs(c)
 			go e.loopSendGroupEvents(c)
 		}
 		if !e.IsPublisher() {
@@ -220,13 +227,14 @@ func (e *Engine) loopHandleContracts() {
 
 		nonce, err := e.rpc.GetAddressNonce(pub(e.key))
 		if err != nil {
-			panic(err)
+			time.Sleep(1 * time.Minute)
+			continue
 		}
 		for _, c := range all {
 			notifier := e.storeReadContractNotifier(c)
 			balance, err := e.rpc.GetAddressBalance(pub(notifier))
 			if err != nil {
-				panic(err)
+				break
 			}
 			if balance.Cmp(decimal.NewFromInt(10)) > 0 {
 				continue

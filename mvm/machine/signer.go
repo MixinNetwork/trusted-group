@@ -11,9 +11,9 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/tip/crypto"
+	"github.com/MixinNetwork/tip/crypto/en256"
 	"github.com/MixinNetwork/trusted-group/mvm/constants"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
-	"github.com/drand/kyber/pairing/bn256"
 	"github.com/drand/kyber/sign/tbls"
 )
 
@@ -37,7 +37,7 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 			}
 			e.Signature = nil
 			logger.Verbosef("Machine.loopSignGroupEvents() => %v", e)
-			msg := m.engines[ProcessPlatformQuorum].Hash(e.Encode()) // FIXME
+			msg := e.Encode()
 			partials, fullSignature, err := m.store.ReadPendingGroupEventSignatures(e.Process, e.Nonce, constants.SignTypeTBLS)
 			if err != nil {
 				panic(err)
@@ -55,12 +55,12 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 				continue
 			}
 
-			scheme := tbls.NewThresholdSchemeOnG1(bn256.NewSuiteG2())
+			scheme := tbls.NewThresholdSchemeOnG1(en256.NewSuiteG2())
 			partial, err := scheme.Sign(m.share, msg)
 			if err != nil {
 				panic(err)
 			}
-			lst := sm[hex.EncodeToString(partial)].Add(time.Minute * 60)
+			lst := sm[hex.EncodeToString(partial)].Add(time.Minute * 5)
 			if checkSignedWith(partials, partial) && lst.After(time.Now()) {
 				continue
 			}
@@ -112,10 +112,12 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 		if len(evt.Signature) == 64 {
 			sig := evt.Signature
 			evt.Signature = nil
-			msg := m.engines[ProcessPlatformQuorum].Hash(evt.Encode()) // FIXME
-			err = crypto.Verify(m.poly.Commit(), msg, sig)
-			if err != nil {
-				continue
+			msg := evt.Encode()
+			if evt.Timestamp > 1638789832002675803 { // FIXME remove this timestamp check
+				err = crypto.Verify(m.poly.Commit(), msg, sig)
+				if err != nil {
+					continue
+				}
 			}
 			evt.Signature = sig
 			err = m.store.WriteSignedGroupEventAndExpirePending(evt, constants.SignTypeTBLS)
@@ -130,7 +132,7 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 			panic(err)
 		}
 		if fullSignature {
-			if sm[evt.ID()].Add(time.Minute * 60).Before(time.Now()) {
+			if sm[evt.ID()].Add(time.Minute * 5).Before(time.Now()) {
 				evt.Signature = partials[0]
 				threshold := make([]byte, 8)
 				binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
@@ -151,7 +153,7 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 }
 
 func (m *Machine) recoverSignature(msg []byte, partials [][]byte) []byte {
-	scheme := tbls.NewThresholdSchemeOnG1(bn256.NewSuiteG2())
+	scheme := tbls.NewThresholdSchemeOnG1(en256.NewSuiteG2())
 	sig, err := scheme.Recover(m.poly, msg, partials, m.group.GetThreshold(), len(m.group.GetMembers()))
 	if err != nil {
 		panic(err)

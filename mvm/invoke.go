@@ -12,7 +12,6 @@ import (
 
 	"github.com/MixinNetwork/trusted-group/mvm/config"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
-	"github.com/MixinNetwork/trusted-group/mvm/machine"
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/gofrs/uuid"
 	"github.com/mdp/qrterminal"
@@ -69,6 +68,13 @@ func invokeProcessCmd(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	amount, err := decimal.NewFromString(c.String("amount"))
+	if err != nil {
+		return err
+	}
+	if amount.Cmp(decimal.NewFromFloat(0.00000001)) < 0 {
+		return fmt.Errorf("invalid amount %s", amount)
+	}
 
 	trace, err := uuid.NewV4()
 	if err != nil {
@@ -79,14 +85,8 @@ func invokeProcessCmd(c *cli.Context) error {
 		Process: c.String("process"),
 		Extra:   []byte(c.String("extra")),
 	}
-
-	amount, err := decimal.NewFromString(c.String("amount"))
-	if err != nil {
-		panic(err)
-	}
-
 	input := mixin.TransferInput{
-		AssetID: machine.ProcessRegistrationAssetId,
+		AssetID: c.String("asset"),
 		Amount:  amount,
 		TraceID: trace.String(),
 	}
