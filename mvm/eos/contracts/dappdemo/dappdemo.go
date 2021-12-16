@@ -15,6 +15,7 @@ const (
 )
 
 var (
+	MTG_XIN       = chain.NewName("mtgxinmtgxin")
 	MTG_PUBLISHER = chain.NewName("mtgpublisher")
 	//uuid: 49b00892-6954-4826-aaec-371ca165558a
 	PROCESS_ID = chain.Uint128([16]byte{0x49, 0xb0, 0x08, 0x92, 0x69, 0x54, 0x48, 0x26, 0xaa, 0xec, 0x37, 0x1c, 0xa1, 0x65, 0x55, 0x8a})
@@ -101,7 +102,7 @@ func (c *Contract) OnEvent(event *TxEvent) {
 
 		chain.NewAction(
 			chain.PermissionLevel{c.self, chain.ActiveName},
-			MTG_PUBLISHER,
+			MTG_XIN,
 			chain.NewName("txrequest"),
 			&notify,
 		).Send()
@@ -128,7 +129,7 @@ func (c *Contract) OnError(event *TxEvent, code uint64, reason string) {
 
 	chain.NewAction(
 		chain.PermissionLevel{c.self, chain.ActiveName},
-		MTG_PUBLISHER,
+		MTG_XIN,
 		chain.NewName("txrequest"),
 		&notify,
 	).Send()
