@@ -529,7 +529,7 @@ func (e *Engine) loopSendGroupEvents(address string) {
 		for _, evt := range evts {
 			err := e.pushEvent(address, evt, true)
 			logger.Verbosef("pushEvent => (err: %v)", err)
-			if err != nil {
+			if err != nil && evt.Nonce != 0 {
 				break
 			}
 		}
