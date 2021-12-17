@@ -31,6 +31,17 @@ base = 1736171
 # only the publisher need to set this private key with enough ether balance
 key = ""
 
+[eos]
+store = "./test/eos"
+rpc = "http://127.0.0.1:8888"
+key = ""
+public_keys = [
+]
+
+chain_id = "aca376f206b8fc25a6ed44dbdc66547c36c6c33e3a119ffbeaef943642f0e906"
+mixin_contract=""
+mtg_publisher=""
+
 [messenger]
 user = ""
 session = ""
