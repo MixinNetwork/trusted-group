@@ -56,8 +56,8 @@ void dappdemo::check_and_inc_nonce(uint64_t old_nonce) {
     counter_table counters(get_self(), get_self().value);
     auto it = counters.find(key);
     if (it != counters.end()) {
-        print("++++check_and_inc_nonce:", it->count, old_nonce, "\n");
-//        check(it->count == old_nonce, "Invalid nonce");
+//        print("++++check_and_inc_nonce:", it->count, old_nonce, "\n");
+        check(it->count == old_nonce, "Invalid nonce");
         counters.modify(it, get_self(), [&](auto& a) {
             a.count = old_nonce + 1;
         });
