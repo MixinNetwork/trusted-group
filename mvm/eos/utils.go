@@ -90,7 +90,7 @@ func BuildEventTransaction(mixincontract, mtgPublisherContract, address string, 
 	}
 	refBlock := string(event.Extra[:24])
 
-	expiration := uint32(event.Timestamp/1e9 + 10*60)
+	expiration := uint32(event.Timestamp/1e9 + 50*60)
 	tx := chain.NewTransaction(expiration)
 	tx.SetReferenceBlock(refBlock)
 
