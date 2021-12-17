@@ -4,6 +4,7 @@ const uint64_t KEY_NONCE            = 1;
 const uint64_t KEY_TX_REQUEST_INDEX = 2;
 const uint64_t KEY_FINISHED_REQUEST = 3;
 const name MTG_CONTRACT = "mtgxinmtgxin"_n;
+const name MTG_PUBLISHER = "mtgpublisher"_n;
 
 const uint64_t MAX_AMOUNT = (1ULL << 62) - 1;
 
@@ -14,7 +15,7 @@ namespace mixin {
 
 [[eosio::action]]
 void dappdemo::onevent(tx_event& event) {
-    require_auth(MTG_CONTRACT);
+    require_auth(MTG_PUBLISHER);
     check(event.process == PROCESS_ID, "Invalid process id");
     check_and_inc_nonce(event.nonce);
     
