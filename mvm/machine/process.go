@@ -107,7 +107,8 @@ func (m *Machine) loopReceiveEvents(ctx context.Context, p *Process) {
 
 			err = p.buildGroupTransaction(ctx, m.group, e)
 			if err != nil {
-				panic(err)
+				logger.Printf("Process.buildGroupTransaction(%v) => %s", e, err)
+				continue
 			}
 			err = m.store.WriteEngineGroupEventsOffset(p.Identifier, e.Nonce)
 			if err != nil {

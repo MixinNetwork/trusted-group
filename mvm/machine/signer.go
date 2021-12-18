@@ -48,7 +48,8 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 			}
 			if len(partials) >= m.group.GetThreshold() {
 				e.Signature = m.recoverSignature(msg, partials)
-				err = m.store.WriteSignedGroupEventAndExpirePending(e, constants.SignTypeTBLS)
+				logger.Verbosef("loopSignGroupEvents() => WriteSignedGroupEventAndExpirePending(%v)", e)
+				err = m.store.WriteSignedGroupEventAndExpirePending(e)
 				if err != nil {
 					panic(err)
 				}
@@ -68,7 +69,7 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 
 			e.Signature = partial
 			threshold := make([]byte, 8)
-			binary.BigEndian.PutUint64(threshold, uint64(lst.UnixNano()))
+			binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
 			err = m.messenger.SendMessage(ctx, append(e.Encode(), threshold...))
 			if err != nil {
 				panic(err)
@@ -96,7 +97,7 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 		}
 		evt, err := encoding.DecodeEvent(b[:len(b)-8])
 		if err != nil {
-			logger.Verbosef("DecodeEvent(%s) => %s", hex.EncodeToString(b), err)
+			logger.Verbosef("DecodeEvent(%x) => %s", b, err)
 			continue
 		}
 		proc := m.processes[evt.Process]
@@ -117,11 +118,13 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 			if evt.Timestamp > 1638789832002675803 { // FIXME remove this timestamp check
 				err = crypto.Verify(m.poly.Commit(), msg, sig)
 				if err != nil {
+					logger.Verbosef("crypto.Verify(%x, %x) => %v", msg, sig, err)
 					continue
 				}
 			}
 			evt.Signature = sig
-			err = m.store.WriteSignedGroupEventAndExpirePending(evt, constants.SignTypeTBLS)
+			logger.Verbosef("loopReceiveGroupMessages(%x) => WriteSignedGroupEventAndExpirePending(%v)", b, evt)
+			err = m.store.WriteSignedGroupEventAndExpirePending(evt)
 			if err != nil {
 				panic(err)
 			}
@@ -145,8 +148,8 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 		if checkSignedWith(partials, evt.Signature) {
 			continue
 		}
-		partials = append(partials, evt.Signature)
-		err = m.store.WritePendingGroupEventSignatures(evt.Process, evt.Nonce, partials, constants.SignTypeTBLS)
+		partials = append(partials, evt.Signature) // FIXME ensure valid partial signature
+		err = m.store.WritePendingGroupEventSignatures(evt.Process, evt.Nonce, partials)
 		if err != nil {
 			panic(err)
 		}
