@@ -44,11 +44,17 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 			}
 
 			if fullSignature {
+				e.Signature = partials[0]
+				logger.Verbosef("loopSignGroupEvents() => WriteSignedGroupEventAndExpirePending(%v) full", e)
+				err = m.store.WriteSignedGroupEventAndExpirePending(e, constants.SignTypeTBLS)
+				if err != nil {
+					panic(err)
+				}
 				continue
 			}
 			if len(partials) >= m.group.GetThreshold() {
 				e.Signature = m.recoverSignature(msg, partials)
-				logger.Verbosef("loopSignGroupEvents() => WriteSignedGroupEventAndExpirePending(%v)", e)
+				logger.Verbosef("loopSignGroupEvents() => WriteSignedGroupEventAndExpirePending(%v) recover", e)
 				err = m.store.WriteSignedGroupEventAndExpirePending(e, constants.SignTypeTBLS)
 				if err != nil {
 					panic(err)
