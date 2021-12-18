@@ -114,6 +114,13 @@ func (bs *BadgerStore) ReadPendingGroupEventSignatures(pid string, nonce uint64)
 
 func (bs *BadgerStore) WritePendingGroupEventSignatures(pid string, nonce uint64, partials [][]byte) error {
 	return bs.Badger().Update(func(txn *badger.Txn) error {
+		key := buildSignedEventTimedKey(pid, nonce)
+		_, err := txn.Get(key)
+		if err == nil {
+			return nil
+		} else if err != badger.ErrKeyNotFound {
+			return err
+		}
 		var val []byte
 		for _, p := range partials {
 			if len(p) != 66 {
@@ -121,7 +128,7 @@ func (bs *BadgerStore) WritePendingGroupEventSignatures(pid string, nonce uint64
 			}
 			val = append(val, p...)
 		}
-		key := buildPendingEventSignaturesKey(pid, nonce)
+		key = buildPendingEventSignaturesKey(pid, nonce)
 		return txn.Set(key, val)
 	})
 }
@@ -141,7 +148,7 @@ func (bs *BadgerStore) WriteSignedGroupEventAndExpirePending(event *encoding.Eve
 		if err != nil {
 			return err
 		}
-		key := buildSignedEventTimedKey(event)
+		key := buildSignedEventTimedKey(event.Process, event.Nonce)
 		val := encoding.JSONMarshalPanic(event)
 		return txn.Set(key, val)
 	})
@@ -186,7 +193,7 @@ func (bs *BadgerStore) ExpireGroupEventsWithCost(events []*encoding.Event, cost 
 			if evt.Process != pid {
 				panic(evt.Process)
 			}
-			key := buildSignedEventTimedKey(evt)
+			key := buildSignedEventTimedKey(evt.Process, evt.Nonce)
 			err := txn.Delete(key)
 			if err != nil {
 				return err
@@ -239,8 +246,8 @@ func buildPendingEventTimedKey(evt *encoding.Event) []byte {
 	return append(key, buf...)
 }
 
-func buildSignedEventTimedKey(evt *encoding.Event) []byte {
-	buf := uint64Bytes(evt.Nonce)
-	key := append([]byte(prefixSignedEventQueue), evt.Process...)
+func buildSignedEventTimedKey(pid string, nonce uint64) []byte {
+	buf := uint64Bytes(nonce)
+	key := append([]byte(prefixSignedEventQueue), pid...)
 	return append(key, buf...)
 }
