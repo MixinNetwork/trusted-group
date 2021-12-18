@@ -162,17 +162,17 @@ func (e *Engine) VerifyEvent(address string, event *encoding.Event) bool {
 		return false
 	}
 
-	if len(event.Signature) != 65 {
+	if len(event.Signature)%65 != 0 {
 		return false
 	}
 
 	digest := tx.Id(e.chainId)
-
-	signature := secp256k1.NewSignature(event.Signature)
-	if !e.VerifySignature(digest, signature) {
-		return false
+	for i := 0; i < len(event.Signature)/65; i++ {
+		signature := secp256k1.NewSignature(event.Signature[i*65 : (i+1)*65])
+		if !e.VerifySignature(digest, signature) {
+			return false
+		}
 	}
-
 	return true
 }
 
