@@ -19,7 +19,7 @@ void dappdemo::onevent(tx_event& event) {
     check(event.process == PROCESS_ID, "Invalid process id");
     check_and_inc_nonce(event.nonce);
     
-    uint64_t tx_request_count = 3;
+    uint64_t tx_request_count = 1;
     for (uint64_t i = 0; i < tx_request_count; i++) {
         uint64_t id = get_next_tx_request_nonce();
         check(event.amount < MAX_AMOUNT, "Invalid amount");
@@ -57,7 +57,7 @@ void dappdemo::check_and_inc_nonce(uint64_t old_nonce) {
     counter_table counters(get_self(), get_self().value);
     auto it = counters.find(key);
     if (it != counters.end()) {
-//        print("++++check_and_inc_nonce:", it->count, old_nonce, "\n");
+        print("++++check_and_inc_nonce:", it->count, " ", old_nonce, "\n");
         check(it->count == old_nonce, "Invalid nonce");
         counters.modify(it, get_self(), [&](auto& a) {
             a.count = old_nonce + 1;

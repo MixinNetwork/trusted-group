@@ -10,8 +10,8 @@ const (
 
 //table processes
 type Process struct {
-	contract chain.Name    //primary : t.contract.N
-	process  chain.Uint128 //IDX128 : ByProcess : t.process : t.process
+	contract chain.Name //primary : t.contract.N
+	process  chain.Uint128
 }
 
 //table logs
