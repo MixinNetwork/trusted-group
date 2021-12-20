@@ -189,19 +189,21 @@ func checkFullSignature(partials [][]byte) bool {
 }
 
 func (m *Machine) signEosEvents(ctx context.Context, proc *Process, e *encoding.Event, sm map[string]time.Time) {
+	platform := proc.Platform
+	if platform != ProcessPlatformEos {
+		panic("Invalid platform")
+	}
+
 	e.Signature = nil
 	partials, fullSignature, err := m.store.ReadPendingGroupEventSignatures(e.Process, e.Nonce, constants.SignTypeSECP256K1)
 	if err != nil {
 		panic(err)
 	}
 
-	if fullSignature {
-		return
-	}
-	if len(partials) >= m.group.GetThreshold() {
-		sort.Slice(partials, func(i, j int) bool {
-			return bytes.Compare(partials[i], partials[j]) < 0
-		})
+	if fullSignature || len(partials) >= m.group.GetThreshold() {
+		signature := e.Signature
+		e.Signature = nil
+		sortBytesArray(partials)
 		for _, partial := range partials {
 			e.Signature = append(e.Signature, partial...)
 		}
@@ -210,13 +212,10 @@ func (m *Machine) signEosEvents(ctx context.Context, proc *Process, e *encoding.
 		if err != nil {
 			panic(err)
 		}
+		e.Signature = signature
 		return
 	}
 
-	platform := proc.Platform
-	if platform != ProcessPlatformEos {
-		panic("Invalid platform")
-	}
 	address := proc.Address
 	partial, err := m.engines[ProcessPlatformEos].SignTx(address, e)
 	if err != nil {
@@ -224,24 +223,24 @@ func (m *Machine) signEosEvents(ctx context.Context, proc *Process, e *encoding.
 		return
 	}
 
-	lst := sm[hex.EncodeToString(partial)].Add(time.Minute * 5)
-	if checkSignedWith(partials, partial) && lst.After(time.Now()) {
-		return
+	key := hex.EncodeToString(partial)
+	lst := sm[key].Add(time.Minute * 5)
+	if lst.Before(time.Now()) {
+		sm[key] = time.Now()
+		e.Signature = partial
+		threshold := make([]byte, 8)
+		binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
+		err = m.messenger.SendMessage(ctx, append(e.Encode(), threshold...))
+		if err != nil {
+			panic(err)
+		}
 	}
-	sm[hex.EncodeToString(partial)] = time.Now()
 
-	e.Signature = partial
-	threshold := make([]byte, 8)
-	binary.BigEndian.PutUint64(threshold, uint64(lst.UnixNano()))
-	err = m.messenger.SendMessage(ctx, append(e.Encode(), threshold...))
-	if err != nil {
-		panic(err)
+	if !checkSignedWith(partials, partial) {
+		partials = append(partials, partial)
+		sortBytesArray(partials)
 	}
 
-	if checkSignedWith(partials, partial) {
-		return
-	}
-	partials = append(partials, partial)
 	err = m.store.WritePendingGroupEventSignatures(e.Process, e.Nonce, partials, constants.SignTypeSECP256K1)
 	if err != nil {
 		panic(err)
@@ -249,24 +248,33 @@ func (m *Machine) signEosEvents(ctx context.Context, proc *Process, e *encoding.
 }
 
 func (m *Machine) handleEosGroupMessages(ctx context.Context, proc *Process, evt *encoding.Event, sm map[string]time.Time) {
-	if len(evt.Signature)%65 != 0 {
+	if len(evt.Signature) == 0 || len(evt.Signature)%65 != 0 {
 		logger.Verbosef("++++handleEosGroupMessages: invalid signature length: %d", len(evt.Signature))
 		return
 	}
+
+	address := proc.Address
+	if !m.engines[proc.Platform].VerifyEvent(address, evt) {
+		logger.Verbosef("VerifyEvent(%v, %v) return false", address, evt)
+		return
+	}
+
 	partials, fullSignature, err := m.store.ReadPendingGroupEventSignatures(evt.Process, evt.Nonce, constants.SignTypeSECP256K1)
 	if err != nil {
 		panic(err)
 	}
 	if fullSignature {
 		if sm[evt.ID()].Add(time.Minute * 5).Before(time.Now()) {
-			evt.Signature = evt.Signature[:0]
-			for _, partial := range partials {
-				evt.Signature = append(evt.Signature, partial...)
+			sm[evt.ID()] = time.Now()
+			partial, err := m.engines[ProcessPlatformEos].SignTx(address, evt)
+			if err != nil {
+				logger.Verbosef("++SignTx return error: %v", err)
+				return
 			}
+			evt.Signature = partial
 			threshold := make([]byte, 8)
 			binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
 			m.messenger.SendMessage(ctx, append(evt.Encode(), threshold...))
-			sm[evt.ID()] = time.Now()
 		}
 		return
 	}
@@ -285,11 +293,6 @@ func (m *Machine) handleEosGroupMessages(ctx context.Context, proc *Process, evt
 		return
 	}
 	if len(signatures) == 0 {
-		return
-	}
-	address := proc.Address
-	if !m.engines[proc.Platform].VerifyEvent(address, evt) {
-		logger.Verbosef("VerifyEvent(%v, %v) return false", address, evt)
 		return
 	}
 	for _, signature := range signatures {
