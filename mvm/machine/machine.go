@@ -88,7 +88,8 @@ func (m *Machine) AddEngine(platform string, engine Engine) {
 	m.engines[platform] = engine
 }
 
-func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address string, out *mtg.Output, extra []byte) {
+func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address string, out *mtg.Output, extra []byte) (success bool) {
+	success = false
 	if pid != out.Sender {
 		logger.Verbosef("AddProcess(%s, %s, %s) => sender %s", pid, platform, address, out.Sender)
 		return
@@ -143,6 +144,9 @@ func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address 
 	}
 	m.processes[proc.Identifier] = proc
 	m.Spawn(ctx, proc)
+
+	success = true
+	return
 }
 
 func (m *Machine) WriteGroupEvent(pid string, out *mtg.Output, extra []byte) {
