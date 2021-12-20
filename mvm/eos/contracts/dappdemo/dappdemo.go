@@ -7,11 +7,6 @@ import (
 const (
 	KEY_NONCE            = 1
 	KEY_TX_REQUEST_INDEX = 2
-	KEY_FINISHED_REQUEST = 3
-)
-
-const (
-	MAX_REMOVE_RECORD_COUNT = 30
 )
 
 var (
@@ -69,18 +64,29 @@ func NewContract(receiver, firstReceiver, action chain.Name) *Contract {
 //action onevent
 func (c *Contract) OnEvent(event *TxEvent) {
 	chain.RequireAuth(MTG_PUBLISHER)
-	c.CheckAndIncNonce(event.nonce)
-	payer := c.self
 	check(event.process == PROCESS_ID, "Invalid process id")
-	chain.Println("+++OnEvent")
-	if false {
-		db := NewTxEventDB(c.self, c.self)
-		it := db.Find(event.nonce)
-		check(!it.IsOk(), "event already exists!")
-		db.Store(event, payer)
-	}
 
-	txRequestCount := 3
+	nonce := c.GetNonce()
+	check(event.nonce >= nonce, "bad nonce!")
+
+	payer := c.self
+	db := NewTxEventDB(c.self, c.self)
+	it := db.Find(event.nonce)
+	check(!it.IsOk(), "event already exists!")
+	db.Store(event, payer)
+}
+
+//action exec
+func (c *Contract) Exec(executor chain.Name) {
+	chain.RequireAuth(executor)
+
+	nonce := c.GetNonce()
+	db := NewTxEventDB(c.self, c.self)
+	it, event := db.Get(nonce)
+	check(it.IsOk(), "event not found!")
+	db.Remove(it)
+
+	txRequestCount := 1
 	for i := 0; i < txRequestCount; i++ {
 		id := c.GetNextTxRequestNonce()
 		notify := TxRequest{
@@ -107,6 +113,7 @@ func (c *Contract) OnEvent(event *TxEvent) {
 			&notify,
 		).Send()
 	}
+	c.IncNonce()
 }
 
 //action onerror
@@ -148,8 +155,26 @@ func (c *Contract) GetNextIndex(key uint64, initialValue uint64) uint64 {
 	}
 }
 
-func (c *Contract) GetNextNonce() uint64 {
-	return c.GetNextIndex(KEY_NONCE, 0)
+func (c *Contract) IncNonce() {
+	key := uint64(KEY_NONCE)
+	db := NewCounterDB(c.self, c.self)
+	if it, item := db.Get(key); it.IsOk() {
+		item.count += 1
+		db.Update(it, item, chain.SamePayer)
+	} else {
+		item := Counter{id: key, count: 1}
+		db.Store(&item, c.self)
+	}
+}
+
+func (c *Contract) GetNonce() uint64 {
+	key := uint64(KEY_NONCE)
+	db := NewCounterDB(c.self, c.self)
+	if it, item := db.Get(key); it.IsOk() {
+		return item.count
+	} else {
+		return 1
+	}
 }
 
 func (c *Contract) CheckAndIncNonce(oldNonce uint64) {
