@@ -34,7 +34,7 @@ func TestBuildEventTx(t *testing.T) {
 		Nonce:     0,
 		Signature: []byte("signature"),
 	}
-	tx, err := BuildEventTransaction("mixin", "publisher", "hello", event)
+	tx, err := BuildEventTransaction("mixin", "publisher", "hello", event, "0d38a4099ad044cf4fa7874752a55806f9f50b43953ffc760bc82c1f1fce65c8")
 	if err != nil {
 		panic(err)
 	}
@@ -203,7 +203,7 @@ func TestMultisigWithBuildEventTx(t *testing.T) {
 		Nonce:     0,
 		Signature: []byte("signature"),
 	}
-	tx, err := BuildEventTransaction("mtgxinmtgxin", "mtgpublisher", "helloworld12", event)
+	tx, err := BuildEventTransaction("mtgxinmtgxin", "mtgpublisher", "helloworld12", event, "0d38a4099ad044cf4fa7874752a55806f9f50b43953ffc760bc82c1f1fce65c8")
 	t.Logf("++++tx.Pack() %x\n", tx.Pack())
 
 	chainId, err := chain.NewBytes32FromHex("8a34ec7df1b8cd06ff4a8abbaa7cc50300823350cadc59ab296cb00d104d2b8f")

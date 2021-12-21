@@ -1,19 +1,27 @@
 package eos
 
 import (
+	"crypto/sha256"
+
 	"github.com/learnforpractice/goeoslib/chain"
+	"github.com/learnforpractice/goeoslib/crypto/secp256k1"
 )
 
+type Signature struct {
+	typ  uint8
+	data [65]byte
+}
+
 type TxEvent struct {
-	nonce     uint64
-	process   chain.Uint128
-	asset     chain.Uint128
-	members   []chain.Uint128
-	threshold int32
-	amount    chain.Uint128
-	extra     []byte
-	timestamp uint64
-	signature []byte
+	nonce      uint64
+	process    chain.Uint128
+	asset      chain.Uint128
+	members    []chain.Uint128
+	threshold  int32
+	amount     chain.Uint128
+	extra      []byte
+	timestamp  uint64
+	signatures []secp256k1.Signature
 }
 
 func (t *TxEvent) Pack() []byte {
@@ -33,10 +41,48 @@ func (t *TxEvent) Pack() []byte {
 	enc.PackBytes(t.extra)
 	enc.PackUint64(t.timestamp)
 
-	//ignore signature for now
-	enc.WriteUint8(uint8(0))
-	//enc.PackBytes(t.signature)
+	enc.WriteUint8(uint8(len(t.signatures)))
+	for i := range t.signatures {
+		enc.WriteUint8(uint8(0)) //type
+		enc.WriteBytes(t.signatures[i].Data[:])
+	}
 	return enc.GetBytes()
+}
+
+func (t *TxEvent) PackWithoutSignatures() []byte {
+	enc := chain.NewEncoder(t.Size())
+	enc.PackUint64(t.nonce)
+	enc.WriteBytes(t.process[:])
+	enc.WriteBytes(t.asset[:])
+	{
+		enc.PackLength(len(t.members))
+		for i := range t.members {
+			enc.Pack(&t.members[i])
+		}
+	}
+
+	enc.PackInt32(t.threshold)
+	enc.WriteBytes(t.amount[:])
+	enc.PackBytes(t.extra)
+	enc.PackUint64(t.timestamp)
+	return enc.GetBytes()
+}
+
+func (t *TxEvent) Digest() *chain.Bytes32 {
+	data := t.PackWithoutSignatures()
+	hash := sha256.New()
+	hash.Write(data)
+	digest := hash.Sum(nil)
+	return chain.NewBytes32(digest)
+}
+
+func (t *TxEvent) Sign(priv *secp256k1.PrivateKey) (*secp256k1.Signature, error) {
+	digest := t.Digest()
+	sig, err := priv.Sign(digest[:])
+	if err != nil {
+		return nil, err
+	}
+	return sig, nil
 }
 
 func (t *TxEvent) Unpack(data []byte) (int, error) {
@@ -100,9 +146,18 @@ func (t *TxEvent) Unpack(data []byte) (int, error) {
 		return 0, err
 	}
 
-	t.signature, err = dec.UnpackBytes()
+	size, err := dec.UnpackUint8()
 	if err != nil {
 		return 0, err
+	}
+	t.signatures = make([]secp256k1.Signature, 0, size)
+	for i := 0; i < int(size); i++ {
+		signature := secp256k1.Signature{}
+		err := dec.Read(signature.Data[:])
+		if err != nil {
+			return 0, err
+		}
+		t.signatures = append(t.signatures, signature)
 	}
 
 	return dec.Pos(), nil
@@ -122,8 +177,8 @@ func (t *TxEvent) Size() int {
 	size += chain.PackedVarUint32Length(uint32(len(t.extra)))
 	size += len(t.extra)
 	size += 8 //timestamp
-	size += chain.PackedVarUint32Length(uint32(len(t.signature)))
-	size += len(t.signature)
+	size += chain.PackedVarUint32Length(uint32(len(t.signatures)))
+	size += 66 * len(t.signatures)
 	return size
 }
 
@@ -357,4 +412,84 @@ func (t *TxLog) Size() int {
 	size += len(t.extra)
 	size += 8 //timestamp
 	return size
+}
+
+type AddProcess struct {
+	address    chain.Name
+	process    chain.Uint128
+	signatures []secp256k1.Signature
+}
+
+func (t *AddProcess) Pack() []byte {
+	enc := chain.NewEncoder(t.Size())
+	enc.PackUint64(t.address.N)
+	enc.WriteBytes(t.process[:])
+
+	enc.WriteUint8(uint8(len(t.signatures)))
+	for i := range t.signatures {
+		enc.WriteUint8(uint8(0)) //type
+		enc.WriteBytes(t.signatures[i].Data[:])
+	}
+	//enc.PackBytes(t.signature)
+	return enc.GetBytes()
+}
+
+func (t *AddProcess) Unpack(data []byte) (int, error) {
+	var err error
+	dec := chain.NewDecoder(data)
+	t.address, err = dec.UnpackName()
+	if err != nil {
+		return 0, err
+	}
+
+	err = dec.Read(t.process[:])
+	if err != nil {
+		return 0, err
+	}
+	return dec.Pos(), nil
+}
+
+func (t *AddProcess) PackWithoutSignatures() []byte {
+	enc := chain.NewEncoder(8 + 16)
+	enc.PackUint64(t.address.N)
+	enc.WriteBytes(t.process[:])
+	return enc.GetBytes()
+}
+
+func (t *AddProcess) Size() int {
+	size := 0
+	size += 8  //address
+	size += 16 //process
+	size += chain.PackedVarUint32Length(uint32(len(t.signatures)))
+	size += 66 * len(t.signatures)
+	return size
+}
+
+func (t *AddProcess) Digest() *chain.Bytes32 {
+	data := t.PackWithoutSignatures()
+	hash := sha256.New()
+	hash.Write(data)
+	digest := hash.Sum(nil)
+	return chain.NewBytes32(digest)
+}
+
+func (t *AddProcess) Sign(priv *secp256k1.PrivateKey) (*secp256k1.Signature, error) {
+	digest := t.Digest()
+	sig, err := priv.Sign(digest[:])
+	if err != nil {
+		return nil, err
+	}
+	return sig, nil
+}
+
+func NewAddProcess(address string, process string, signatures []byte) *AddProcess {
+	addprocess := &AddProcess{}
+	addprocess.address = chain.NewName(address)
+	copy(addprocess.process[:], uuidToBytes(process))
+
+	addprocess.signatures = make([]secp256k1.Signature, len(signatures)/65)
+	for i := 0; i < len(signatures)/65; i++ {
+		copy(addprocess.signatures[i].Data[:], signatures[i*65:i*65+65])
+	}
+	return addprocess
 }

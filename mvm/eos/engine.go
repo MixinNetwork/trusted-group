@@ -54,7 +54,6 @@ type Engine struct {
 	publicKeys           []*secp256k1.PublicKey
 	publisher            bool
 	threshold            int
-	irrBlockIdCache      map[uint32]string
 	lastCheckTime        time.Time
 	lastChainInfo        *chain.ChainInfo
 }
@@ -130,7 +129,6 @@ func Boot(conf *Configuration, threshold int) (*Engine, error) {
 		publicKeys:           pubs,
 		publisher:            conf.Publisher,
 		threshold:            threshold,
-		irrBlockIdCache:      make(map[uint32]string),
 	}
 
 	if e.key != nil {
@@ -148,58 +146,26 @@ func (e *Engine) Hash(b []byte) []byte {
 	return crypto.Keccak256(b)
 }
 
-func (e *Engine) verifyReferenceBlock(extra []byte) (bool, error) {
-	if len(extra) < 24 {
-		return false, nil
-	}
-
-	refBlock := extra[:24]
-	_refBlock, err := hex.DecodeString(string(refBlock))
-	if err != nil {
-		return false, nil
-	}
-	refBlockNum := chain.GetRefBlockNum(_refBlock)
-	lastIrreversibleBlockNum := e.getLastIrreversibleBlockNumber()
-	if refBlockNum > lastIrreversibleBlockNum {
-		return false, nil
-	}
-
-	var id string
-	id, ok := e.irrBlockIdCache[refBlockNum]
-	if !ok {
-		ret, err := e.chainApiGetState.GetBlock(refBlockNum)
+func (e *Engine) SignEvent(address string, event *encoding.Event) ([]byte, error) {
+	logger.Verbosef("+++++++SignEvent %s %v", address, event)
+	if event.Nonce == 0 { //sign addprocess
+		addprocess := NewAddProcess(address, event.Process, nil)
+		signature, err := addprocess.Sign(e.key)
 		if err != nil {
-			exceptName, err2 := ret.GetString("error", "name")
-			if err2 == nil && exceptName == "unknown_block_exception" {
-				return false, nil
-			}
-			return false, err
+			return nil, err
 		}
-		logger.Verbosef("+++++++")
-		id, err = ret.GetString("id")
+		return signature.Data[:], nil
+	} else {
+		txEvent, err := convertEventToTxEvent(event)
 		if err != nil {
-			return false, err
+			return nil, err
 		}
-		blockNum, _ := chain.GetBlockNumFromHex(id)
-		e.irrBlockIdCache[blockNum] = id
+		signature, err := txEvent.Sign(e.key)
+		if err != nil {
+			return nil, err
+		}
+		return signature.Data[:], nil
 	}
-	if id[:24] == string(refBlock) {
-		return true, nil
-	}
-	return false, nil
-}
-
-func (e *Engine) SignTx(address string, event *encoding.Event) ([]byte, error) {
-	logger.Verbosef("+++++++SignTx %s %v", address, event)
-	tx, err := BuildEventTransaction(e.mixinContract, e.mtgPublisherContract, address, event)
-	if err != nil {
-		return nil, err
-	}
-	signature, err := tx.Sign(e.key, e.chainId)
-	if err != nil {
-		return nil, err
-	}
-	return signature.Data[:], nil
 }
 
 func (e *Engine) VerifyAddress(addr string, extra []byte) error {
@@ -239,23 +205,31 @@ func (e *Engine) SetupNotifier(address string) error {
 }
 
 func (e *Engine) VerifyEvent(address string, event *encoding.Event) bool {
-	tx, err := BuildEventTransaction(e.mixinContract, e.mtgPublisherContract, address, event)
-	if err != nil {
-		return false
-	}
-
-	if len(event.Signature) == 0 || len(event.Signature)%65 != 0 {
-		return false
-	}
-
-	digest := tx.Id(e.chainId)
-	for i := 0; i < len(event.Signature)/65; i++ {
-		signature := secp256k1.NewSignature(event.Signature[i*65 : (i+1)*65])
-		if !e.VerifySignature(digest, signature) {
+	if event.Nonce == 0 {
+		addprocess := NewAddProcess(address, event.Process, nil)
+		digest := addprocess.Digest()
+		for i := 0; i < len(event.Signature)/65; i++ {
+			signature := secp256k1.NewSignature(event.Signature[i*65 : (i+1)*65])
+			if !e.VerifySignature(digest, signature) {
+				return false
+			}
+		}
+		return true
+	} else {
+		txEvent, err := convertEventToTxEvent(event)
+		if err != nil {
 			return false
 		}
+		digest := txEvent.Digest()
+		for i := 0; i < len(event.Signature)/65; i++ {
+			signature := secp256k1.NewSignature(event.Signature[i*65 : (i+1)*65])
+			if !e.VerifySignature(digest, signature) {
+				return false
+			}
+		}
+		return true
 	}
-	return true
+
 }
 
 func (e *Engine) VerifySignature(digest *chain.Bytes32, signature *secp256k1.Signature) bool {
@@ -264,7 +238,6 @@ func (e *Engine) VerifySignature(digest *chain.Bytes32, signature *secp256k1.Sig
 		logger.Verbosef("VerifyEvent: secp256k1.Recover(%v, %v) => %v", digest[:], signature, err)
 		return false
 	}
-
 	for _, pk := range e.publicKeys {
 		if bytes.Compare(pk.Data[:], pub.Data[:]) == 0 {
 			return true
@@ -286,8 +259,6 @@ func (e *Engine) checkNetworkStatus() {
 		}
 		e.lastChainInfo = info
 
-		blockNum, _ := chain.GetBlockNumFromHex(info.LastIrreversibleBlockID)
-		e.irrBlockIdCache[blockNum] = info.LastIrreversibleBlockID
 		t, err := time.Parse("2006-01-02T15:04:05", info.HeadBlockTime)
 		if err != nil {
 			panic(err)
@@ -310,13 +281,7 @@ func (e *Engine) getLastIrreversibleBlockNumber() uint32 {
 }
 
 func (e *Engine) VerifyMTGTx(pid string, out *mtg.Output, extra []byte) bool {
-	e.checkNetworkStatus()
-	result, err := e.verifyReferenceBlock(extra)
-	if err != nil {
-		panic(err)
-	}
-	logger.Verbosef("++++VerifyMTGTx, result: %v", result)
-	return result
+	return true
 }
 
 func (e *Engine) EstimateCost(events []*encoding.Event) (common.Integer, error) {
@@ -747,25 +712,33 @@ func convertEventToTxEvent(evt *encoding.Event) (*TxEvent, error) {
 
 	txEvent.extra = evt.Extra
 	txEvent.timestamp = evt.Timestamp
-	txEvent.signature = evt.Signature
+
+	signatureCount := len(evt.Signature) / 65
+	txEvent.signatures = make([]secp256k1.Signature, signatureCount)
+	for i := 0; i < signatureCount; i += 1 {
+		copy(txEvent.signatures[i].Data[:], evt.Signature[i*65:i*65+65])
+	}
 	return txEvent, nil
 }
 
 func (e *Engine) pushEvent(address string, evt *encoding.Event, good bool) error {
-	tx, err := BuildEventTransaction(e.mixinContract, e.mtgPublisherContract, address, evt)
-	if err != nil {
-		return err
-	}
-
 	if len(evt.Signature)/65 < e.threshold {
 		panic("not enough signatures")
 	}
 
-	signatures := make([]string, 0, e.threshold)
-	for i := 0; i < e.threshold; i += 1 {
-		sign := secp256k1.NewSignature(evt.Signature[i*65 : (i+1)*65])
-		signatures = append(signatures, sign.String())
+	refBlockId := e.lastChainInfo.LastIrreversibleBlockID
+
+	tx, err := BuildEventTransaction(e.mixinContract, e.mtgPublisherContract, address, evt, refBlockId)
+	if err != nil {
+		return err
 	}
+
+	signature, err := tx.Sign(e.key, e.chainId)
+	if err != nil {
+		return err
+	}
+	signatures := []string{signature.String()}
+
 	r, err := e.chainApiPush.PushTransaction(tx, signatures, false)
 	if err != nil {
 		return err

@@ -217,9 +217,9 @@ func (m *Machine) signEosEvents(ctx context.Context, proc *Process, e *encoding.
 	}
 
 	address := proc.Address
-	partial, err := m.engines[ProcessPlatformEos].SignTx(address, e)
+	partial, err := m.engines[ProcessPlatformEos].SignEvent(address, e)
 	if err != nil {
-		logger.Verbosef("++SignTx return error: %v", err)
+		logger.Verbosef("++SignEvent return error: %v", err)
 		return
 	}
 
@@ -266,9 +266,9 @@ func (m *Machine) handleEosGroupMessages(ctx context.Context, proc *Process, evt
 	if fullSignature {
 		if sm[evt.ID()].Add(time.Minute * 5).Before(time.Now()) {
 			sm[evt.ID()] = time.Now()
-			partial, err := m.engines[ProcessPlatformEos].SignTx(address, evt)
+			partial, err := m.engines[ProcessPlatformEos].SignEvent(address, evt)
 			if err != nil {
-				logger.Verbosef("++SignTx return error: %v", err)
+				logger.Verbosef("++SignEvent return error: %v", err)
 				return
 			}
 			evt.Signature = partial

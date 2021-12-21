@@ -18,15 +18,15 @@ var (
 
 //table txevents
 type TxEvent struct {
-	nonce     uint64 //primary : t.nonce
-	process   chain.Uint128
-	asset     chain.Uint128
-	members   []chain.Uint128
-	threshold int32
-	amount    chain.Uint128
-	extra     []byte
-	timestamp uint64
-	signature []byte
+	nonce      uint64 //primary : t.nonce
+	process    chain.Uint128
+	asset      chain.Uint128
+	members    []chain.Uint128
+	threshold  int32
+	amount     chain.Uint128
+	extra      []byte
+	timestamp  uint64
+	signatures []chain.Signature
 }
 
 //table txrequests
@@ -48,10 +48,6 @@ type Counter struct {
 	count uint64
 }
 
-func check(b bool, msg string) {
-	chain.Check(b, msg)
-}
-
 //contract dappdemo
 type Contract struct {
 	self, firstReceiver, action chain.Name
@@ -61,9 +57,15 @@ func NewContract(receiver, firstReceiver, action chain.Name) *Contract {
 	return &Contract{receiver, firstReceiver, action}
 }
 
-//action onevent
+//action onevent ignore
 func (c *Contract) OnEvent(event *TxEvent) {
-	chain.RequireAuth(MTG_PUBLISHER)
+	event = &TxEvent{}
+	data := chain.ReadActionData()
+	event.Unpack(data)
+	dataSize := len(data) - 1 - len(event.signatures)*66
+
+	VerifySignatures(data[:dataSize], event.signatures)
+
 	check(event.process == PROCESS_ID, "Invalid process id")
 
 	nonce := c.GetNonce()
@@ -74,6 +76,7 @@ func (c *Contract) OnEvent(event *TxEvent) {
 	it := db.Find(event.nonce)
 	check(!it.IsOk(), "event already exists!")
 	db.Store(event, payer)
+	chain.Println("Done!")
 }
 
 //action exec

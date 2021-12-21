@@ -8,6 +8,10 @@ const (
 	KEY_TX_REQUEST_SEQ = 1
 )
 
+var (
+	MTG_XIN = chain.NewName("mtgxinmtgxin")
+)
+
 //table processes
 type Process struct {
 	contract chain.Name //primary : t.contract.N
@@ -28,6 +32,12 @@ type TxLog struct {
 	timestamp uint64
 }
 
+//table signers
+type Signer struct {
+	account    chain.Name //primary : t.account.N
+	public_key chain.PublicKey
+}
+
 //table counters
 type Counter struct {
 	id    uint64 //primary : t.id
@@ -43,10 +53,32 @@ func NewContract(receiver, firstReceiver, action chain.Name) *Contract {
 	return &Contract{receiver, firstReceiver, action}
 }
 
+//action setup
+func (c *Contract) Setup(signers []Signer) {
+	db := NewSignerDB(c.self, c.self)
+	for {
+		it := db.Lowerbound(0)
+		if !it.IsOk() {
+			break
+		}
+		db.Remove(it)
+	}
+	for _, signer := range signers {
+		check(chain.IsAccount(signer.account), "contract account does not exists!")
+		db.Store(&signer, c.self)
+	}
+}
+
 //action addprocess
-func (c *Contract) AddProcess(contract chain.Name, process chain.Uint128) {
+func (c *Contract) AddProcess(contract chain.Name, process chain.Uint128, signatures []chain.Signature) {
 	check(chain.IsAccount(contract), "contract account does not exists!")
-	chain.RequireAuth(c.self)
+
+	enc := chain.NewEncoder(8 + 16)
+	enc.PackName(contract)
+	enc.Pack(&process)
+	data := enc.GetBytes()
+	VerifySignatures(data, signatures)
+
 	db := NewProcessDB(c.self, c.self)
 	it := db.Find(contract.N)
 	check(!it.IsOk(), "process already exists!")
@@ -117,8 +149,4 @@ func (c *Contract) GetNextIndex(key uint64) uint64 {
 
 func (c *Contract) GetNextSeq() uint64 {
 	return c.GetNextIndex(KEY_TX_REQUEST_SEQ)
-}
-
-func check(b bool, msg string) {
-	chain.Check(b, msg)
 }

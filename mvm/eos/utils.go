@@ -84,27 +84,25 @@ func genPrivateKey(share *share.PriShare) *secp256k1.PrivateKey {
 	return key
 }
 
-func BuildEventTransaction(mixincontract, mtgPublisherContract, address string, event *encoding.Event) (*chain.Transaction, error) {
-	if len(event.Extra) < 24 {
-		return nil, errors.New("Invalid reference block")
-	}
-	refBlock := string(event.Extra[:24])
-
+func BuildEventTransaction(mixincontract, eventPublisher, address string, event *encoding.Event, refBlockId string) (*chain.Transaction, error) {
 	expiration := uint32(event.Timestamp/1e9 + 50*60)
 	tx := chain.NewTransaction(expiration)
-	tx.SetReferenceBlock(refBlock)
+
+	if len(refBlockId) != 64 {
+		return nil, errors.New("Invalid reference block")
+	}
+	tx.SetReferenceBlock(refBlockId)
 
 	var action *chain.Action
 	if event.Nonce == 0 { //add process event
 		logger.Verbosef("add process event %s", event.Process)
-		process := chain.Uint128{}
-		copy(process[:], uuidToBytes(event.Process))
+		addprocess := NewAddProcess(address, event.Process, event.Signature)
 		action = chain.NewAction(
-			chain.PermissionLevel{Actor: chain.NewName(mixincontract), Permission: chain.NewName("active")},
+			chain.PermissionLevel{Actor: chain.NewName(eventPublisher), Permission: chain.NewName("active")},
 			chain.NewName(mixincontract),
 			chain.NewName("addprocess"),
 			chain.NewName(address),
-			&process,
+			addprocess,
 		)
 	} else {
 		txEvent, err := convertEventToTxEvent(event)
@@ -112,7 +110,7 @@ func BuildEventTransaction(mixincontract, mtgPublisherContract, address string, 
 			return nil, err
 		}
 		action = chain.NewAction(
-			chain.PermissionLevel{Actor: chain.NewName(mtgPublisherContract), Permission: chain.NewName("active")},
+			chain.PermissionLevel{Actor: chain.NewName(eventPublisher), Permission: chain.NewName("active")},
 			chain.NewName(address),
 			chain.NewName("onevent"),
 			txEvent,
