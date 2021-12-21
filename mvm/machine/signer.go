@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"encoding/hex"
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
@@ -23,43 +22,20 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 			panic(err)
 		}
 		for _, e := range events {
-			e.Signature = nil
+			lst := sm[e.ID()].Add(time.Minute * 5)
+			if lst.After(time.Now()) {
+				continue
+			}
+			sm[e.ID()] = time.Now()
 			logger.Verbosef("Machine.loopSignGroupEvents() => %v", e)
+
+			e.Signature = nil
 			msg := e.Encode()
-			partials, err := m.store.ReadPendingGroupEventSignatures(e.Process, e.Nonce)
-			if err != nil {
-				panic(err)
-			}
-
-			if checkFullSignature(partials) {
-				e.Signature = partials[0]
-				logger.Verbosef("loopSignGroupEvents() => WriteSignedGroupEventAndExpirePending(%v) full", e)
-				err = m.store.WriteSignedGroupEventAndExpirePending(e)
-				if err != nil {
-					panic(err)
-				}
-				continue
-			}
-			if len(partials) >= m.group.GetThreshold() {
-				e.Signature = m.recoverSignature(msg, partials)
-				logger.Verbosef("loopSignGroupEvents() => WriteSignedGroupEventAndExpirePending(%v) recover", e)
-				err = m.store.WriteSignedGroupEventAndExpirePending(e)
-				if err != nil {
-					panic(err)
-				}
-				continue
-			}
-
 			scheme := tbls.NewThresholdSchemeOnG1(en256.NewSuiteG2())
 			partial, err := scheme.Sign(m.share, msg)
 			if err != nil {
 				panic(err)
 			}
-			lst := sm[hex.EncodeToString(partial)].Add(time.Minute * 5)
-			if checkSignedWith(partials, partial) && lst.After(time.Now()) {
-				continue
-			}
-			sm[hex.EncodeToString(partial)] = time.Now()
 
 			e.Signature = partial
 			threshold := make([]byte, 8)
@@ -69,11 +45,7 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 				panic(err)
 			}
 
-			if checkSignedWith(partials, partial) {
-				continue
-			}
-			partials = append(partials, partial)
-			err = m.store.WritePendingGroupEventSignatures(e.Process, e.Nonce, partials)
+			err = m.appendPendingGroupEventSignature(e, msg, partial)
 			if err != nil {
 				panic(err)
 			}
@@ -94,49 +66,78 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 			logger.Verbosef("DecodeEvent(%x) => %s", b, err)
 			continue
 		}
-		if len(evt.Signature) == 64 {
-			sig := evt.Signature
-			evt.Signature = nil
-			msg := evt.Encode()
-			if evt.Timestamp > 1638789832002675803 { // FIXME remove this timestamp check
-				err = crypto.Verify(m.poly.Commit(), msg, sig)
-				if err != nil {
-					logger.Verbosef("crypto.Verify(%x, %x) => %v", msg, sig, err)
-					continue
-				}
-			}
-			evt.Signature = sig
-			logger.Verbosef("loopReceiveGroupMessages(%x) => WriteSignedGroupEventAndExpirePending(%v)", b, evt)
-			err = m.store.WriteSignedGroupEventAndExpirePending(evt)
-			if err != nil {
-				panic(err)
-			}
-			continue
-		}
+		sig := evt.Signature
+		evt.Signature = nil
+		msg := evt.Encode()
 
 		partials, err := m.store.ReadPendingGroupEventSignatures(evt.Process, evt.Nonce)
 		if err != nil {
 			panic(err)
 		}
-		if checkFullSignature(partials) {
-			if sm[evt.ID()].Add(time.Minute * 5).Before(time.Now()) {
-				evt.Signature = partials[0]
-				threshold := make([]byte, 8)
-				binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
-				m.messenger.SendMessage(ctx, append(evt.Encode(), threshold...))
-				sm[evt.ID()] = time.Now()
+
+		switch true {
+		case len(sig) == 64:
+			err = crypto.Verify(m.poly.Commit(), msg, sig)
+			if err != nil && evt.Timestamp > 1638789832002675803 { // FIXME remove this timestamp check
+				logger.Verbosef("crypto.Verify(%x, %x) => %v", msg, sig, err)
+				continue
 			}
-			continue
-		}
-		if checkSignedWith(partials, evt.Signature) {
-			continue
-		}
-		partials = append(partials, evt.Signature) // FIXME ensure valid partial signature
-		err = m.store.WritePendingGroupEventSignatures(evt.Process, evt.Nonce, partials)
-		if err != nil {
-			panic(err)
+			evt.Signature = sig
+			logger.Verbosef("loopReceiveGroupMessages(%x) => WriteSignedGroupEventAndExpirePending(%v)", b, evt)
+			err = m.writeSignedGroupEventAndExpirePending(evt)
+			if err != nil {
+				panic(err)
+			}
+		case checkFullSignature(partials):
+			if sm[evt.ID()].Add(time.Minute * 5).After(time.Now()) {
+				continue
+			}
+			evt.Signature = partials[0]
+			threshold := make([]byte, 8)
+			binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
+			m.messenger.SendMessage(ctx, append(evt.Encode(), threshold...))
+			sm[evt.ID()] = time.Now()
+		default:
+			// FIXME ensure valid partial signature
+			err = m.appendPendingGroupEventSignature(evt, msg, sig)
+			if err != nil {
+				panic(err)
+			}
 		}
 	}
+}
+
+func (m *Machine) appendPendingGroupEventSignature(e *encoding.Event, msg, partial []byte) error {
+	m.signerLock.Lock()
+	defer m.signerLock.Unlock()
+
+	partials, err := m.store.ReadPendingGroupEventSignatures(e.Process, e.Nonce)
+	if err != nil {
+		return err
+	}
+	if checkFullSignature(partials) {
+		return nil
+	}
+
+	if checkSignedWith(partials, partial) {
+		return nil
+	}
+	partials = append(partials, partial)
+
+	if len(partials) < m.group.GetThreshold() {
+		return m.store.WritePendingGroupEventSignatures(e.Process, e.Nonce, partials)
+	}
+
+	e.Signature = m.recoverSignature(msg, partials)
+	logger.Verbosef("loopSignGroupEvents() => WriteSignedGroupEventAndExpirePending(%v) recover", e)
+	return m.store.WriteSignedGroupEventAndExpirePending(e)
+}
+
+func (m *Machine) writeSignedGroupEventAndExpirePending(e *encoding.Event) error {
+	m.signerLock.Lock()
+	defer m.signerLock.Unlock()
+
+	return m.store.WriteSignedGroupEventAndExpirePending(e)
 }
 
 func (m *Machine) recoverSignature(msg []byte, partials [][]byte) []byte {

@@ -29,14 +29,15 @@ type Configuration struct {
 }
 
 type Machine struct {
-	store     Store
-	group     *mtg.Group
-	share     *share.PriShare
-	poly      *share.PubPoly
-	messenger messenger.Messenger
-	engines   map[string]Engine
-	processes map[string]*Process
-	mutex     *sync.Mutex
+	store      Store
+	group      *mtg.Group
+	share      *share.PriShare
+	poly       *share.PubPoly
+	messenger  messenger.Messenger
+	engines    map[string]Engine
+	processes  map[string]*Process
+	procLock   *sync.RWMutex
+	signerLock *sync.Mutex
 }
 
 func Boot(conf *Configuration, group *mtg.Group, store Store, m messenger.Messenger) (*Machine, error) {
@@ -54,14 +55,15 @@ func Boot(conf *Configuration, group *mtg.Group, store Store, m messenger.Messen
 	share := unmarshalPrivShare(sb)
 	logger.Printf("Machine.Boot(%s)", poly.Commit().String())
 	return &Machine{
-		store:     store,
-		group:     group,
-		share:     share,
-		poly:      poly,
-		messenger: m,
-		engines:   make(map[string]Engine),
-		processes: make(map[string]*Process),
-		mutex:     new(sync.Mutex),
+		store:      store,
+		group:      group,
+		share:      share,
+		poly:       poly,
+		messenger:  m,
+		engines:    make(map[string]Engine),
+		processes:  make(map[string]*Process),
+		procLock:   new(sync.RWMutex),
+		signerLock: new(sync.Mutex),
 	}, nil
 }
 
@@ -100,8 +102,8 @@ func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address 
 		logger.Verbosef("AddProcess(%s, %s, %s) => amount %s", pid, platform, address, out.Amount)
 		return
 	}
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+	m.procLock.Lock()
+	defer m.procLock.Unlock()
 
 	engine := m.engines[platform]
 	if engine == nil {
@@ -145,8 +147,8 @@ func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address 
 }
 
 func (m *Machine) WriteGroupEvent(pid string, out *mtg.Output, extra []byte) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+	m.procLock.RLock()
+	defer m.procLock.RUnlock()
 
 	proc := m.processes[pid]
 	if proc == nil {
