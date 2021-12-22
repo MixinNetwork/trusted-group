@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
+	"time"
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
@@ -12,6 +13,10 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/learnforpractice/goeoslib/chain"
 	"github.com/learnforpractice/goeoslib/crypto/secp256k1"
+)
+
+const (
+	TX_EXPIRATION = 9
 )
 
 func uuidToBytes(id string) []byte {
@@ -85,7 +90,7 @@ func genPrivateKey(share *share.PriShare) *secp256k1.PrivateKey {
 }
 
 func BuildEventTransaction(mixincontract, eventPublisher, address string, event *encoding.Event, refBlockId string) (*chain.Transaction, error) {
-	expiration := uint32(event.Timestamp/1e9 + 50*60)
+	expiration := uint32(time.Now().Unix() + TX_EXPIRATION)
 	tx := chain.NewTransaction(expiration)
 
 	if len(refBlockId) != 64 {

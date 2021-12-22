@@ -57,7 +57,6 @@ type Engine struct {
 	threshold            int
 	lastChainInfo        *chain.ChainInfo
 	mutex                *sync.Mutex
-	lastCheckTime        time.Time
 	lastIrrBlockTime     time.Time
 	lastIrrBlockId       string
 	eventStatus          map[uint64]time.Time
@@ -142,8 +141,8 @@ func Boot(conf *Configuration, threshold int) (*Engine, error) {
 		chain.GetWallet().Import("mywallet", conf.PrivateKey)
 	}
 
-	e.checkNetworkStatus()
-
+	e.syncNetwork()
+	go e.loopCheckNetworkStatus()
 	go e.loopHandleContracts()
 	go e.loopContractEvents()
 	return e, nil
@@ -154,7 +153,7 @@ func (e *Engine) Hash(b []byte) []byte {
 }
 
 func (e *Engine) SignEvent(address string, event *encoding.Event) ([]byte, error) {
-	logger.Verbosef("+++++++SignEvent %s %v", address, event)
+	//	logger.Verbosef("+++++++SignEvent %s %v", address, event)
 	if event.Nonce == 0 { //sign addprocess
 		addprocess := NewAddProcess(address, event.Process, nil)
 		signature, err := addprocess.Sign(e.key)
@@ -254,12 +253,29 @@ func (e *Engine) VerifySignature(digest *chain.Bytes32, signature *secp256k1.Sig
 }
 
 func (e *Engine) checkNetworkStatus() {
-	if e.lastCheckTime.Add(3 * time.Second).After(time.Now()) {
-		return
+	info, err := e.chainApiGetState.GetInfo()
+	if err != nil {
+		panic(err)
+	}
+	e.SetLatestChainInfo(info)
+
+	t, err := time.Parse("2006-01-02T15:04:05", info.HeadBlockTime)
+	if err != nil {
+		panic(err)
 	}
 
+	t2, err := time.Parse("2006-01-02T15:04:05", info.LastIrreversibleBlockTime)
+	if err != nil {
+		panic(err)
+	}
+
+	libTime := t.Sub(t2)
+
+	logger.Verbosef("irrerversible block info: %v %v, lib time: %v", info.LastIrreversibleBlockNum, info.LastIrreversibleBlockTime, libTime.String())
+}
+
+func (e *Engine) syncNetwork() {
 	for {
-		e.lastCheckTime = time.Now()
 		info, err := e.chainApiGetState.GetInfo()
 		if err != nil {
 			panic(err)
@@ -271,21 +287,19 @@ func (e *Engine) checkNetworkStatus() {
 			panic(err)
 		}
 
-		t2, err := time.Parse("2006-01-02T15:04:05", info.LastIrreversibleBlockTime)
-		if err != nil {
-			panic(err)
-		}
-
-		libTime := t.Sub(t2)
-
-		logger.Verbosef("irrerversible block info: %v %v, lib time: %v", info.LastIrreversibleBlockNum, info.LastIrreversibleBlockTime, libTime.String())
-
 		if t.Before(time.Now().Add(-time.Second * 30)) {
 			logger.Verbosef("Network is not synced, waiting...")
 			time.Sleep(time.Second * 10)
-		} else {
-			break
+			continue
 		}
+		break
+	}
+}
+
+func (e *Engine) loopCheckNetworkStatus() {
+	for {
+		e.checkNetworkStatus()
+		time.Sleep(time.Second * 3)
 	}
 }
 
@@ -673,7 +687,6 @@ func (e *Engine) loopExecGroupEvents(address string) {
 		if counter >= 10*60 {
 			counter = 0
 		}
-		e.checkNetworkStatus()
 		tx := chain.NewTransaction(uint32(time.Now().Unix()) + 10*60 + counter)
 
 		refBlockId := e.GetRefBlockId()
@@ -711,7 +724,7 @@ func (e *Engine) loopPushGroupEvents(address string) {
 			panic(err)
 		}
 		for _, evt := range evts {
-			if e.eventStatus[evt.Nonce].Add(10 * time.Second).Before(time.Now()) {
+			if e.eventStatus[evt.Nonce].Add(TX_EXPIRATION * time.Second).Before(time.Now()) {
 				e.eventStatus[evt.Nonce] = time.Now()
 				err := e.pushEvent(address, evt, true)
 				logger.Verbosef("pushEvent(%v, %v) => (err: %v)", address, evt, err)
