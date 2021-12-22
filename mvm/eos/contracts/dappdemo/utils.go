@@ -28,7 +28,7 @@ func VerifySignatures(data []byte, signatures []chain.Signature) bool {
 
 	for i := 0; i < len(signatures); i++ {
 		signature := signatures[i]
-		CheckDumplicatedSignature(verfiedSignatures, &signature)
+		CheckDuplicatedSignature(verfiedSignatures, &signature)
 		verfiedSignatures = append(verfiedSignatures, &signature)
 
 		pub_key := chain.RecoverKey(digest, &signature)
@@ -46,10 +46,10 @@ func VerifySignatures(data []byte, signatures []chain.Signature) bool {
 	return false
 }
 
-func CheckDumplicatedSignature(signatures []*chain.Signature, signature *chain.Signature) {
+func CheckDuplicatedSignature(signatures []*chain.Signature, signature *chain.Signature) {
 	for _, sig := range signatures {
 		if *sig == *signature {
-			check(false, "dumplicated signature")
+			check(false, "duplicated signature")
 		}
 	}
 }
