@@ -15,6 +15,7 @@ contract RefundWorker is MixinProcess {
   // just refund everything
   function _work(Event memory evt) internal override(MixinProcess) returns (bool) {
     require(evt.timestamp > 0, "invalid timestamp");
+    require(evt.nonce % 2 == 1, "not an odd nonce");
 
     bytes memory log = encodeMixinEvent(evt.nonce, evt.asset, evt.amount, evt.extra, evt.members);
     emit MixinTransaction(log);
