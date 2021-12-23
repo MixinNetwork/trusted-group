@@ -165,7 +165,8 @@ func (c *Contract) IncNonce() {
 		item.count += 1
 		db.Update(it, item, chain.SamePayer)
 	} else {
-		item := Counter{id: key, count: 1}
+		//nonce starts from 1, event with nonce 0 is for addprocess which sends to mtg.xin contract
+		item := Counter{id: key, count: 2}
 		db.Store(&item, c.self)
 	}
 }
@@ -176,6 +177,9 @@ func (c *Contract) GetNonce() uint64 {
 	if it, item := db.Get(key); it.IsOk() {
 		return item.count
 	} else {
+		//nonce starts from 1, event with nonce 0 is for addprocess which sends to mtg.xin contract
+		item := Counter{id: key, count: 1}
+		db.Store(&item, c.self)
 		return 1
 	}
 }
