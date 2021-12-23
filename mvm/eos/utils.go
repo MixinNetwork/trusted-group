@@ -106,7 +106,6 @@ func BuildEventTransaction(mixincontract, eventPublisher, address string, event 
 			chain.PermissionLevel{Actor: chain.NewName(eventPublisher), Permission: chain.NewName("active")},
 			chain.NewName(mixincontract),
 			chain.NewName("addprocess"),
-			chain.NewName(address),
 			addprocess,
 		)
 	} else {
