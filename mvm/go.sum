@@ -362,6 +362,8 @@ github.com/labstack/gommon v0.3.0/go.mod h1:MULnywXg0yavhxWKc+lOruYdAhDwPK9wf0OL
 github.com/leanovate/gopter v0.2.9/go.mod h1:U2L/78B+KVFIx2VmW6onHJQzXtFb+p5y3y2Sh+Jxxv8=
 github.com/learnforpractice/goeoslib v0.0.0-20211202004107-a4e67be3ac37 h1:0rmaP/t16SO2AvhVDmpahajq4bnj2dAG225OV1fs1tU=
 github.com/learnforpractice/goeoslib v0.0.0-20211202004107-a4e67be3ac37/go.mod h1:H0I95gXzyt4IK/fhLeJCrSv5FhPSJf8ra8dRsxVWcLc=
+github.com/learnforpractice/goeoslib v0.0.0-20211223055058-0a2fafd6f35e h1:sz4WZpbj7weiQMcZHpvR5ddiuCK/V6fG8ZN2XdQc+ms=
+github.com/learnforpractice/goeoslib v0.0.0-20211223055058-0a2fafd6f35e/go.mod h1:H0I95gXzyt4IK/fhLeJCrSv5FhPSJf8ra8dRsxVWcLc=
 github.com/lib/pq v1.0.0/go.mod h1:5WUZQaWbwv1U+lTReE5YruASi9Al49XbQIvNi/34Woo=
 github.com/lucas-clemente/quic-go v0.24.0/go.mod h1:paZuzjXCE5mj6sikVLMvqXk8lJV2AsqtJ6bDhjEfxx0=
 github.com/lunixbochs/vtclean v1.0.0/go.mod h1:pHhQNgMf3btfWnGBVipUOjRYhoOsdGqdm/+2c2E2WMI=
