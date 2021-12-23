@@ -22,7 +22,7 @@ abstract contract MixinProcess {
   }
 
   event MixinTransaction(bytes);
-  event MixinEvent(address indexed sender, uint256 nonce, uint128 asset, uint256 amount, uint64 timestamp, bytes extra);
+  event MixinEvent(address indexed sender, uint256 nonce, uint128 asset, uint256 amount, uint64 timestamp, bytes extra, bool result);
 
   uint256[4] public GROUP = [
     0x2f741961cea2e88cfa2680eeaac040d41f41f3fedb01e38c06f4c6058fd7e425, // x.y
@@ -41,9 +41,14 @@ abstract contract MixinProcess {
   // the contract should implement this method
   function _work(Event memory evt) internal virtual returns (bool);
 
+  function work(Event memory evt) external returns (bool) {
+    require(msg.sender == address(this), "invalid work commander");
+    return _work(evt);
+  }
+
   // process || nonce || asset || amount || extra || timestamp || members || threshold || sig
   function mixin(bytes calldata raw) public returns (bool) {
-    require(_pid() > 0);
+    require(_pid() > 0, "invalid pid");
     require(raw.length >= 141, "event data too small");
 
     Event memory evt;
@@ -93,8 +98,13 @@ abstract contract MixinProcess {
     custodian[evt.asset] = custodian[evt.asset] + evt.amount;
     members[evt.sender] = evt.members;
 
-    emit MixinEvent(evt.sender, evt.nonce, evt.asset, evt.amount, evt.timestamp, evt.extra);
-    return _work(evt);
+    try this.work(evt) returns (bool result) {
+      emit MixinEvent(evt.sender, evt.nonce, evt.asset, evt.amount, evt.timestamp, evt.extra, result);
+      return result;
+    } catch {
+      emit MixinEvent(evt.sender, evt.nonce, evt.asset, evt.amount, evt.timestamp, evt.extra, false);
+      return false;
+    }
   }
 
   // pid || nonce || asset || amount || extra || timestamp || members || threshold || sig
