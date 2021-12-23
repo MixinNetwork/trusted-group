@@ -701,6 +701,7 @@ func (e *Engine) loopExecGroupEvents(address string) {
 			panic(err)
 		}
 		r, err := e.chainApiPush.PushTransaction(tx, []string{sign.String()}, false)
+		logger.Verbosef("PushTransaction address %s, tx: %v, ret: err: %v", address, tx.Marshal(), err)
 		if err != nil {
 			if r != nil {
 				msg, err := r.GetString("error", "details", 0, "message")
@@ -760,9 +761,6 @@ func (e *Engine) loopHandleContracts() {
 			//			go e.loopGetLogs(c)
 			go e.loopPushGroupEvents(c)
 			go e.loopExecGroupEvents(c)
-		}
-		if !e.IsPublisher() {
-			continue
 		}
 	}
 }
