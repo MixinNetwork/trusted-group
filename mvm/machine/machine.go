@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"sync"
+	"time"
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
@@ -36,8 +37,10 @@ type Machine struct {
 	messenger  messenger.Messenger
 	engines    map[string]Engine
 	processes  map[string]*Process
+	sm         map[string]time.Time
 	procLock   *sync.RWMutex
 	signerLock *sync.Mutex
+	smLock     *sync.Mutex
 }
 
 func Boot(conf *Configuration, group *mtg.Group, store Store, m messenger.Messenger) (*Machine, error) {
@@ -62,8 +65,10 @@ func Boot(conf *Configuration, group *mtg.Group, store Store, m messenger.Messen
 		messenger:  m,
 		engines:    make(map[string]Engine),
 		processes:  make(map[string]*Process),
+		sm:         make(map[string]time.Time),
 		procLock:   new(sync.RWMutex),
 		signerLock: new(sync.Mutex),
+		smLock:     new(sync.Mutex),
 	}, nil
 }
 

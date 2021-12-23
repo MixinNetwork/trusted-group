@@ -21,8 +21,19 @@ func (m *Machine) getProcessInfo(process string) (string, string) {
 	return m.processes[process].Platform, m.processes[process].Address
 }
 
+func (m *Machine) GetLastSendTime(id string) time.Time {
+	m.smLock.Lock()
+	defer m.smLock.Unlock()
+	return m.sm[id]
+}
+
+func (m *Machine) SetLastSendTime(id string, t time.Time) {
+	m.smLock.Lock()
+	defer m.smLock.Unlock()
+	m.sm[id] = t
+}
+
 func (m *Machine) loopSignGroupEvents(ctx context.Context) {
-	sm := make(map[string]time.Time)
 	for {
 		time.Sleep(3 * time.Second)
 		events, err := m.store.ListPendingGroupEvents(100)
@@ -31,22 +42,18 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 		}
 
 		for _, e := range events {
-			lst := sm[e.ID()].Add(time.Minute * 5)
+			lst := m.GetLastSendTime(e.ID()).Add(time.Minute * 5)
 			if lst.After(time.Now()) {
 				continue
 			}
-			sm[e.ID()] = time.Now()
+			m.SetLastSendTime(e.ID(), time.Now())
 			logger.Verbosef("Machine.loopSignGroupEvents() => %d, %v", e.Nonce, e)
 
 			var partial []byte
 			msg := e.Encode()
 			platform, address := m.getProcessInfo(e.Process)
 			if platform == ProcessPlatformEos {
-				partial, err = m.engines[ProcessPlatformEos].SignEvent(address, e)
-				if err != nil {
-					logger.Verbosef("++SignEvent return error: %v", err)
-					return
-				}
+				partial = m.engines[ProcessPlatformEos].SignEvent(address, e)
 				e.Signature = partial
 			} else {
 				e.Signature = nil
@@ -77,7 +84,6 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 }
 
 func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
-	sm := make(map[string]time.Time)
 	for {
 		_, b, err := m.messenger.ReceiveMessage(ctx)
 		if err != nil {
@@ -91,7 +97,7 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 		}
 		platform, address := m.getProcessInfo(evt.Process)
 		if platform == ProcessPlatformEos {
-			m.handleEosGroupMessages(ctx, address, evt, sm)
+			m.handleEosGroupMessages(ctx, address, evt)
 			continue
 		}
 
@@ -118,14 +124,14 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 				panic(err)
 			}
 		case fullSignature:
-			if sm[evt.ID()].Add(time.Minute * 5).After(time.Now()) {
+			if m.GetLastSendTime(evt.ID()).Add(time.Minute * 5).After(time.Now()) {
 				continue
 			}
 			evt.Signature = partials[0]
 			threshold := make([]byte, 8)
 			binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
 			m.messenger.SendMessage(ctx, append(evt.Encode(), threshold...))
-			sm[evt.ID()] = time.Now()
+			m.SetLastSendTime(evt.ID(), time.Now())
 		default:
 			// FIXME ensure valid partial signature
 			err = m.appendPendingGroupEventSignature(evt, msg, sig, constants.SignTypeTBLS)
@@ -144,7 +150,11 @@ func (m *Machine) appendPendingGroupEventSignature(e *encoding.Event, msg, parti
 	if err != nil {
 		return err
 	}
+	logger.Verbosef("+++++++len(partials): %d, fullSignature: %v", len(partials), fullSignature)
 	if fullSignature {
+		if signType == constants.SignTypeSECP256K1 {
+			m.eosWriteFullSignatures(e, partials)
+		}
 		return nil
 	}
 
@@ -152,6 +162,8 @@ func (m *Machine) appendPendingGroupEventSignature(e *encoding.Event, msg, parti
 		return nil
 	}
 	partials = append(partials, partial)
+	logger.Verbosef("+++++++partials: %v, threshold: %d", len(partials), m.group.GetThreshold())
+
 	if len(partials) < m.group.GetThreshold() {
 		return m.store.WritePendingGroupEventSignatures(e.Process, e.Nonce, partials, signType)
 	}
@@ -161,13 +173,7 @@ func (m *Machine) appendPendingGroupEventSignature(e *encoding.Event, msg, parti
 		logger.Verbosef("loopSignGroupEvents() => WriteSignedGroupEventAndExpirePending(%v) recover", e)
 		return m.store.WriteSignedGroupEventAndExpirePending(e, constants.SignTypeTBLS)
 	} else {
-		e.Signature = nil
-		sortBytesArray(partials)
-		for _, partial := range partials {
-			e.Signature = append(e.Signature, partial...)
-		}
-		e.Signature = append(e.Signature, byte(len(partials)))
-		return m.store.WriteSignedGroupEventAndExpirePending(e, constants.SignTypeSECP256K1)
+		return m.eosWriteFullSignatures(e, partials)
 	}
 }
 
@@ -204,7 +210,7 @@ func checkFullSignature(partials [][]byte) bool {
 	return len(partials) == 1 && len(partials[0]) == 64
 }
 
-func (m *Machine) handleEosGroupMessages(ctx context.Context, address string, evt *encoding.Event, sm map[string]time.Time) {
+func (m *Machine) handleEosGroupMessages(ctx context.Context, address string, evt *encoding.Event) {
 	if len(evt.Signature) == 0 || len(evt.Signature)%65 != 0 {
 		logger.Verbosef("++++handleEosGroupMessages: invalid signature length: %d", len(evt.Signature))
 		return
@@ -220,24 +226,31 @@ func (m *Machine) handleEosGroupMessages(ctx context.Context, address string, ev
 		panic(err)
 	}
 	if fullSignature {
-		if sm[evt.ID()].Add(time.Minute * 5).After(time.Now()) {
+		lst := m.GetLastSendTime(evt.ID())
+		if lst.Add(time.Minute * 5).After(time.Now()) {
 			return
 		}
-		partial, err := m.engines[ProcessPlatformEos].SignEvent(address, evt)
-		if err != nil {
-			logger.Verbosef("++SignEvent return error: %v", err)
-			return
-		}
+		partial := m.engines[ProcessPlatformEos].SignEvent(address, evt)
 		evt.Signature = partial
 		threshold := make([]byte, 8)
 		binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
 		m.messenger.SendMessage(ctx, append(evt.Encode(), threshold...))
-		sm[evt.ID()] = time.Now()
+		m.SetLastSendTime(evt.ID(), time.Now())
 		return
 	}
 	sig := evt.Signature
 	evt.Signature = nil
 	m.appendPendingGroupEventSignature(evt, nil, sig, constants.SignTypeSECP256K1)
+}
+
+func (m *Machine) eosWriteFullSignatures(e *encoding.Event, partials [][]byte) error {
+	e.Signature = nil
+	sortBytesArray(partials)
+	for _, partial := range partials {
+		e.Signature = append(e.Signature, partial...)
+	}
+	e.Signature = append(e.Signature, byte(len(partials)))
+	return m.store.WriteSignedGroupEventAndExpirePending(e, constants.SignTypeSECP256K1)
 }
 
 func sortBytesArray(arr [][]byte) {
