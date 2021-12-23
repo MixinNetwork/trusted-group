@@ -152,25 +152,25 @@ func (e *Engine) Hash(b []byte) []byte {
 	return crypto.Keccak256(b)
 }
 
-func (e *Engine) SignEvent(address string, event *encoding.Event) ([]byte, error) {
+func (e *Engine) SignEvent(address string, event *encoding.Event) []byte {
 	//	logger.Verbosef("+++++++SignEvent %s %v", address, event)
 	if event.Nonce == 0 { //sign addprocess
 		addprocess := NewAddProcess(address, event.Process, nil)
 		signature, err := addprocess.Sign(e.key)
 		if err != nil {
-			return nil, err
+			panic(err)
 		}
-		return signature.Data[:], nil
+		return signature.Data[:]
 	} else {
 		txEvent, err := convertEventToTxEvent(event)
 		if err != nil {
-			return nil, err
+			panic(err)
 		}
 		signature, err := txEvent.Sign(e.key)
 		if err != nil {
-			return nil, err
+			panic(err)
 		}
-		return signature.Data[:], nil
+		return signature.Data[:]
 	}
 }
 
@@ -259,19 +259,19 @@ func (e *Engine) checkNetworkStatus() {
 	}
 	e.SetLatestChainInfo(info)
 
-	t, err := time.Parse("2006-01-02T15:04:05", info.HeadBlockTime)
-	if err != nil {
-		panic(err)
-	}
+	// t, err := time.Parse("2006-01-02T15:04:05", info.HeadBlockTime)
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	t2, err := time.Parse("2006-01-02T15:04:05", info.LastIrreversibleBlockTime)
-	if err != nil {
-		panic(err)
-	}
+	// t2, err := time.Parse("2006-01-02T15:04:05", info.LastIrreversibleBlockTime)
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	libTime := t.Sub(t2)
+	// libTime := t.Sub(t2)
 
-	logger.Verbosef("irrerversible block info: %v %v, lib time: %v", info.LastIrreversibleBlockNum, info.LastIrreversibleBlockTime, libTime.String())
+	// logger.Verbosef("irrerversible block info: %v %v, lib time: %v", info.LastIrreversibleBlockNum, info.LastIrreversibleBlockTime, libTime.String())
 }
 
 func (e *Engine) syncNetwork() {
@@ -526,8 +526,6 @@ func (e *Engine) PullContractEvents() (int, error) {
 		}
 	}
 
-	logger.Verbosef("PullContractEvents offset %d, actions size:%d", offset, len(actions))
-
 	lastIndex := uint64(0)
 	count := 0
 	for i, action := range actions {
@@ -702,9 +700,16 @@ func (e *Engine) loopExecGroupEvents(address string) {
 		if err != nil {
 			panic(err)
 		}
-		_, err = e.chainApiPush.PushTransaction(tx, []string{sign.String()}, false)
-		logger.Verbosef("PushTransaction ret: err: %v", err)
+		r, err := e.chainApiPush.PushTransaction(tx, []string{sign.String()}, false)
 		if err != nil {
+			if r != nil {
+				msg, err := r.GetString("error", "details", 0, "message")
+				if msg != "assertion failure with message: event not found!" {
+					logger.Verbosef("PushTransaction ret: err: %v", err)
+				}
+			} else {
+				logger.Verbosef("PushTransaction ret: err: %v", err)
+			}
 			time.Sleep(time.Second * 5)
 		}
 	}
