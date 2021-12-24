@@ -316,15 +316,8 @@ func (e *Engine) GetLatestChainInfo() chain.ChainInfo {
 }
 
 func (e *Engine) GetRefBlockId() string {
-	if e.lastIrrBlockTime.Add(time.Second * 60).After(time.Now()) {
-		return e.lastIrrBlockId
-	}
-	e.lastIrrBlockTime = time.Now()
 	info := e.GetLatestChainInfo()
-	e.mutex.Lock()
-	defer e.mutex.Unlock()
-	e.lastIrrBlockId = info.LastIrreversibleBlockID
-	return e.lastIrrBlockId
+	return info.LastIrreversibleBlockID
 }
 
 func (e *Engine) getLastIrreversibleBlockNumber() uint32 {
@@ -581,7 +574,7 @@ func (e *Engine) PullContractEvents() (int, error) {
 		count += 1
 	}
 
-	if lastIndex == 0 {
+	if count == 0 {
 		return 0, nil
 	}
 
@@ -678,14 +671,9 @@ func (e *Engine) loopExecGroupEvents(address string) {
 	}
 
 	executor := chain.NewName(e.mtgExecutor)
-	counter := uint32(0)
-
+	counter := uint64(0)
 	for {
-		counter += 1
-		if counter >= 10*60 {
-			counter = 0
-		}
-		tx := chain.NewTransaction(uint32(time.Now().Unix()) + 10*60 + counter)
+		tx := chain.NewTransaction(uint32(time.Now().Unix()) + TX_EXPIRATION)
 
 		refBlockId := e.GetRefBlockId()
 		tx.SetReferenceBlock(refBlockId)
@@ -694,6 +682,7 @@ func (e *Engine) loopExecGroupEvents(address string) {
 			chain.NewName(address),
 			chain.NewName("exec"),
 			executor,
+			counter,
 		)
 		tx.Actions = append(tx.Actions, action)
 		sign, err := tx.Sign(e.mtgExecutorKey, e.chainId)
@@ -701,7 +690,7 @@ func (e *Engine) loopExecGroupEvents(address string) {
 			panic(err)
 		}
 		r, err := e.chainApiPush.PushTransaction(tx, []string{sign.String()}, false)
-		logger.Verbosef("PushTransaction address %s, tx: %v, ret: err: %v", address, tx.Marshal(), err)
+		// logger.Verbosef("+++++loopExecGroupEvents: PushTransaction evt: %v, err: %v", r, err)
 		if err != nil {
 			if r != nil {
 				msg, err := r.GetString("error", "details", 0, "message")
@@ -712,6 +701,13 @@ func (e *Engine) loopExecGroupEvents(address string) {
 				logger.Verbosef("PushTransaction ret: err: %v", err)
 			}
 			time.Sleep(time.Second * 5)
+		} else {
+			console, err := r.GetString("processed", "action_traces", 0, "console")
+			if err != nil {
+				panic(err)
+			}
+			logger.Verbosef("++++++execEvent:%s => %s", address, console)
+			counter += 1
 		}
 	}
 }
