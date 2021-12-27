@@ -114,24 +114,26 @@ func GetSymbol(assetId chain.Uint128) chain.Symbol {
 	}
 }
 
-func GetAssetId(sym chain.Symbol) chain.Uint128 {
+func GetAssetId(sym chain.Symbol) (assetId chain.Uint128, ok bool) {
+	ok = true
 	switch sym {
 	case chain.NewSymbol("EOS", 4):
-		return ASSET_ID_EOS
+		assetId = ASSET_ID_EOS
 	case chain.NewSymbol("MBTC", 8):
-		return ASSET_ID_BTC
+		assetId = ASSET_ID_BTC
 	case chain.NewSymbol("MPUSD", 8):
-		return ASSET_ID_PUSD
+		assetId = ASSET_ID_PUSD
 	case chain.NewSymbol("MUSDT", 8):
-		return ASSET_ID_USDT
+		assetId = ASSET_ID_USDT
 	case chain.NewSymbol("MXIN", 8):
-		return ASSET_ID_XIN
+		assetId = ASSET_ID_XIN
 	case chain.NewSymbol("METH", 8):
-		return ASSET_ID_ETH
+		assetId = ASSET_ID_ETH
 	case chain.NewSymbol("MCNB", 8):
-		return ASSET_ID_CNB
+		assetId = ASSET_ID_CNB
 	default:
-		check(false, "unsupported asset id")
-		return chain.Uint128{}
+		ok = false
+		assetId = chain.Uint128{}
 	}
+	return
 }

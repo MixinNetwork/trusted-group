@@ -11,7 +11,8 @@ const (
 	KEY_TX_IN_INDEX  = 3
 	KEY_ASSET_INDEX  = 4
 
-	MAX_SUPPLY = 100000000000000
+	MTG_WORK_EXPIRATION_SECONDS = 60
+	MAX_SUPPLY                  = 100000000000000
 )
 
 //asset id:
@@ -80,11 +81,13 @@ type MTGBalance struct {
 }
 
 //table works
-type XTransfer struct {
-	id       uint64 //primary : t.id
-	to       chain.Name
-	quantity chain.Asset
-	memo     string
+type MTGWork struct {
+	id         uint64 //primary : t.id
+	expiration uint32 //IDX64 : ByExpiration : uint64(t.expiration) : t.expiration = uint32(%v)
+	from       chain.Uint128
+	to         chain.Name
+	quantity   chain.Asset
+	memo       string
 }
 
 //contract mixincross
@@ -151,10 +154,30 @@ func (c *Contract) Exec(executor chain.Name) {
 
 //action dowork
 func (c *Contract) DoWork(executor chain.Name, id uint64) {
-	db := NewXTransferDB(c.self, c.self)
+	db := NewMTGWorkDB(c.self, c.self)
 	it := db.Lowerbound(id)
-	assert(it.IsOk(), "xtransfer not found!")
+	assert(it.IsOk(), "MTGWork not found!")
 	transfer, _ := db.GetByIterator(it)
+
+	//check expiration work first
+	idxDB := db.GetIdxDBByExpiration()
+	itExpiration, _ := idxDB.Lowerbound(uint64(0))
+	if itExpiration.IsOk() {
+		it, item := db.Get(itExpiration.Primary)
+		assert(it.IsOk(), "MTGWork not found!")
+		if item.expiration < chain.CurrentTimeSeconds()+MTG_WORK_EXPIRATION_SECONDS {
+			//TODO: refund
+			clientId := item.from
+			assetId, ok := GetAssetId(item.quantity.Symbol)
+			assert(ok, "unsupported asset id")
+			amount := chain.NewUint128(uint64(item.quantity.Amount), 0)
+			if item.quantity.Symbol == chain.NewSymbol("EOS", 4) {
+				amount = amount.Mul(amount, chain.NewUint128(10000, 0))
+			}
+			c.HandleRefund(clientId, assetId, *amount, "refund")
+			chain.Exit()
+		}
+	}
 	if transfer.quantity.Symbol == chain.NewSymbol("EOS", 4) {
 		chain.NewAction(
 			chain.PermissionLevel{c.self, chain.ActiveName},
@@ -211,28 +234,32 @@ func (c *Contract) HandleCrossTransfer(event *TxEvent) {
 	toAccount := string(event.extra)
 	to := chain.NewName(toAccount)
 	check(chain.IsAccount(to), "account does not exists, refund")
+	check(len(event.members) == 1, "multisig event not supported currently")
+	from := event.members[0]
+
 	if event.asset == ASSET_ID_EOS {
 		sym := chain.NewSymbol("EOS", 4)
 		quantity := chain.NewAsset(int64(event.amount.Uint64())/10000, sym)
 		totalBalance := GetBalance(c.self, chain.TokenContractName, chain.NewSymbol("EOS", 4))
 		check(totalBalance.Amount >= quantity.Amount, "balance not enough, refund")
-		c.TransferTo(to, quantity, string(event.extra))
+		c.TransferTo(from, to, quantity, string(event.extra))
 	} else {
 		symbol := GetSymbol(event.asset)
 		asset := chain.NewAsset(int64(event.amount.Uint64()), symbol)
-		c.TransferTo(to, asset, string(event.extra))
+		c.TransferTo(from, to, asset, string(event.extra))
 	}
 }
 
-func (c *Contract) TransferTo(to chain.Name, quantity *chain.Asset, memo string) {
+func (c *Contract) TransferTo(from chain.Uint128, to chain.Name, quantity *chain.Asset, memo string) {
 	id := c.GetNextTxInIndex()
-	db := NewXTransferDB(c.self, c.self)
-	x := &XTransfer{id, to, *quantity, memo}
+	db := NewMTGWorkDB(c.self, c.self)
+	x := &MTGWork{id, chain.CurrentTimeSeconds(), from, to, *quantity, memo}
 	db.Store(x, c.self)
 }
 
 func (c *Contract) TransferOut(member *chain.Uint128, amount chain.Asset, memo string) {
-	assetId := GetAssetId(amount.Symbol)
+	assetId, ok := GetAssetId(amount.Symbol)
+	assert(ok, "unsupported asset id")
 	//TODO: make sure balance in MTG is sufficient.
 	_amount := chain.NewUint128(uint64(amount.Amount), 0)
 	if amount.Symbol == chain.NewSymbol("EOS", 4) {
@@ -274,7 +301,7 @@ func (c *Contract) Transfer(from chain.Name, to chain.Name, quantity chain.Asset
 		return
 	}
 	//TODO: check free amount of MTG
-	c.TransferOut(cliendId, quantity, "xtransfer")
+	c.TransferOut(cliendId, quantity, "MTGWork")
 }
 
 func (c *Contract) Refund(event *TxEvent, memo string) {
@@ -287,6 +314,27 @@ func (c *Contract) Refund(event *TxEvent, memo string) {
 		members:   event.members,
 		threshold: event.threshold,
 		amount:    event.amount,
+		extra:     []byte(memo),
+	}
+
+	chain.NewAction(
+		chain.PermissionLevel{c.self, chain.ActiveName},
+		MTG_XIN,
+		chain.NewName("txrequest"),
+		&notify,
+	).Send()
+}
+
+func (c *Contract) HandleRefund(clientId chain.Uint128, assetId chain.Uint128, amount chain.Uint128, memo string) {
+	id := c.GetNextTxRequestNonce()
+	notify := TxRequest{
+		nonce:     id,
+		contract:  c.self,
+		process:   PROCESS_ID,
+		asset:     assetId,
+		members:   []chain.Uint128{clientId},
+		threshold: 1,
+		amount:    amount,
 		extra:     []byte(memo),
 	}
 
