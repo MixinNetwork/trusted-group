@@ -22,10 +22,13 @@ import (
 const (
 	KEY_NONCE               = 1
 	MIXIN_CONTRACT_SEQUENCE = 1
-	TX_LOG_ACTION           = "ontxlog"
-	ClockTick               = 3 * time.Second
-	DEBUG                   = true
-	MAX_ACTIONS             = 100
+
+	KEY_TX_IN_INDEX = 3
+
+	TX_LOG_ACTION = "ontxlog"
+	ClockTick     = 3 * time.Second
+	DEBUG         = true
+	MAX_ACTIONS   = 100
 )
 
 type Configuration struct {
@@ -690,7 +693,7 @@ func (e *Engine) loopExecGroupEvents(address string) {
 			panic(err)
 		}
 		r, err := e.chainApiPush.PushTransaction(tx, []string{sign.String()}, false)
-		// logger.Verbosef("+++++loopExecGroupEvents: PushTransaction evt: %v, err: %v", r, err)
+		// logger.Verbosef("+++++loopExecGroupEvents(%s): PushTransaction err: %v", address, err)
 		if err != nil {
 			if r != nil {
 				msg, err := r.GetString("error", "details", 0, "message")
@@ -708,6 +711,89 @@ func (e *Engine) loopExecGroupEvents(address string) {
 			}
 			logger.Verbosef("++++++execEvent:%s => %s", address, console)
 			counter += 1
+		}
+	}
+}
+
+func (e *Engine) loopDoWorks(address string) {
+	if !e.IsExecutor() {
+		return
+	}
+
+	executor := chain.NewName(e.mtgExecutor)
+	counter := uint64(0)
+	for {
+		time.Sleep(time.Second * 5)
+		result, err := e.chainApiGetState.GetTableRows(
+			false,   //json bool,
+			address, //code string,
+			address, //scope string,
+			"works", //table string,
+			"",      //lowerbound string,
+			"",      //upperbound string,
+			100,     //limit int,
+			"i64",   //keyType string,
+			1,       //indexPosition int
+			false,   //reverse bool,
+			false,   //showPayer bool,
+		)
+		if err != nil {
+			continue
+		}
+
+		logger.Verbosef("++++++loopDoWorks: %v", result)
+		transfers, err := result.GetArray("rows")
+		if err != nil {
+			logger.Verbosef("+++++++++err", err)
+			return
+		}
+
+		for _, transfer := range transfers {
+			raw, err := hex.DecodeString(transfer.(string))
+			if err != nil {
+				logger.Verbosef("+++++++++err", err)
+				return
+			}
+			if len(raw) < 8 {
+				logger.Verbosef("+++++++++Invalid data")
+				return
+			}
+			id := binary.LittleEndian.Uint64(raw[:8])
+			tx := chain.NewTransaction(uint32(time.Now().Unix()) + TX_EXPIRATION)
+
+			refBlockId := e.GetRefBlockId()
+			tx.SetReferenceBlock(refBlockId)
+			action := chain.NewAction(
+				chain.PermissionLevel{Actor: executor, Permission: chain.NewName("active")},
+				chain.NewName(address),
+				chain.NewName("dowork"),
+				executor,
+				id,
+			)
+			tx.Actions = append(tx.Actions, action)
+			sign, err := tx.Sign(e.mtgExecutorKey, e.chainId)
+			if err != nil {
+				panic(err)
+			}
+			r, err := e.chainApiPush.PushTransaction(tx, []string{sign.String()}, false)
+			// logger.Verbosef("+++++loopExecGroupEvents: PushTransaction evt: %v, err: %v", r, err)
+			if err != nil {
+				if r != nil {
+					msg, err := r.GetString("error", "details", 0, "message")
+					if msg != "assertion failure with message: xtransfer not found!" {
+						logger.Verbosef("PushTransaction ret: err: %v", err)
+					}
+				} else {
+					logger.Verbosef("PushTransaction ret: err: %v", err)
+				}
+			} else {
+				console, err := r.GetString("processed", "action_traces", 0, "console")
+				if err != nil {
+					panic(err)
+				}
+				logger.Verbosef("++++++exec2:%s => %s", address, console)
+				counter += 1
+			}
 		}
 	}
 }
@@ -754,9 +840,9 @@ func (e *Engine) loopHandleContracts() {
 				continue
 			}
 			contracts[c] = true
-			//			go e.loopGetLogs(c)
 			go e.loopPushGroupEvents(c)
 			go e.loopExecGroupEvents(c)
+			go e.loopDoWorks(c)
 		}
 	}
 }
