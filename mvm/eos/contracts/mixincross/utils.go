@@ -59,6 +59,10 @@ func check(b bool, msg string) {
 	chain.Check(b, msg)
 }
 
+func assert(b bool, msg string) {
+	chain.Assert(b, msg)
+}
+
 func Uint128ToString(uint128 chain.Uint128) string {
 	return hex.EncodeToString(uint128[:])
 }
@@ -86,4 +90,48 @@ func GetClientId(memo string) (*chain.Uint128, bool) {
 	out := new(chain.Uint128)
 	copy(out[:], h)
 	return out, true
+}
+
+func GetSymbol(assetId chain.Uint128) chain.Symbol {
+	switch assetId {
+	case ASSET_ID_EOS:
+		return chain.NewSymbol("EOS", 4)
+	case ASSET_ID_BTC:
+		return chain.NewSymbol("MBTC", 8)
+	case ASSET_ID_PUSD:
+		return chain.NewSymbol("MPUSD", 8)
+	case ASSET_ID_USDT:
+		return chain.NewSymbol("MUSDT", 8)
+	case ASSET_ID_XIN:
+		return chain.NewSymbol("MXIN", 8)
+	case ASSET_ID_ETH:
+		return chain.NewSymbol("METH", 8)
+	case ASSET_ID_CNB:
+		return chain.NewSymbol("MCNB", 8)
+	default:
+		check(false, "unsupported asset id")
+		return chain.Symbol{}
+	}
+}
+
+func GetAssetId(sym chain.Symbol) chain.Uint128 {
+	switch sym {
+	case chain.NewSymbol("EOS", 4):
+		return ASSET_ID_EOS
+	case chain.NewSymbol("MBTC", 8):
+		return ASSET_ID_BTC
+	case chain.NewSymbol("MPUSD", 8):
+		return ASSET_ID_PUSD
+	case chain.NewSymbol("MUSDT", 8):
+		return ASSET_ID_USDT
+	case chain.NewSymbol("MXIN", 8):
+		return ASSET_ID_XIN
+	case chain.NewSymbol("METH", 8):
+		return ASSET_ID_ETH
+	case chain.NewSymbol("MCNB", 8):
+		return ASSET_ID_CNB
+	default:
+		check(false, "unsupported asset id")
+		return chain.Uint128{}
+	}
 }

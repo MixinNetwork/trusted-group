@@ -1,2 +1,4 @@
-github.com/uuosio/chain v0.1.3-0.20211224023632-943c0dfdeff5 h1:BTjL02Vevb2iFeZbRvMIhfDdQ/ZYYwhxC+WZt6AS6QE=
-github.com/uuosio/chain v0.1.3-0.20211224023632-943c0dfdeff5/go.mod h1:Ap98MHUzcpbLkm+fVldVl6UCUBJxZ+yPkat+apJtHMk=
+github.com/uuosio/chain v0.1.3 h1:Kg54r5RcshE4heP6Qc/ka4wA/ibeQ0VkAVScpEULWE4=
+github.com/uuosio/chain v0.1.3/go.mod h1:Ap98MHUzcpbLkm+fVldVl6UCUBJxZ+yPkat+apJtHMk=
+github.com/uuosio/chain v0.1.4-0.20211227051229-9803aafbe6a3 h1:S5oITctIjT3zf7xch1IBpLeibTjj4wJcECI4ZXbIf0g=
+github.com/uuosio/chain v0.1.4-0.20211227051229-9803aafbe6a3/go.mod h1:Ap98MHUzcpbLkm+fVldVl6UCUBJxZ+yPkat+apJtHMk=
