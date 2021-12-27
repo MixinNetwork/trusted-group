@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/uuosio/chain"
-	"github.com/uuosio/chain/sys"
+	"github.com/uuosio/chain/database"
 )
 
 const (
@@ -100,7 +100,6 @@ type Contract struct {
 
 func NewContract(receiver, firstReceiver, action chain.Name) *Contract {
 	c := &Contract{receiver, firstReceiver, action, nil}
-	sys.Init(c)
 	return c
 }
 
@@ -155,29 +154,38 @@ func (c *Contract) Exec(executor chain.Name) {
 //action dowork
 func (c *Contract) DoWork(executor chain.Name, id uint64) {
 	db := NewMTGWorkDB(c.self, c.self)
-	it := db.Lowerbound(id)
-	assert(it.IsOk(), "MTGWork not found!")
-	transfer, _ := db.GetByIterator(it)
-
-	//check expiration work first
+	//check expired work first
 	idxDB := db.GetIdxDBByExpiration()
 	itExpiration, _ := idxDB.Lowerbound(uint64(0))
+	var it database.Iterator
+	var transfer *MTGWork
+
 	if itExpiration.IsOk() {
-		it, item := db.Get(itExpiration.Primary)
+		it, transfer = db.Get(itExpiration.Primary)
 		assert(it.IsOk(), "MTGWork not found!")
-		if item.expiration < chain.CurrentTimeSeconds()+MTG_WORK_EXPIRATION_SECONDS {
-			//TODO: refund
-			clientId := item.from
-			assetId, ok := GetAssetId(item.quantity.Symbol)
+		if transfer.expiration < chain.CurrentTimeSeconds() {
+			clientId := transfer.from
+			assetId, ok := GetAssetId(transfer.quantity.Symbol)
 			assert(ok, "unsupported asset id")
-			amount := chain.NewUint128(uint64(item.quantity.Amount), 0)
-			if item.quantity.Symbol == chain.NewSymbol("EOS", 4) {
+			amount := chain.NewUint128(uint64(transfer.quantity.Amount), 0)
+			if transfer.quantity.Symbol == chain.NewSymbol("EOS", 4) {
 				amount = amount.Mul(amount, chain.NewUint128(10000, 0))
 			}
-			c.HandleRefund(clientId, assetId, *amount, "refund")
+			c.HandleRefund(clientId, assetId, *amount, "expired, refund")
+			db.Remove(it)
 			chain.Exit()
 		}
 	}
+	if transfer.id != id {
+		it := db.Lowerbound(id)
+		assert(it.IsOk(), "MTGWork not found!")
+		transfer, _ = db.GetByIterator(it)
+	}
+	c.HandleTransferIn(transfer)
+	db.Remove(it)
+}
+
+func (c *Contract) HandleTransferIn(transfer *MTGWork) {
 	if transfer.quantity.Symbol == chain.NewSymbol("EOS", 4) {
 		chain.NewAction(
 			chain.PermissionLevel{c.self, chain.ActiveName},
@@ -223,7 +231,6 @@ func (c *Contract) DoWork(executor chain.Name, id uint64) {
 			"transfer",
 		).Send()
 	}
-	db.Remove(it)
 }
 
 //action revert
@@ -242,18 +249,18 @@ func (c *Contract) HandleCrossTransfer(event *TxEvent) {
 		quantity := chain.NewAsset(int64(event.amount.Uint64())/10000, sym)
 		totalBalance := GetBalance(c.self, chain.TokenContractName, chain.NewSymbol("EOS", 4))
 		check(totalBalance.Amount >= quantity.Amount, "balance not enough, refund")
-		c.TransferTo(from, to, quantity, string(event.extra))
+		c.TransferTo(from, to, quantity, string(event.extra), event.timestamp)
 	} else {
 		symbol := GetSymbol(event.asset)
 		asset := chain.NewAsset(int64(event.amount.Uint64()), symbol)
-		c.TransferTo(from, to, asset, string(event.extra))
+		c.TransferTo(from, to, asset, string(event.extra), event.timestamp)
 	}
 }
 
-func (c *Contract) TransferTo(from chain.Uint128, to chain.Name, quantity *chain.Asset, memo string) {
+func (c *Contract) TransferTo(from chain.Uint128, to chain.Name, quantity *chain.Asset, memo string, timestamp uint64) {
 	id := c.GetNextTxInIndex()
 	db := NewMTGWorkDB(c.self, c.self)
-	x := &MTGWork{id, chain.CurrentTimeSeconds(), from, to, *quantity, memo}
+	x := &MTGWork{id, uint32(timestamp/1e9) + MTG_WORK_EXPIRATION_SECONDS, from, to, *quantity, memo}
 	db.Store(x, c.self)
 }
 
