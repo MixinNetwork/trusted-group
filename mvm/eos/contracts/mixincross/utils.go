@@ -137,3 +137,18 @@ func GetAssetId(sym chain.Symbol) (assetId chain.Uint128, ok bool) {
 	}
 	return
 }
+
+func IsAssetSupported(assetId chain.Uint128) bool {
+	switch assetId {
+	case ASSET_ID_EOS:
+	case ASSET_ID_BTC:
+	case ASSET_ID_PUSD:
+	case ASSET_ID_USDT:
+	case ASSET_ID_XIN:
+	case ASSET_ID_ETH:
+	case ASSET_ID_CNB:
+	default:
+		return false
+	}
+	return true
+}

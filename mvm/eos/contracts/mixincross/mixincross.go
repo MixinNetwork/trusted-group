@@ -127,6 +127,10 @@ func (c *Contract) OnEvent(event *TxEvent) {
 		c.Refund(event, "amount too large, refund")
 		return
 	}
+	if !IsAssetSupported(event.asset) {
+		c.Refund(event, "unsupported asset")
+		return
+	}
 
 	payer := c.self
 	db := NewTxEventDB(c.self, c.self)
