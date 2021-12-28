@@ -100,6 +100,7 @@ type Contract struct {
 
 func NewContract(receiver, firstReceiver, action chain.Name) *Contract {
 	c := &Contract{receiver, firstReceiver, action, nil}
+	// sys.Init(c)
 	return c
 }
 
@@ -271,6 +272,16 @@ func (c *Contract) TransferOut(member *chain.Uint128, amount chain.Asset, memo s
 	_amount := chain.NewUint128(uint64(amount.Amount), 0)
 	if amount.Symbol == chain.NewSymbol("EOS", 4) {
 		_amount.Mul(_amount, chain.NewUint128(10000, 0))
+	}
+
+	if c.firstReceiver == MIXIN_WTOKENS {
+		chain.NewAction(
+			chain.PermissionLevel{c.self, chain.ActiveName},
+			MIXIN_WTOKENS,
+			chain.NewName("retire"),
+			&amount,
+			"retire",
+		).Send()
 	}
 
 	id := c.GetNextTxRequestNonce()
