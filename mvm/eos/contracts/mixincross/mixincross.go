@@ -73,11 +73,9 @@ type Counter struct {
 	count uint64
 }
 
-//table mtgbalances
-type MTGBalance struct {
-	id       uint64        //primary : t.id
-	asset_id chain.Uint128 //IDX128 : ByAssetId : t.asset_id : t.asset_id
-	amount   chain.Uint128
+//table eosbalances singleton
+type EOSBalance struct {
+	amount chain.Asset
 }
 
 //table works
@@ -125,12 +123,16 @@ func (c *Contract) OnEvent(event *TxEvent) {
 	nonce := c.GetNonce()
 	assert(event.nonce >= nonce, "bad nonce!")
 
+	if event.amount.Cmp(chain.NewUint128(chain.MAX_AMOUNT, 0)) > 0 {
+		c.Refund(event, "amount too large, refund")
+		return
+	}
+
 	payer := c.self
 	db := NewTxEventDB(c.self, c.self)
 	it := db.Find(event.nonce)
 	assert(!it.IsOk(), "event already exists!")
 	db.Store(event, payer)
-	c.AddBalance(event.asset, event.amount)
 }
 
 //action exec
@@ -143,10 +145,6 @@ func (c *Contract) Exec(executor chain.Name) {
 	assert(it.IsOk(), "event not found!")
 	db.Remove(it)
 
-	if event.amount.Cmp(chain.NewUint128(chain.MAX_AMOUNT, 0)) > 0 {
-		c.Refund(event, "refund")
-		return
-	}
 	c.event = event
 	c.HandleCrossTransfer(event)
 	c.IncNonce()
@@ -251,6 +249,7 @@ func (c *Contract) HandleCrossTransfer(event *TxEvent) {
 		totalBalance := GetBalance(c.self, chain.TokenContractName, chain.NewSymbol("EOS", 4))
 		check(totalBalance.Amount >= quantity.Amount, "balance not enough, refund")
 		c.TransferTo(from, to, quantity, string(event.extra), event.timestamp)
+		c.AddEOSBalance(quantity)
 	} else {
 		symbol := GetSymbol(event.asset)
 		asset := chain.NewAsset(int64(event.amount.Uint64()), symbol)
@@ -272,6 +271,7 @@ func (c *Contract) TransferOut(member *chain.Uint128, amount chain.Asset, memo s
 	_amount := chain.NewUint128(uint64(amount.Amount), 0)
 	if amount.Symbol == chain.NewSymbol("EOS", 4) {
 		_amount.Mul(_amount, chain.NewUint128(10000, 0))
+		c.SubEOSBalance(&amount)
 	}
 
 	if c.firstReceiver == MIXIN_WTOKENS {
@@ -440,39 +440,23 @@ func (c *Contract) GetNextTxInIndex() uint64 {
 	return c.GetNextIndex(KEY_TX_IN_INDEX, 1)
 }
 
-func (c *Contract) GetNextAssetIndex() uint64 {
-	return c.GetNextIndex(KEY_ASSET_INDEX, 1)
-}
-
-func (c *Contract) AddBalance(asset_id chain.Uint128, amount chain.Uint128) {
-	db := NewMTGBalanceDB(c.self, c.self)
-	idxDB := db.GetIdxDBByAssetId()
-	itAssetId := idxDB.Find(asset_id)
-	if itAssetId.IsOk() {
-		it, balance := db.Get(itAssetId.Primary)
-		check(it.IsOk(), "get balance error")
-		balance.amount.Add(&balance.amount, &amount)
-		db.Update(it, balance, c.self)
+func (c *Contract) AddEOSBalance(amount *chain.Asset) {
+	payer := c.self
+	db := NewEOSBalanceDB(c.self, c.self)
+	data := db.Get()
+	if data == nil {
+		db.Set(&EOSBalance{amount: *amount}, payer)
 	} else {
-		id := c.GetNextAssetIndex()
-		blance := &MTGBalance{id, asset_id, amount}
-		db.Store(blance, c.self)
+		data.amount.Add(amount)
+		db.Set(data, payer)
 	}
 }
 
-func (c *Contract) SubBalance(asset_id chain.Uint128, amount chain.Uint128) {
-	db := NewMTGBalanceDB(c.self, c.self)
-	idxDB := db.GetIdxDBByAssetId()
-	itAssetId := idxDB.Find(asset_id)
-	if itAssetId.IsOk() {
-		it, balance := db.Get(itAssetId.Primary)
-		check(it.IsOk(), "get balance error")
-		check(balance.amount.Cmp(&amount) >= 0, "balance not enough")
-		balance.amount.Sub(&balance.amount, &amount)
-		db.Update(it, balance, c.self)
-	} else {
-		id := c.GetNextAssetIndex()
-		blance := &MTGBalance{id, asset_id, amount}
-		db.Store(blance, c.self)
-	}
+func (c *Contract) SubEOSBalance(amount *chain.Asset) {
+	db := NewEOSBalanceDB(c.self, c.self)
+	data := db.Get()
+	check(data != nil, "Balance not enough")
+	data.amount.Sub(amount)
+	check(data.amount.Amount > 0, "Balance not enough")
+	db.Set(data, c.self)
 }
