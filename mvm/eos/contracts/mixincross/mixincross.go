@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/uuosio/chain"
-	"github.com/uuosio/chain/database"
 )
 
 const (
@@ -81,7 +80,7 @@ type EOSBalance struct {
 //table works
 type MTGWork struct {
 	id         uint64 //primary : t.id
-	expiration uint32 //IDX64 : ByExpiration : uint64(t.expiration) : t.expiration = uint32(%v)
+	expiration uint32
 	from       chain.Uint128
 	to         chain.Name
 	quantity   chain.Asset
@@ -90,14 +89,15 @@ type MTGWork struct {
 
 //contract mixincross
 type Contract struct {
-	self          chain.Name
-	firstReceiver chain.Name
-	action        chain.Name
-	event         *TxEvent
+	self           chain.Name
+	firstReceiver  chain.Name
+	action         chain.Name
+	event          *TxEvent
+	nonceIncreased bool
 }
 
 func NewContract(receiver, firstReceiver, action chain.Name) *Contract {
-	c := &Contract{receiver, firstReceiver, action, nil}
+	c := &Contract{receiver, firstReceiver, action, nil, false}
 	// sys.Init(c)
 	return c
 }
@@ -148,44 +148,37 @@ func (c *Contract) Exec(executor chain.Name) {
 	it, event := db.Get(nonce)
 	assert(it.IsOk(), "event not found!")
 	db.Remove(it)
+	c.IncNonce()
 
 	c.event = event
 	c.HandleCrossTransfer(event)
-	c.IncNonce()
 }
 
 //action dowork
 func (c *Contract) DoWork(executor chain.Name, id uint64) {
 	db := NewMTGWorkDB(c.self, c.self)
-	//check expired work first
-	idxDB := db.GetIdxDBByExpiration()
-	itExpiration, _ := idxDB.Lowerbound(uint64(0))
-	var it database.Iterator
-	var transfer *MTGWork
+	it, transfer := db.Get(id)
+	if !it.IsOk() {
+		it = db.Lowerbound(uint64(0))
+		assert(it.IsOk(), "work not found!")
+		transfer = db.GetByIterator(it)
+	}
 
-	if itExpiration.IsOk() {
-		it, transfer = db.Get(itExpiration.Primary)
-		assert(it.IsOk(), "MTGWork not found!")
-		if transfer.expiration < chain.CurrentTimeSeconds() {
-			clientId := transfer.from
-			assetId, ok := GetAssetId(transfer.quantity.Symbol)
-			assert(ok, "unsupported asset id")
-			amount := chain.NewUint128(uint64(transfer.quantity.Amount), 0)
-			if transfer.quantity.Symbol == chain.NewSymbol("EOS", 4) {
-				amount = amount.Mul(amount, chain.NewUint128(10000, 0))
-			}
-			c.HandleRefund(clientId, assetId, *amount, "expired, refund")
-			db.Remove(it)
-			chain.Exit()
+	//handle expired work
+	if transfer.expiration < chain.CurrentTimeSeconds() {
+		clientId := transfer.from
+		assetId, ok := GetAssetId(transfer.quantity.Symbol)
+		assert(ok, "unsupported asset id")
+		amount := chain.NewUint128(uint64(transfer.quantity.Amount), 0)
+		if transfer.quantity.Symbol == chain.NewSymbol("EOS", 4) {
+			amount = amount.Mul(amount, chain.NewUint128(10000, 0))
 		}
+		c.HandleRefund(clientId, assetId, *amount, "expired, refund")
+		db.Remove(it)
+	} else {
+		c.HandleTransferIn(transfer)
+		db.Remove(it)
 	}
-	if transfer.id != id {
-		it := db.Lowerbound(id)
-		assert(it.IsOk(), "MTGWork not found!")
-		transfer, _ = db.GetByIterator(it)
-	}
-	c.HandleTransferIn(transfer)
-	db.Remove(it)
 }
 
 func (c *Contract) HandleTransferIn(transfer *MTGWork) {
@@ -243,15 +236,25 @@ func (c *Contract) Revert(errMsg string) {
 func (c *Contract) HandleCrossTransfer(event *TxEvent) {
 	toAccount := string(event.extra)
 	to := chain.NewName(toAccount)
-	check(chain.IsAccount(to), "account does not exists, refund")
-	check(len(event.members) == 1, "multisig event not supported currently")
+	if !chain.IsAccount(to) {
+		c.Refund(event, "account does not exists, refund")
+		chain.Exit()
+		return
+	}
+	if len(event.members) != 1 {
+		c.Refund(event, "multisig event not supported currently")
+		chain.Exit()
+		return
+	}
 	from := event.members[0]
-
 	if event.asset == ASSET_ID_EOS {
 		sym := chain.NewSymbol("EOS", 4)
 		quantity := chain.NewAsset(int64(event.amount.Uint64())/10000, sym)
 		totalBalance := GetBalance(c.self, chain.TokenContractName, chain.NewSymbol("EOS", 4))
-		check(totalBalance.Amount >= quantity.Amount, "balance not enough, refund")
+		if totalBalance.Amount < quantity.Amount {
+			c.Refund(event, "insufficient balance, refund")
+			chain.Exit()
+		}
 		c.TransferTo(from, to, quantity, string(event.extra), event.timestamp)
 		c.AddEOSBalance(quantity)
 	} else {
@@ -397,6 +400,7 @@ func (c *Contract) GetNextIndex(key uint64, initialValue uint64) uint64 {
 }
 
 func (c *Contract) IncNonce() {
+	assert(!c.nonceIncreased, "nonce already increased")
 	key := uint64(KEY_NONCE)
 	db := NewCounterDB(c.self, c.self)
 	if it, item := db.Get(key); it.IsOk() {
