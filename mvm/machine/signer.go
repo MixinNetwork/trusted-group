@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
 	"sort"
 	"time"
 
@@ -15,10 +16,14 @@ import (
 	"github.com/drand/kyber/sign/tbls"
 )
 
-func (m *Machine) getProcessInfo(process string) (string, string) {
+func (m *Machine) getProcessInfo(processId string) (string, string, bool) {
 	m.procLock.Lock()
 	defer m.procLock.Unlock()
-	return m.processes[process].Platform, m.processes[process].Address
+	process, ok := m.processes[processId]
+	if !ok {
+		return "", "", false
+	}
+	return process.Platform, process.Address, true
 }
 
 func (m *Machine) GetLastSendTime(id string) time.Time {
@@ -51,7 +56,10 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 
 			var partial []byte
 			msg := e.Encode()
-			platform, address := m.getProcessInfo(e.Process)
+			platform, address, ok := m.getProcessInfo(e.Process)
+			if !ok {
+				panic(fmt.Errorf("unknown process %s", e.Process))
+			}
 			if platform == ProcessPlatformEos {
 				partial = m.engines[ProcessPlatformEos].SignEvent(address, e)
 				e.Signature = partial
@@ -95,7 +103,10 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 			logger.Verbosef("DecodeEvent(%x) => %s", b, err)
 			continue
 		}
-		platform, address := m.getProcessInfo(evt.Process)
+		platform, address, ok := m.getProcessInfo(evt.Process)
+		if !ok {
+			continue
+		}
 		if platform == ProcessPlatformEos {
 			m.handleEosGroupMessages(ctx, address, evt)
 			continue
@@ -150,11 +161,9 @@ func (m *Machine) appendPendingGroupEventSignature(e *encoding.Event, msg, parti
 	if err != nil {
 		return err
 	}
-	logger.Verbosef("+++++++len(partials): %d, fullSignature: %v", len(partials), fullSignature)
+	logger.Verbosef("+++++++nonce: %d, len(partials): %d, fullSignature: %v", e.Nonce, len(partials), fullSignature)
 	if fullSignature {
-		if signType == constants.SignTypeSECP256K1 {
-			m.eosWriteFullSignatures(e, partials)
-		}
+
 		return nil
 	}
 
@@ -225,17 +234,18 @@ func (m *Machine) handleEosGroupMessages(ctx context.Context, address string, ev
 	if err != nil {
 		panic(err)
 	}
-	if fullSignature {
-		lst := m.GetLastSendTime(evt.ID())
-		if lst.Add(time.Minute * 5).After(time.Now()) {
-			return
-		}
+
+	lst := m.GetLastSendTime(evt.ID())
+	if lst.Add(time.Minute * 5).Before(time.Now()) {
 		partial := m.engines[ProcessPlatformEos].SignEvent(address, evt)
 		evt.Signature = partial
 		threshold := make([]byte, 8)
 		binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
 		m.messenger.SendMessage(ctx, append(evt.Encode(), threshold...))
 		m.SetLastSendTime(evt.ID(), time.Now())
+	}
+
+	if fullSignature {
 		return
 	}
 	sig := evt.Signature
