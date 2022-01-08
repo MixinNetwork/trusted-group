@@ -69,13 +69,17 @@ func convertTxLogToEvent(req *TxLog) *encoding.Event {
 	for i := range req.members {
 		members[i] = bytesToUUID(req.members[i][:])
 	}
+	extra := req.extra
+	if len(extra) > 128 {
+		extra = extra[:128]
+	}
 	return &encoding.Event{
 		Process:   bytesToUUID(req.process[:]),
 		Asset:     bytesToUUID(req.asset[:]),
 		Members:   members,
 		Threshold: int(req.threshold),
 		Amount:    amount,
-		Extra:     req.extra,
+		Extra:     extra,
 		Timestamp: req.timestamp,
 		Nonce:     req.nonce,
 	}

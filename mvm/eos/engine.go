@@ -10,7 +10,6 @@ import (
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/MixinNetwork/nfo/mtg"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 
 	"github.com/dgraph-io/badger/v3"
@@ -156,7 +155,6 @@ func (e *Engine) Hash(b []byte) []byte {
 }
 
 func (e *Engine) SignEvent(address string, event *encoding.Event) []byte {
-	//	logger.Verbosef("+++++++SignEvent %s %v", address, event)
 	if event.Nonce == 0 { //sign addprocess
 		addprocess := NewAddProcess(address, event.Process, nil)
 		signature, err := addprocess.Sign(e.key)
@@ -329,10 +327,6 @@ func (e *Engine) getLastIrreversibleBlockNumber() uint32 {
 		panic(err)
 	}
 	return info.LastIrreversibleBlockNum
-}
-
-func (e *Engine) VerifyMTGTx(pid string, out *mtg.Output, extra []byte) bool {
-	return true
 }
 
 func (e *Engine) EstimateCost(events []*encoding.Event) (common.Integer, error) {
