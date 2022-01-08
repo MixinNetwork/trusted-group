@@ -2,7 +2,6 @@ package machine
 
 import (
 	"github.com/MixinNetwork/mixin/common"
-	"github.com/MixinNetwork/nfo/mtg"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 )
 
@@ -30,7 +29,6 @@ type Engine interface {
 	VerifyAddress(addr string, extra []byte) error
 	SetupNotifier(addr string) error
 	VerifyEvent(address string, event *encoding.Event) bool
-	VerifyMTGTx(pid string, out *mtg.Output, extra []byte) bool
 	EstimateCost(events []*encoding.Event) (common.Integer, error)
 	EnsureSendGroupEvents(address string, events []*encoding.Event) error
 	ReceiveGroupEvents(address string, offset uint64, limit int) ([]*encoding.Event, error)

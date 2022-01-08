@@ -8,7 +8,6 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/domains/ethereum"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/MixinNetwork/nfo/mtg"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/dgraph-io/badger/v3"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -114,10 +113,6 @@ func (e *Engine) SetupNotifier(address string) error {
 
 func (e *Engine) VerifyEvent(address string, event *encoding.Event) bool {
 	return false
-}
-
-func (e *Engine) VerifyMTGTx(pid string, out *mtg.Output, extra []byte) bool {
-	return true
 }
 
 func (e *Engine) EstimateCost(events []*encoding.Event) (common.Integer, error) {

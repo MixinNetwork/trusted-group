@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/MixinNetwork/mixin/common"
-	"github.com/MixinNetwork/trusted-group/mvm/constants"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
+	"github.com/MixinNetwork/trusted-group/mvm/machine"
 	"github.com/dgraph-io/badger/v3"
 )
 
@@ -105,7 +105,7 @@ func (bs *BadgerStore) ReadPendingGroupEventSignatures(pid string, nonce uint64,
 	if err != nil {
 		return nil, false, err
 	}
-	if signType == constants.SignTypeTBLS {
+	if signType == machine.SignTypeTBLS {
 		if len(val) == 64 {
 			return [][]byte{val}, true, nil
 		}
@@ -114,7 +114,7 @@ func (bs *BadgerStore) ReadPendingGroupEventSignatures(pid string, nonce uint64,
 			sigs[i] = val[i*66 : (i+1)*66]
 		}
 		return sigs, false, nil
-	} else if signType == constants.SignTypeSECP256K1 {
+	} else if signType == machine.SignTypeSECP256K1 {
 		sigs := make([][]byte, len(val)/65)
 		for i := 0; i < len(sigs); i++ {
 			sigs[i] = val[i*65 : (i+1)*65]
@@ -140,11 +140,11 @@ func (bs *BadgerStore) WritePendingGroupEventSignatures(pid string, nonce uint64
 		}
 		var val []byte
 		for _, p := range partials {
-			if constants.SignTypeTBLS == signType {
+			if machine.SignTypeTBLS == signType {
 				if len(p) != 66 {
 					panic(hex.EncodeToString(p))
 				}
-			} else if constants.SignTypeSECP256K1 == signType {
+			} else if machine.SignTypeSECP256K1 == signType {
 				if len(p) != 65 {
 					panic(hex.EncodeToString(p))
 				}
@@ -158,11 +158,11 @@ func (bs *BadgerStore) WritePendingGroupEventSignatures(pid string, nonce uint64
 
 func (bs *BadgerStore) WriteSignedGroupEventAndExpirePending(event *encoding.Event, signType int) error {
 	return bs.Badger().Update(func(txn *badger.Txn) error {
-		if signType == constants.SignTypeTBLS {
+		if signType == machine.SignTypeTBLS {
 			if len(event.Signature) != 64 {
 				panic(hex.EncodeToString(event.Signature))
 			}
-		} else if signType == constants.SignTypeSECP256K1 {
+		} else if signType == machine.SignTypeSECP256K1 {
 			remain := len(event.Signature) % 65
 			if remain != 1 {
 				panic(fmt.Errorf("not a full signature: %x", event.Signature))
