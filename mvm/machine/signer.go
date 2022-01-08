@@ -22,7 +22,7 @@ const (
 
 func (m *Machine) getProcess(processId string) *Process {
 	m.procLock.RLock()
-	defer m.procLock.Unlock()
+	defer m.procLock.RUnlock()
 	process, ok := m.processes[processId]
 	if !ok {
 		return nil
