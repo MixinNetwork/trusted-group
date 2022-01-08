@@ -16,7 +16,6 @@ const (
 	prefixPendingEventSignatures = "MVM:EVENT:PENDING:SIGNATURES:"
 	prefixPendingEventIdentifier = "MVM:EVENT:PENDING:IDENTIFIER:"
 	prefixSignedEventQueue       = "MVM:EVENT:SIGNED:QUEUE:"
-	prefixPendingTxSignatures    = "MVM:TX:PENDING:SIGNATURES:"
 )
 
 func (bs *BadgerStore) CheckPendingGroupEventIdentifier(id string) (bool, error) {
