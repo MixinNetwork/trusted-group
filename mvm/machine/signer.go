@@ -70,7 +70,7 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 			} else {
 				e.Signature = nil
 				scheme := tbls.NewThresholdSchemeOnG1(en256.NewSuiteG2())
-				partial, err := scheme.Sign(m.share, msg)
+				partial, err = scheme.Sign(m.share, msg)
 				if err != nil {
 					panic(err)
 				}
