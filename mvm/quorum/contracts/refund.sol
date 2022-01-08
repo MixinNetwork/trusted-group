@@ -17,7 +17,7 @@ contract RefundWorker is MixinProcess {
     require(evt.timestamp > 0, "invalid timestamp");
     require(evt.nonce % 2 == 1, "not an odd nonce");
 
-    bytes memory log = encodeMixinEvent(evt.nonce, evt.asset, evt.amount, evt.extra, evt.members);
+    bytes memory log = buildMixinTransaction(evt.nonce, evt.asset, evt.amount, evt.extra, evt.members);
     emit MixinTransaction(log);
 
     return true;
