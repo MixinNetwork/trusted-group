@@ -16,7 +16,7 @@ func VerifySignatures(data []byte, signatures []chain.Signature) bool {
 	signers := make([]*Signer, 0, 10)
 	it := signerDB.Lowerbound(0)
 	for it.IsOk() {
-		item, _ := signerDB.GetByIterator(it)
+		item := signerDB.GetByIterator(it)
 		signers = append(signers, item)
 		it, _ = signerDB.Next(it)
 	}
@@ -42,18 +42,22 @@ func VerifySignatures(data []byte, signatures []chain.Signature) bool {
 			return true
 		}
 	}
-	check(false, "Not enough valid signatures")
+	assert(false, "Not enough valid signatures")
 	return false
 }
 
 func CheckDuplicatedSignature(signatures []*chain.Signature, signature *chain.Signature) {
 	for _, sig := range signatures {
 		if *sig == *signature {
-			check(false, "duplicated signature")
+			assert(false, "duplicated signature")
 		}
 	}
 }
 
 func check(b bool, msg string) {
 	chain.Check(b, msg)
+}
+
+func assert(b bool, msg string) {
+	chain.Assert(b, msg)
 }

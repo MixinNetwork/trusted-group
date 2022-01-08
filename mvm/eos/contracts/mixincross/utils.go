@@ -17,7 +17,7 @@ func VerifySignatures(data []byte, signatures []chain.Signature) bool {
 	signers := make([]*Signer, 0, 10)
 	it := signerDB.Lowerbound(0)
 	for it.IsOk() {
-		item, _ := signerDB.GetByIterator(it)
+		item := signerDB.GetByIterator(it)
 		signers = append(signers, item)
 		it, _ = signerDB.Next(it)
 	}

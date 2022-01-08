@@ -50,11 +50,14 @@ type Counter struct {
 
 //contract dappdemo
 type Contract struct {
-	self, firstReceiver, action chain.Name
+	self          chain.Name
+	firstReceiver chain.Name
+	action        chain.Name
 }
 
 func NewContract(receiver, firstReceiver, action chain.Name) *Contract {
-	return &Contract{receiver, firstReceiver, action}
+	c := &Contract{receiver, firstReceiver, action}
+	return c
 }
 
 //action onevent ignore
@@ -66,17 +69,16 @@ func (c *Contract) OnEvent(event *TxEvent) {
 
 	VerifySignatures(data[:dataSize], event.signatures)
 
-	check(event.process == PROCESS_ID, "Invalid process id")
+	assert(event.process == PROCESS_ID, "Invalid process id")
 
 	nonce := c.GetNonce()
-	check(event.nonce >= nonce, "bad nonce!")
+	assert(event.nonce >= nonce, "bad nonce!")
 
 	payer := c.self
 	db := NewTxEventDB(c.self, c.self)
 	it := db.Find(event.nonce)
-	check(!it.IsOk(), "event already exists!")
+	assert(!it.IsOk(), "event already exists!")
 	db.Store(event, payer)
-	chain.Println("Done!")
 }
 
 //action exec
@@ -86,7 +88,7 @@ func (c *Contract) Exec(executor chain.Name) {
 	nonce := c.GetNonce()
 	db := NewTxEventDB(c.self, c.self)
 	it, event := db.Get(nonce)
-	check(it.IsOk(), "event not found!")
+	assert(it.IsOk(), "event not found!")
 	db.Remove(it)
 
 	txRequestCount := 1
@@ -117,32 +119,6 @@ func (c *Contract) Exec(executor chain.Name) {
 		).Send()
 	}
 	c.IncNonce()
-}
-
-//action onerror
-func (c *Contract) OnError(event *TxEvent, code uint64, reason string) {
-	chain.RequireAuth(MTG_PUBLISHER)
-
-	c.CheckAndIncNonce(event.nonce)
-
-	id := c.GetNextTxRequestNonce()
-	notify := TxRequest{
-		nonce:     id,
-		contract:  c.self,
-		process:   PROCESS_ID,
-		asset:     event.asset,
-		members:   event.members,
-		threshold: event.threshold,
-		amount:    event.amount,
-		extra:     event.extra,
-	}
-
-	chain.NewAction(
-		chain.PermissionLevel{c.self, chain.ActiveName},
-		MTG_XIN,
-		chain.NewName("txrequest"),
-		&notify,
-	).Send()
 }
 
 func (c *Contract) GetNextIndex(key uint64, initialValue uint64) uint64 {

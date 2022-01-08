@@ -371,21 +371,6 @@ func (c *Contract) HandleRefund(clientId chain.Uint128, assetId chain.Uint128, a
 	).Send()
 }
 
-//action clear
-func (c *Contract) clear() {
-	chain.RequireAuth(c.self)
-	{
-		db := NewCounterDB(c.self, c.self)
-		for {
-			it := db.Lowerbound(0)
-			if !it.IsOk() {
-				break
-			}
-			db.Remove(it)
-		}
-	}
-}
-
 func (c *Contract) GetNextIndex(key uint64, initialValue uint64) uint64 {
 	db := NewCounterDB(c.self, c.self)
 	if it, item := db.Get(key); it.IsOk() {
