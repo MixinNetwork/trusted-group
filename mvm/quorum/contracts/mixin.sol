@@ -22,7 +22,7 @@ abstract contract MixinProcess {
   }
 
   event MixinTransaction(bytes);
-  event MixinEvent(address indexed sender, uint256 nonce, uint128 asset, uint256 amount, uint64 timestamp, bytes extra, bool result);
+  event MixinEvent(address indexed sender, uint256 nonce, uint128 asset, uint256 amount, uint64 timestamp, bytes extra);
 
   uint256[4] public GROUP = [
     0x2f741961cea2e88cfa2680eeaac040d41f41f3fedb01e38c06f4c6058fd7e425, // x.y
