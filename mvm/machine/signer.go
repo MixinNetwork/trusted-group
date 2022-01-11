@@ -23,11 +23,7 @@ const (
 func (m *Machine) getProcess(processId string) *Process {
 	m.procLock.RLock()
 	defer m.procLock.RUnlock()
-	process, ok := m.processes[processId]
-	if !ok {
-		return nil
-	}
-	return process
+	return m.processes[processId]
 }
 
 func (m *Machine) loopSignGroupEvents(ctx context.Context) {
