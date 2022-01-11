@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"fmt"
 	"sort"
 	"time"
 
@@ -20,10 +19,11 @@ const (
 	SignTypeSECP256K1 = 2
 )
 
-func (m *Machine) getProcess(processId string) *Process {
+func (m *Machine) getProcess(pid string) *Process {
 	m.procLock.RLock()
 	defer m.procLock.RUnlock()
-	return m.processes[processId]
+
+	return m.processes[pid]
 }
 
 func (m *Machine) loopSignGroupEvents(ctx context.Context) {
@@ -43,19 +43,16 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 			sm[e.ID()] = time.Now()
 			logger.Verbosef("Machine.loopSignGroupEvents() => %d, %v", e.Nonce, e)
 
-			var partial []byte
+			if e.Signature != nil {
+				panic(e)
+			}
 			msg := e.Encode()
 			process := m.getProcess(e.Process)
-			if process == nil {
-				panic(fmt.Errorf("unknown process %s", e.Process))
-			}
 			if process.Platform == ProcessPlatformEos {
-				partial = m.engines[ProcessPlatformEos].SignEvent(process.Address, e)
-				e.Signature = partial
+				e.Signature = m.engines[ProcessPlatformEos].SignEvent(process.Address, e)
 			} else {
-				e.Signature = nil
 				scheme := tbls.NewThresholdSchemeOnG1(en256.NewSuiteG2())
-				partial, err = scheme.Sign(m.share, msg)
+				partial, err := scheme.Sign(m.share, msg)
 				if err != nil {
 					panic(err)
 				}
@@ -69,9 +66,9 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 				panic(err)
 			}
 			if process.Platform == ProcessPlatformEos {
-				err = m.appendPendingGroupEventSignature(e, msg, partial, SignTypeSECP256K1)
+				err = m.appendPendingGroupEventSignature(e, msg, e.Signature, SignTypeSECP256K1)
 			} else {
-				err = m.appendPendingGroupEventSignature(e, msg, partial, SignTypeTBLS)
+				err = m.appendPendingGroupEventSignature(e, msg, e.Signature, SignTypeTBLS)
 			}
 			if err != nil {
 				panic(err)
@@ -159,7 +156,6 @@ func (m *Machine) appendPendingGroupEventSignature(e *encoding.Event, msg, parti
 		return nil
 	}
 	partials = append(partials, partial)
-	logger.Verbosef("+++++++partials: %v, threshold: %d", len(partials), m.group.GetThreshold())
 
 	if len(partials) < m.group.GetThreshold() {
 		return m.store.WritePendingGroupEventSignatures(e.Process, e.Nonce, partials, signType)
