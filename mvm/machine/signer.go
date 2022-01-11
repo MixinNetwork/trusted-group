@@ -227,14 +227,18 @@ func (m *Machine) handleEosGroupMessages(ctx context.Context, address string, ev
 		panic(err)
 	}
 
-	lst := sm[evt.ID()]
-	if lst.Add(time.Minute * 5).Before(time.Now()) {
-		partial := m.engines[ProcessPlatformEos].SignEvent(address, evt)
-		evt.Signature = partial
-		threshold := make([]byte, 8)
-		binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
-		m.messenger.SendMessage(ctx, append(evt.Encode(), threshold...))
+	lst, ok := sm[evt.ID()]
+	if !ok {
 		sm[evt.ID()] = time.Now()
+	} else {
+		if lst.Add(time.Minute * 5).Before(time.Now()) {
+			partial := m.engines[ProcessPlatformEos].SignEvent(address, evt)
+			evt.Signature = partial
+			threshold := make([]byte, 8)
+			binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
+			m.messenger.SendMessage(ctx, append(evt.Encode(), threshold...))
+			sm[evt.ID()] = time.Now()
+		}
 	}
 
 	if fullSignature {
