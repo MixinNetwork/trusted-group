@@ -207,10 +207,6 @@ func checkSignedWith(partials [][]byte, s []byte) bool {
 	return false
 }
 
-func checkFullSignature(partials [][]byte) bool {
-	return len(partials) == 1 && len(partials[0]) == 64
-}
-
 func (m *Machine) handleEosGroupMessages(ctx context.Context, address string, evt *encoding.Event, sm map[string]time.Time) {
 	if len(evt.Signature) == 0 || len(evt.Signature)%65 != 0 {
 		logger.Verbosef("++++handleEosGroupMessages: invalid signature length: %d", len(evt.Signature))
