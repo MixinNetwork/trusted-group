@@ -9,9 +9,9 @@ type Store interface {
 	CheckPendingGroupEventIdentifier(id string) (bool, error)
 	WritePendingGroupEventAndNonce(event *encoding.Event, id string) error
 	ListPendingGroupEvents(limit int) ([]*encoding.Event, error)
-	ReadPendingGroupEventSignatures(pid string, nonce uint64) ([][]byte, error)
-	WritePendingGroupEventSignatures(pid string, nonce uint64, partials [][]byte) error
-	WriteSignedGroupEventAndExpirePending(event *encoding.Event) error
+	ReadPendingGroupEventSignatures(pid string, nonce uint64, signType int) ([][]byte, bool, error)
+	WritePendingGroupEventSignatures(pid string, nonce uint64, partials [][]byte, signType int) error
+	WriteSignedGroupEventAndExpirePending(event *encoding.Event, signType int) error
 	ListSignedGroupEvents(pid string, limit int) ([]*encoding.Event, error)
 	ExpireGroupEventsWithCost(events []*encoding.Event, cost common.Integer) error
 
@@ -28,7 +28,9 @@ type Store interface {
 type Engine interface {
 	VerifyAddress(addr string, extra []byte) error
 	SetupNotifier(addr string) error
+	VerifyEvent(address string, event *encoding.Event) bool
 	EstimateCost(events []*encoding.Event) (common.Integer, error)
 	EnsureSendGroupEvents(address string, events []*encoding.Event) error
 	ReceiveGroupEvents(address string, offset uint64, limit int) ([]*encoding.Event, error)
+	SignEvent(address string, event *encoding.Event) []byte
 }

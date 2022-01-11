@@ -125,7 +125,7 @@ func writeUUID(enc *common.Encoder, id string) {
 }
 
 func writeBytes(enc *common.Encoder, b []byte) {
-	if len(b) > 128 {
+	if len(b) > 65*21 { //max 21 signers
 		panic(b)
 	}
 	enc.WriteInt(len(b))

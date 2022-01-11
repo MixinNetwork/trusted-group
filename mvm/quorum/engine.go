@@ -64,6 +64,10 @@ func (e *Engine) Hash(b []byte) []byte {
 	return crypto.Keccak256(b)
 }
 
+func (e *Engine) SignEvent(address string, event *encoding.Event) []byte {
+	return nil
+}
+
 func (e *Engine) VerifyAddress(address string, hash []byte) error {
 	err := ethereum.VerifyAddress(address)
 	if err != nil {
@@ -105,6 +109,10 @@ func (e *Engine) SetupNotifier(address string) error {
 		panic(old)
 	}
 	return e.storeWriteContractNotifier(address, notifier)
+}
+
+func (e *Engine) VerifyEvent(address string, event *encoding.Event) bool {
+	return false
 }
 
 func (e *Engine) EstimateCost(events []*encoding.Event) (common.Integer, error) {

@@ -83,24 +83,25 @@ func (m *Machine) Loop(ctx context.Context) {
 func (m *Machine) AddEngine(platform string, engine Engine) {
 	switch platform {
 	case ProcessPlatformQuorum:
+	case ProcessPlatformEos:
 	default:
 		return
 	}
 	m.engines[platform] = engine
 }
 
-func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address string, out *mtg.Output, extra []byte) {
+func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address string, out *mtg.Output, extra []byte) bool {
 	if pid != out.Sender {
 		logger.Verbosef("AddProcess(%s, %s, %s) => sender %s", pid, platform, address, out.Sender)
-		return
+		return false
 	}
 	if out.AssetID != ProcessRegistrationAssetId {
 		logger.Verbosef("AddProcess(%s, %s, %s) => asset %s", pid, platform, address, out.AssetID)
-		return
+		return false
 	}
 	if out.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
 		logger.Verbosef("AddProcess(%s, %s, %s) => amount %s", pid, platform, address, out.Amount)
-		return
+		return false
 	}
 	m.procLock.Lock()
 	defer m.procLock.Unlock()
@@ -108,28 +109,28 @@ func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address 
 	engine := m.engines[platform]
 	if engine == nil {
 		logger.Verbosef("AddProcess(%s, %s, %s) => engine %s", pid, platform, address, platform)
-		return
+		return false
 	}
 	for _, old := range m.processes {
 		if old.Identifier == out.Sender {
 			logger.Verbosef("AddProcess(%s, %s, %s) => sender %s", pid, platform, address, out.Sender)
-			return
+			return false
 		}
 		if old.Address == address {
 			logger.Verbosef("AddProcess(%s, %s, %s) => address %s", pid, platform, address, address)
-			return
+			return false
 		}
 	}
 
 	err := engine.VerifyAddress(address, extra)
 	if err != nil {
 		logger.Verbosef("VerifyAddress(%s) => %s", address, err)
-		return
+		return false
 	}
 	err = engine.SetupNotifier(address)
 	if err != nil {
 		logger.Verbosef("SetupNotifier(%s) => %s", address, err)
-		return
+		return false
 	}
 	proc := &Process{
 		Identifier: out.Sender,
@@ -144,6 +145,8 @@ func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address 
 	}
 	m.processes[proc.Identifier] = proc
 	m.Spawn(ctx, proc)
+
+	return true
 }
 
 func (m *Machine) WriteGroupEvent(pid string, out *mtg.Output, extra []byte) {
@@ -154,6 +157,7 @@ func (m *Machine) WriteGroupEvent(pid string, out *mtg.Output, extra []byte) {
 	if proc == nil {
 		return
 	}
+
 	done, err := m.store.CheckPendingGroupEventIdentifier(out.UTXOID)
 	if err != nil {
 		panic(err)
