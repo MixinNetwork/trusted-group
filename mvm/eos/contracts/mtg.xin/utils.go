@@ -15,7 +15,7 @@ func VerifySignatures(data []byte, signatures []chain.Signature) bool {
 		it, _ = signerDB.Next(it)
 	}
 
-	threshold := len(signers)/3*2 + 1
+	threshold := len(signers)*2/3 + 1
 	validSignatures := 0
 
 	verfiedSignatures := make([]*chain.Signature, 0, len(signers))
