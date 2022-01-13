@@ -31,17 +31,18 @@ const (
 )
 
 type Configuration struct {
-	Store          string   `toml:"store"`
-	RPCPush        string   `toml:"rpc-push"`
-	RPCGetState    string   `toml:"rpc-get-state"`
-	PrivateKey     string   `toml:"key"`
-	MixinContract  string   `toml:"mixin-contract"`
-	MTGPublisher   string   `toml:"mtg-publisher"`
-	MTGExecutor    string   `toml:"mtg-executor"`
-	MTGExecutorKey string   `toml:"mtg-executor-key"`
-	ChainId        string   `toml:"chain-id"`
-	PublicKeys     []string `toml:"public-keys"`
-	Publisher      bool     `toml:"publisher"`
+	Store               string   `toml:"store"`
+	RPCPush             string   `toml:"rpc-push"`
+	RPCGetState         string   `toml:"rpc-get-state"`
+	PrivateKey          string   `toml:"key"`
+	MixinContract       string   `toml:"mixin-contract"`
+	MTGPublisher        string   `toml:"mtg-publisher"`
+	MTGExecutor         string   `toml:"mtg-executor"`
+	MTGExecutorKey      string   `toml:"mtg-executor-key"`
+	ChainId             string   `toml:"chain-id"`
+	PublicKeys          []string `toml:"public-keys"`
+	Publisher           bool     `toml:"publisher"`
+	ActionStartSequence uint64   `toml:"action-start-sequence"`
 }
 
 type Engine struct {
@@ -62,6 +63,7 @@ type Engine struct {
 	lastIrrBlockTime     time.Time
 	lastIrrBlockId       string
 	eventStatus          map[uint64]time.Time
+	actionStartSequence  uint64
 }
 
 func Boot(conf *Configuration, threshold int) (*Engine, error) {
@@ -137,6 +139,7 @@ func Boot(conf *Configuration, threshold int) (*Engine, error) {
 		threshold:            threshold,
 		mutex:                new(sync.Mutex),
 		eventStatus:          make(map[uint64]time.Time),
+		actionStartSequence:  conf.ActionStartSequence,
 	}
 
 	if e.key != nil {
@@ -492,7 +495,7 @@ func (e *Engine) PullContractEvents() (int, error) {
 			return 0, nil
 		}
 	} else {
-		//Make sure action sequence number match is euqal to offset
+		//Make sure action sequence number is euqal to offset
 		//There is a rare situation that a node exited abnormally
 		//which make the offset stale, if it was connected to a node started
 		//from a new snapshot, it'is possible to read action from the offset,
@@ -564,9 +567,17 @@ func (e *Engine) PullContractEvents() (int, error) {
 		if err != nil {
 			panic(err)
 		}
-		err = e.storeWriteContractEvent(txLog.contract.String(), evt)
+
+		globalSeq, err := obj.GetUint64("global_action_seq")
 		if err != nil {
 			panic(err)
+		}
+
+		if globalSeq >= e.actionStartSequence {
+			err = e.storeWriteContractEvent(txLog.contract.String(), evt)
+			if err != nil {
+				panic(err)
+			}
 		}
 		count += 1
 	}
