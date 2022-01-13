@@ -474,51 +474,44 @@ func (e *Engine) PullContractEvents() (int, error) {
 		return 0, err
 	}
 
-	txReqeustIndex := e.storeReadTxRequestNonce()
+	currentTxRequestIndex := e.storeReadTxRequestNonce()
 
 	offset := e.storeReadContractLogsOffset(e.mixinContract)
-	actions, err := e.FetchActions(offset)
-	logger.Verbosef("+++++++PullContractEvents txRequestCount: %d, txReqeustIndex: %d, offset: %d, len(actions): %d, err: %v", txRequestCount, txReqeustIndex, offset, len(actions), err)
-	if err != nil {
-		return 0, err
-	}
 
-	if len(actions) == 0 {
-		if txReqeustIndex > 0 && txRequestCount >= txReqeustIndex+1 {
-			//Eos node has been started from a new snapshoot, try to reset offset accordingly
-			offset = e.AdjustOffset(txReqeustIndex)
-			actions, err = e.FetchActions(offset)
-			if err != nil {
-				panic(err)
+	tryFetchActions := true
+	for tryFetchActions {
+		tryFetchActions = false
+		actions, err := e.FetchActions(offset)
+		logger.Verbosef("+++++++PullContractEvents txRequestCount: %d, txReqeustIndex: %d, offset: %d, len(actions): %d, err: %v", txRequestCount, currentTxRequestIndex, offset, len(actions), err)
+		if err != nil {
+			return 0, err
+		}
+
+		if len(actions) == 0 {
+			if currentTxRequestIndex > 0 && txRequestCount >= currentTxRequestIndex+1 {
+				//Eos node has been started from a new snapshoot, try to reset offset accordingly
+				offset = e.AdjustOffset(currentTxRequestIndex)
+				logger.Verbosef("+++try to adjust offset. e.AdjustOffset(%d) => %d", currentTxRequestIndex, offset)
+				tryFetchActions = true
+				continue
+			} else {
+				return 0, nil
 			}
 		} else {
-			return 0, nil
-		}
-	} else {
-		//Make sure action sequence number is euqal to offset
-		//There is a rare situation that a node exited abnormally
-		//which make the offset stale, if it was connected to a node started
-		//from a new snapshot, it'is possible to read action from the offset,
-		//but in this situation the offset is incorrect, we need to adjust it acoordingly
-		obj, ok := chain.NewJsonObjectFromInterface(actions[0])
-		if !ok {
-			panic("invalid action")
-		}
-
-		seq, err := obj.GetUint64("account_action_seq")
-		if err != nil {
-			panic(err)
-		}
-
-		if seq != offset {
-			offset = e.AdjustOffset(txReqeustIndex)
-			actions, err = e.FetchActions(offset)
-			if err != nil {
-				panic(err)
+			var count int
+			count, tryFetchActions = e.parseActions(currentTxRequestIndex, actions)
+			if tryFetchActions {
+				offset = e.AdjustOffset(currentTxRequestIndex)
+				logger.Verbosef("parseActions return true, try to adjust offset: AdjustOffset(%d) => offset: %d", currentTxRequestIndex, offset)
+				continue
 			}
+			return count, nil
 		}
 	}
+	return 0, nil
+}
 
+func (e *Engine) parseActions(txRequestIndex uint64, actions []interface{}) (int, bool) {
 	lastIndex := uint64(0)
 	count := 0
 	for i, action := range actions {
@@ -527,68 +520,65 @@ func (e *Engine) PullContractEvents() (int, error) {
 			panic("invalid action")
 		}
 		logger.Verbosef("++++++++++action index %d", i)
-		if false { //DEBUG {
-			blockTime, err := obj.GetTime("block_time")
-			if err != nil {
-				panic(err)
-			}
-
-			if blockTime.Add(time.Second * 3).After(time.Now()) {
-				break
-			}
-		} else {
-			blockNum, err := obj.GetUint64("block_num")
-			if err != nil {
-				panic(err)
-			}
-			info := e.GetLatestChainInfo()
-			logger.Verbosef("+++++++++blockNum: %d, LastIrreversibleBlockNum: %d, blockNum - LastIrreversibleBlockNum: %d", blockNum, info.LastIrreversibleBlockNum, int64(blockNum)-int64(info.LastIrreversibleBlockNum))
-			if uint32(blockNum) > info.LastIrreversibleBlockNum {
-				break
-			}
+		blockNum, err := obj.GetUint64("block_num")
+		if err != nil {
+			panic(err)
 		}
+		info := e.GetLatestChainInfo()
+		logger.Verbosef("+++++++++blockNum: %d, LastIrreversibleBlockNum: %d, blockNum - LastIrreversibleBlockNum: %d", blockNum, info.LastIrreversibleBlockNum, int64(blockNum)-int64(info.LastIrreversibleBlockNum))
+		if uint32(blockNum) > info.LastIrreversibleBlockNum {
+			break
+		}
+		count += 1
 
 		seq, err := obj.GetUint64("account_action_seq")
 		if err != nil {
 			panic(err)
 		}
+
 		lastIndex = seq
 
 		txLog := e.ParseTxLogFromActionTrace(obj)
-		if txReqeustIndex > txLog.id {
-			panic(fmt.Sprintf("bad txLog.id, txReqeustIndex: %d, txLog.id: %d", txReqeustIndex, txLog.id))
+		globalSeq, err := obj.GetUint64("global_action_seq")
+		if err != nil {
+			panic(err)
 		}
 
-		if i+1 == len(actions) {
-			txReqeustIndex = txLog.id
+		if globalSeq < e.actionStartSequence {
+			txRequestIndex = txLog.id + 1
+			continue
 		}
+		if txRequestIndex != txLog.id {
+			if i == 0 {
+				//Eos node has been started from a new snapshoot, try to reset offset accordingly
+				logger.Verbosef("Invalid tx log id, expected: %d, got: %d", txRequestIndex, txLog.id)
+				//need adjust offset
+				return 0, true
+			} else {
+				panic(fmt.Errorf("Invalid tx log id, expected: %d, got: %d", txRequestIndex, txLog.id))
+			}
+		}
+
+		txRequestIndex += 1
 
 		evt := convertTxLogToEvent(txLog)
 		if err != nil {
 			panic(err)
 		}
 
-		globalSeq, err := obj.GetUint64("global_action_seq")
+		err = e.storeWriteContractEvent(txLog.contract.String(), evt)
 		if err != nil {
 			panic(err)
 		}
-
-		if globalSeq >= e.actionStartSequence {
-			err = e.storeWriteContractEvent(txLog.contract.String(), evt)
-			if err != nil {
-				panic(err)
-			}
-		}
-		count += 1
 	}
 
 	if count == 0 {
-		return 0, nil
+		return 0, false
 	}
 
-	e.storeWriteTxRequestNonce(txReqeustIndex + 1)
+	e.storeWriteTxRequestNonce(txRequestIndex)
 	e.storeWriteContractLogsOffset(e.mixinContract, lastIndex+1)
-	return count, nil
+	return count, false
 }
 
 func (e *Engine) ReceiveGroupEvents(address string, offset uint64, limit int) ([]*encoding.Event, error) {
