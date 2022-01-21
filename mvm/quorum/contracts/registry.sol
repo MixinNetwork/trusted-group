@@ -16,6 +16,7 @@ contract Registrable {
 
 contract MixinUser is Registrable {
     bytes public members;
+    bool public burn;
 
     constructor(bytes memory _members) {
         registry = msg.sender;
@@ -24,6 +25,11 @@ contract MixinUser is Registrable {
 
     function run(address process, bytes memory input) external onlyRegistry() returns (bool, bytes memory) {
         return process.call(input);
+    }
+
+    function toggle() external {
+        require(msg.sender == address(this));
+        burn = !burn;
     }
 }
 
@@ -76,10 +82,12 @@ contract Registry {
     event AssetCreated(address at, uint id);
     event MixinTransaction(bytes);
 
+    uint256 public constant VERSION = 1;
+
     uint256[4] public GROUP;
     uint64 public INBOUND = 0;
     uint64 public OUTBOUND = 0;
-    uint256 public constant VERSION = 1;
+
     mapping(address => bytes) users;
     mapping(address => uint128) assets;
 
@@ -109,6 +117,9 @@ contract Registry {
     function burn(address user, uint256 amount) external returns (bool) {
         require(assets[msg.sender] > 0, "invalid asset");
         if (users[user].length == 0) {
+            return true;
+        }
+        if (!MixinUser(user).burn()) {
             return true;
         }
         MixinAsset(msg.sender).burn(user, amount);
