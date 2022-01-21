@@ -34,7 +34,7 @@ contract MixinUser is Registrable {
 }
 
 contract MixinAsset is Registrable, StandardToken {
-    uint128 public id;
+    uint128 public immutable id;
 
     string public name;
     string public symbol;
@@ -104,6 +104,13 @@ contract Registry {
 
     constructor(uint256[4] memory _group) {
         GROUP = _group;
+    }
+
+    function iterate(bytes memory input) public {
+        // NEW-GROUP || sig1 || sig2
+        // verify sig1 is signed by GROUP on NEW-GROUP
+        // verify sig2 is signed by NEW-GROUP on GROUP
+        // GROUP = NEW-GROUP
     }
 
     function claim(address asset, uint256 amount) public returns (bool) {

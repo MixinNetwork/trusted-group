@@ -35,7 +35,7 @@ library SafeMath {
  * @title ERC20 interface
  * @dev see https://github.com/ethereum/EIPs/issues/20
  */
-interface ERC20 {
+interface IERC20 {
   function balanceOf(address who) external view returns (uint256);
   function transfer(address to, uint256 value) external returns (bool);
   function allowance(address owner, address spender) external view returns (uint256);
@@ -52,7 +52,7 @@ interface ERC20 {
  * @dev https://github.com/ethereum/EIPs/issues/20
  * @dev Based on code by FirstBlood: https://github.com/Firstbloodio/token/blob/master/smart_contract/FirstBloodToken.sol
  */
-abstract contract StandardToken is ERC20 {
+abstract contract StandardToken is IERC20 {
   using SafeMath for uint256;
 
   mapping(address => uint256) balances;
