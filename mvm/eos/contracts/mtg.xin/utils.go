@@ -4,9 +4,9 @@ import (
 	"github.com/uuosio/chain"
 )
 
-func VerifySignatures(data []byte, signatures []chain.Signature) bool {
+func VerifySignatures(codeAccount chain.Name, data []byte, signatures []chain.Signature) bool {
 	digest := chain.Sha256(data)
-	signerDB := NewSignerDB(MTG_XIN, MTG_XIN)
+	signerDB := NewSignerDB(codeAccount, codeAccount)
 	signers := make([]*Signer, 0, 10)
 	it := signerDB.Lowerbound(0)
 	for it.IsOk() {

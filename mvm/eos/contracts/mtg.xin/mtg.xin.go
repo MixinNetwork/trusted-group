@@ -8,10 +8,6 @@ const (
 	KEY_TX_REQUEST_SEQ = 1
 )
 
-var (
-	MTG_XIN = chain.NewName("mtgxinmtgxin")
-)
-
 //table processes
 type Process struct {
 	contract chain.Name //primary : t.contract.N
@@ -77,7 +73,7 @@ func (c *Contract) AddProcess(contract chain.Name, process chain.Uint128, signat
 	enc.PackName(contract)
 	enc.Pack(&process)
 	data := enc.GetBytes()
-	VerifySignatures(data, signatures)
+	VerifySignatures(c.self, data, signatures)
 
 	db := NewProcessDB(c.self, c.self)
 	it := db.Find(contract.N)
