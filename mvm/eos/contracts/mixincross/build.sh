@@ -1,2 +1,2 @@
 
-eosio-go build -o mixincross.wasm .
+eosio-go build -o mixinaccount.wasm .

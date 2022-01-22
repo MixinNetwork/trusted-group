@@ -4,12 +4,12 @@ import (
 	"github.com/uuosio/chain"
 )
 
-//table accounts
+//table accounts ignore
 type account struct {
 	balance chain.Asset //primary: t.balance.Symbol.Code()
 }
 
-//table stat
+//table stat ignore
 type currency_stats struct {
 	supply     chain.Asset //primary: t.supply.Symbol.Code()
 	max_supply chain.Asset

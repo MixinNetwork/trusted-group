@@ -5,12 +5,14 @@ import (
 )
 
 const (
-	KEY_NONCE        = 1
-	KEY_TX_OUT_INDEX = 2
-	KEY_TX_IN_INDEX  = 3
-	KEY_ASSET_INDEX  = 4
+	KEY_NONCE         = 1
+	KEY_TX_OUT_INDEX  = 2
+	KEY_TX_IN_INDEX   = 3
+	KEY_ASSET_INDEX   = 4
+	KEY_ACCOUNT_INDEX = 5
+	KEY_ACCOUNT_CACHE = 6
 
-	MTG_WORK_EXPIRATION_SECONDS = 60
+	MTG_WORK_EXPIRATION_SECONDS = 3 * 60
 	MAX_SUPPLY                  = 100000000000000
 )
 
@@ -27,67 +29,13 @@ var (
 	MTG_XIN       = chain.NewName("mtgxinmtgxin")
 	MTG_PUBLISHER = chain.NewName("mtgpublisher")
 	MIXIN_WTOKENS = chain.NewName("mixinwtokens")
+	ACCOUNT_OWNER = chain.NewName("mtgxinmtgxin")
 	//uuid: e0148fc6-0e10-470e-8127-166e0829c839
-	PROCESS_ID = chain.Uint128([16]byte{0xe0, 0x14, 0x8f, 0xc6, 0x0e, 0x10, 0x47, 0x0e, 0x81, 0x27, 0x16, 0x6e, 0x08, 0x29, 0xc8, 0x39})
-
+	PROCESS_ID   = chain.Uint128([16]byte{0xe0, 0x14, 0x8f, 0xc6, 0x0e, 0x10, 0x47, 0x0e, 0x81, 0x27, 0x16, 0x6e, 0x08, 0x29, 0xc8, 0x39})
 	ASSET_ID_EOS = chain.Uint128([16]byte{0x6c, 0xfe, 0x56, 0x6e, 0x4a, 0xad, 0x47, 0x0b, 0x8c, 0x9a, 0x2f, 0xd3, 0x5b, 0x49, 0xc6, 0x8d})
-
-	ASSET_ID_BTC  = chain.Uint128([16]byte{0xc6, 0xd0, 0xc7, 0x28, 0x26, 0x24, 0x42, 0x9b, 0x8e, 0x0d, 0xd9, 0xd1, 0x9b, 0x65, 0x92, 0xfa})
-	ASSET_ID_PUSD = chain.Uint128([16]byte{0x31, 0xd2, 0xea, 0x9c, 0x95, 0xeb, 0x33, 0x55, 0xb6, 0x5b, 0xba, 0x09, 0x68, 0x53, 0xbc, 0x18})
-	ASSET_ID_USDT = chain.Uint128([16]byte{0x4d, 0x8c, 0x50, 0x8b, 0x91, 0xc5, 0x37, 0x5b, 0x92, 0xb0, 0xee, 0x70, 0x2e, 0xd2, 0xda, 0xc5})
-	ASSET_ID_XIN  = chain.Uint128([16]byte{0xc9, 0x4a, 0xc8, 0x8f, 0x46, 0x71, 0x39, 0x76, 0xb6, 0x0a, 0x09, 0x06, 0x4f, 0x18, 0x11, 0xe8})
-	ASSET_ID_ETH  = chain.Uint128([16]byte{0x43, 0xd6, 0x1d, 0xcd, 0xe4, 0x13, 0x45, 0x0d, 0x80, 0xb8, 0x10, 0x1d, 0x5e, 0x90, 0x33, 0x57})
-	ASSET_ID_CNB  = chain.Uint128([16]byte{0x96, 0x5e, 0x5c, 0x6e, 0x43, 0x4c, 0x3f, 0xa9, 0xb7, 0x80, 0xc5, 0x0f, 0x43, 0xcd, 0x95, 0x5c})
 )
 
-//table txevents
-type TxEvent struct {
-	nonce      uint64 //primary : t.nonce
-	process    chain.Uint128
-	asset      chain.Uint128
-	members    []chain.Uint128
-	threshold  int32
-	amount     chain.Uint128
-	extra      []byte
-	timestamp  uint64
-	signatures []chain.Signature
-}
-
-//table txrequests
-type TxRequest struct {
-	nonce     uint64 //primary : t.nonce
-	contract  chain.Name
-	process   chain.Uint128
-	asset     chain.Uint128
-	members   []chain.Uint128
-	threshold int32
-	amount    chain.Uint128
-	extra     []byte
-	timestamp uint64
-}
-
-//table counters
-type Counter struct {
-	id    uint64 //primary : t.id
-	count uint64
-}
-
-//table eosbalances singleton
-type EOSBalance struct {
-	amount chain.Asset
-}
-
-//table works
-type MTGWork struct {
-	id         uint64 //primary : t.id
-	expiration uint32
-	from       chain.Uint128
-	to         chain.Name
-	quantity   chain.Asset
-	memo       string
-}
-
-//contract mixincross
+//contract mixinaccount
 type Contract struct {
 	self           chain.Name
 	firstReceiver  chain.Name
@@ -102,105 +50,233 @@ func NewContract(receiver, firstReceiver, action chain.Name) *Contract {
 	return c
 }
 
-func (c *Contract) OnRevert(msg string) {
-	if c.event != nil {
-		c.Refund(c.event, msg)
-		c.event = nil
-	}
-}
-
-//action onevent ignore
-func (c *Contract) OnEvent(event *TxEvent) {
-	event = &TxEvent{}
-	data := chain.ReadActionData()
-	event.Unpack(data)
-	dataSize := len(data) - 1 - len(event.signatures)*66
-
-	VerifySignatures(data[:dataSize], event.signatures)
-
-	assert(event.process == PROCESS_ID, "Invalid process id")
-
-	nonce := c.GetNonce()
-	assert(event.nonce >= nonce, "bad nonce!")
-
-	if event.amount.Cmp(chain.NewUint128(chain.MAX_AMOUNT, 0)) > 0 {
-		c.Refund(event, "amount too large, refund")
-		return
-	}
-	if !IsAssetSupported(event.asset) {
-		c.Refund(event, "unsupported asset")
-		return
-	}
-
-	payer := c.self
-	db := NewTxEventDB(c.self, c.self)
-	it := db.Find(event.nonce)
-	assert(!it.IsOk(), "event already exists!")
-	db.Store(event, payer)
-}
-
-//action exec
-func (c *Contract) Exec(executor chain.Name) {
-	chain.RequireAuth(executor)
-
-	nonce := c.GetNonce()
-	db := NewTxEventDB(c.self, c.self)
-	it, event := db.Get(nonce)
-	assert(it.IsOk(), "event not found!")
-	db.Remove(it)
-	c.IncNonce()
-
-	c.event = event
-	c.HandleCrossTransfer(event)
-}
-
-//action dowork
-func (c *Contract) DoWork(executor chain.Name, id uint64) {
-	db := NewMTGWorkDB(c.self, c.self)
-	it, transfer := db.Get(id)
+func (c *Contract) GetMixinAssetId(sym chain.Symbol) (chain.Uint128, bool) {
+	db := NewMixinAssetDB(c.self, c.self)
+	it, asset := db.Get(sym.Code())
 	if !it.IsOk() {
-		it = db.Lowerbound(uint64(0))
-		assert(it.IsOk(), "work not found!")
-		transfer = db.GetByIterator(it)
+		return chain.Uint128{}, false
+	}
+	return asset.asset_id, true
+}
+
+func (c *Contract) GetTransferFee(sym chain.Symbol) *chain.Asset {
+	feeDB := NewTransferFeeDB(c.self, c.self)
+	it, transferFee := feeDB.Get(sym.Code())
+	if !it.IsOk() {
+		return &chain.Asset{0, sym}
+	}
+	return &transferFee.fee
+}
+
+func (c *Contract) AddFee(fee *chain.Asset) {
+	totalFeeDB := NewTotalFeeDB(c.self, c.self)
+	it, record := totalFeeDB.Get(fee.Symbol.Code())
+	if it.IsOk() {
+		record.total.Amount += fee.Amount
+		totalFeeDB.Update(it, record, chain.SamePayer)
+	} else {
+		totalFeeDB.Store(&TotalFee{*fee}, c.self)
+	}
+}
+
+func (c *Contract) HandleErrorEvent(event *TxEvent) {
+	c.HandleEventNoNonceChecking(event)
+}
+
+func (c *Contract) HandleNormalEvent(event *TxEvent) {
+	c.HandleEventNoNonceChecking(event)
+}
+
+func (c *Contract) CheckNonce(eventNonce uint64) {
+	nonce := c.GetNonce()
+	assert(eventNonce >= nonce, "bad nonce!")
+
+	db := NewSubmittedEventDB(c.self, c.self)
+	it := db.Find(eventNonce)
+	assert(!it.IsOk(), "event already exists!")
+	db.Store(&SubmittedEvent{eventNonce}, c.self)
+
+	///increase nonce and remove it from SubmittedEvent db if it's sequential
+	for {
+		it := db.Find(nonce)
+		if !it.IsOk() {
+			break
+		}
+		db.Remove(it)
+		c.IncNonce()
+		nonce += 1
 	}
 
-	//handle expired work
-	if transfer.expiration < chain.CurrentTimeSeconds() {
-		clientId := transfer.from
-		assetId, ok := GetAssetId(transfer.quantity.Symbol)
-		assert(ok, "unsupported asset id")
-		amount := chain.NewUint128(uint64(transfer.quantity.Amount), 0)
-		if transfer.quantity.Symbol == chain.NewSymbol("EOS", 4) {
-			amount = amount.Mul(amount, chain.NewUint128(10000, 0))
+	//remove stale nonce
+	for {
+		it := db.Lowerbound(uint64(0))
+		if !it.IsOk() {
+			break
 		}
-		c.HandleRefund(clientId, assetId, *amount, "expired, refund")
-		db.Remove(it)
-	} else {
-		c.HandleTransferIn(transfer)
+		record := db.GetByIterator(it)
+		if record.nonce >= nonce {
+			break
+		}
 		db.Remove(it)
 	}
 }
 
-func (c *Contract) HandleTransferIn(transfer *MTGWork) {
-	if transfer.quantity.Symbol == chain.NewSymbol("EOS", 4) {
+func (c *Contract) StoreNonce(eventNonce uint64) {
+	db := NewSubmittedEventDB(c.self, c.self)
+	it := db.Find(eventNonce)
+	assert(!it.IsOk(), "event already exists!")
+	db.Store(&SubmittedEvent{eventNonce}, c.self)
+}
+
+func (c *Contract) HandleEventNoNonceChecking(event *TxEvent) {
+	assetDB := NewMixinAssetDB(c.self, c.self)
+	idxDB := assetDB.GetIdxDBByAssetId()
+	itAssetId := idxDB.Find(event.asset)
+	if !itAssetId.IsOk() {
+		//c.Refund(event, "unsupported asset id, refund!")
+		return
+	}
+
+	if event.asset == ASSET_ID_EOS {
+		if event.amount.Cmp(chain.NewUint128(10000, 0)) < 0 {
+			c.ShowError("EOS amount must be greater than 10000")
+			return
+		}
+	} else {
+		if event.amount.Cmp(chain.NewUint128(chain.MAX_AMOUNT, 0)) > 0 {
+			c.ShowError("amount too large")
+			return
+		}
+	}
+
+	var to chain.Name
+	toAccount := string(event.extra)
+	if toAccount == "" {
+		to = chain.Name{}
+	} else {
+		to = chain.NewName(toAccount)
+		if !chain.IsAccount(to) {
+			c.Refund(event, "account does not exists, refund")
+			return
+		}
+	}
+
+	var quantity *chain.Asset
+	symbol := c.GetSymbol(event.asset)
+	if symbol == chain.NewSymbol("EOS", 4) {
+		quantity = chain.NewAsset(int64(event.amount.Uint64())/10000, symbol)
+	} else {
+		quantity = chain.NewAsset(int64(event.amount.Uint64()), symbol)
+	}
+
+	fee := c.GetTransferFee(quantity.Symbol)
+	feeAmount := int64(fee.Amount)
+	if symbol == chain.NewSymbol("EOS", 4) {
+		feeAmount *= 1e4
+	}
+	if quantity.Amount <= fee.Amount {
+		c.AddFee(quantity)
+		c.ShowError("transfer amount is less than fee")
+		return
+	} else {
+		c.AddFee(fee)
+	}
+
+	quantity.Amount -= fee.Amount
+	//deduct fee from event, in case of refund
+	event.amount.Sub(&event.amount, chain.NewUint128(uint64(feeAmount), 0))
+
+	if len(event.members) != 1 {
+		c.ShowError("multisig event not supported currently")
+		return
+	}
+	from := event.members[0]
+	if symbol == chain.NewSymbol("EOS", 4) {
+		totalBalance := GetBalance(c.self, chain.TokenContractName, symbol)
+		if totalBalance.Amount < quantity.Amount {
+			c.Refund(event, "insufficient balance, refund")
+			return
+		}
+		c.TransferTo(from, to, quantity, string(event.extra), event.timestamp)
+		c.AddEOSBalance(quantity)
+	} else {
+		c.TransferTo(from, to, quantity, string(event.extra), event.timestamp)
+	}
+}
+
+func (c *Contract) TransferTo(from chain.Uint128, to chain.Name, quantity *chain.Asset, memo string, timestamp uint64) {
+	expiration := uint32(timestamp/1e9) + MTG_WORK_EXPIRATION_SECONDS
+	//handle expired work
+	if expiration < chain.CurrentTimeSeconds() {
+		clientId := from
+		asset_id, ok := c.GetMixinAssetId(quantity.Symbol)
+		assert(ok, "asset not found!")
+		amount := chain.NewUint128(uint64(quantity.Amount), 0)
+		if quantity.Symbol == chain.NewSymbol("EOS", 4) {
+			amount.Mul(amount, chain.NewUint128(10000, 0))
+		}
+		c.HandleRefund(clientId, asset_id, *amount, "expired, refund")
+		return
+	}
+
+	var fromAccount chain.Name
+	dbAccounts := NewMixinAccountDB(c.self, c.self)
+	idxDB := dbAccounts.GetIdxDBByClientId()
+	it2 := idxDB.Find(from)
+
+	if !it2.IsOk() {
+		fee := c.GetCreateAccountFee()
+		if fee.Amount != 0 {
+			if quantity.Symbol != chain.NewSymbol("EOS", 4) {
+				c.ShowError("invalid asset for creating account")
+				return
+			}
+			if quantity.Amount < fee.Amount {
+				c.ShowError("not enough fee for creating account")
+				return
+			}
+			quantity.Amount -= fee.Amount
+		}
+		//		accountId := c.GetNextAccountId()
+		fromAccount = c.GetNexAvailableAccount()
+		record := MixinAccount{eos_account: fromAccount, client_id: from}
+		dbAccounts.Store(&record, c.self)
+	} else {
+		it, record := dbAccounts.Get(it2.Primary)
+		assert(it.IsOk(), "account not found!")
+		fromAccount = record.eos_account
+	}
+
+	if quantity.Symbol == chain.NewSymbol("EOS", 4) {
 		chain.NewAction(
-			chain.PermissionLevel{c.self, chain.ActiveName},
+			&chain.PermissionLevel{c.self, chain.ActiveName},
 			chain.TokenContractName,
 			chain.NewName("transfer"),
-			c.self,            //from
-			transfer.to,       // to,
-			transfer.quantity, //quantity
-			transfer.memo,
+			c.self,      //from
+			fromAccount, // to,
+			quantity,    //quantity
+			memo,
 		).Send()
+		if (to != chain.Name{}) && fromAccount != to {
+			chain.NewAction(
+				&chain.PermissionLevel{fromAccount, chain.ActiveName},
+				chain.TokenContractName,
+				chain.NewName("transfer"),
+				fromAccount, //from
+				to,          // to,
+				quantity,    //quantity
+				memo,
+			).Send()
+		}
 	} else {
-		symbol := transfer.quantity.Symbol
+		symbol := quantity.Symbol
 		sym_code := symbol.Code()
 		db := NewCurrencyStatsDB(MIXIN_WTOKENS, chain.Name{sym_code})
 		itr := db.Find(sym_code)
 		if !itr.IsOk() {
 			maxSupply := chain.NewAsset(MAX_SUPPLY, symbol)
 			chain.NewAction(
-				chain.PermissionLevel{MIXIN_WTOKENS, chain.ActiveName},
+				&chain.PermissionLevel{MIXIN_WTOKENS, chain.ActiveName},
 				MIXIN_WTOKENS,
 				chain.NewName("create"),
 				c.self,
@@ -208,71 +284,42 @@ func (c *Contract) HandleTransferIn(transfer *MTGWork) {
 				"create",
 			).Send()
 		}
+
 		chain.NewAction(
-			chain.PermissionLevel{c.self, chain.ActiveName},
+			&chain.PermissionLevel{c.self, chain.ActiveName},
 			MIXIN_WTOKENS,
 			chain.NewName("issue"),
 			c.self,
-			transfer.quantity,
+			quantity,
 			"issue",
 		).Send()
 
 		chain.NewAction(
-			chain.PermissionLevel{c.self, chain.ActiveName},
+			&chain.PermissionLevel{c.self, chain.ActiveName},
 			MIXIN_WTOKENS,
 			chain.NewName("transfer"),
 			c.self,
-			transfer.to,
-			transfer.quantity,
+			fromAccount,
+			quantity,
 			"transfer",
 		).Send()
-	}
-}
 
-//action revert
-func (c *Contract) Revert(errMsg string) {
-}
-
-func (c *Contract) HandleCrossTransfer(event *TxEvent) {
-	toAccount := string(event.extra)
-	to := chain.NewName(toAccount)
-	if !chain.IsAccount(to) {
-		c.Refund(event, "account does not exists, refund")
-		chain.Exit()
-		return
-	}
-	if len(event.members) != 1 {
-		c.Refund(event, "multisig event not supported currently")
-		chain.Exit()
-		return
-	}
-	from := event.members[0]
-	if event.asset == ASSET_ID_EOS {
-		sym := chain.NewSymbol("EOS", 4)
-		quantity := chain.NewAsset(int64(event.amount.Uint64())/10000, sym)
-		totalBalance := GetBalance(c.self, chain.TokenContractName, chain.NewSymbol("EOS", 4))
-		if totalBalance.Amount < quantity.Amount {
-			c.Refund(event, "insufficient balance, refund")
-			chain.Exit()
+		if (to != chain.Name{}) && to != fromAccount {
+			chain.NewAction(
+				&chain.PermissionLevel{fromAccount, chain.ActiveName},
+				MIXIN_WTOKENS,
+				chain.NewName("transfer"),
+				fromAccount,
+				to,
+				quantity,
+				"transfer",
+			).Send()
 		}
-		c.TransferTo(from, to, quantity, string(event.extra), event.timestamp)
-		c.AddEOSBalance(quantity)
-	} else {
-		symbol := GetSymbol(event.asset)
-		asset := chain.NewAsset(int64(event.amount.Uint64()), symbol)
-		c.TransferTo(from, to, asset, string(event.extra), event.timestamp)
 	}
-}
-
-func (c *Contract) TransferTo(from chain.Uint128, to chain.Name, quantity *chain.Asset, memo string, timestamp uint64) {
-	id := c.GetNextTxInIndex()
-	db := NewMTGWorkDB(c.self, c.self)
-	x := &MTGWork{id, uint32(timestamp/1e9) + MTG_WORK_EXPIRATION_SECONDS, from, to, *quantity, memo}
-	db.Store(x, c.self)
 }
 
 func (c *Contract) TransferOut(member *chain.Uint128, amount chain.Asset, memo string) {
-	assetId, ok := GetAssetId(amount.Symbol)
+	assetId, ok := c.GetMixinAssetId(amount.Symbol)
 	assert(ok, "unsupported asset id")
 	//TODO: make sure balance in MTG is sufficient.
 	_amount := chain.NewUint128(uint64(amount.Amount), 0)
@@ -283,7 +330,7 @@ func (c *Contract) TransferOut(member *chain.Uint128, amount chain.Asset, memo s
 
 	if c.firstReceiver == MIXIN_WTOKENS {
 		chain.NewAction(
-			chain.PermissionLevel{c.self, chain.ActiveName},
+			&chain.PermissionLevel{c.self, chain.ActiveName},
 			MIXIN_WTOKENS,
 			chain.NewName("retire"),
 			&amount,
@@ -304,29 +351,11 @@ func (c *Contract) TransferOut(member *chain.Uint128, amount chain.Asset, memo s
 	}
 
 	chain.NewAction(
-		chain.PermissionLevel{c.self, chain.ActiveName},
+		&chain.PermissionLevel{c.self, chain.ActiveName},
 		MTG_XIN,
 		chain.NewName("txrequest"),
 		&notify,
 	).Send()
-}
-
-//notify transfer
-func (c *Contract) Transfer(from chain.Name, to chain.Name, quantity chain.Asset, memo string) {
-	if to != c.self {
-		return
-	}
-
-	if c.firstReceiver != chain.TokenContractName && c.firstReceiver != MIXIN_WTOKENS {
-		return
-	}
-
-	cliendId, ok := GetClientId(memo)
-	if !ok {
-		return
-	}
-	//TODO: check free amount of MTG
-	c.TransferOut(cliendId, quantity, "MTGWork")
 }
 
 func (c *Contract) Refund(event *TxEvent, memo string) {
@@ -343,7 +372,7 @@ func (c *Contract) Refund(event *TxEvent, memo string) {
 	}
 
 	chain.NewAction(
-		chain.PermissionLevel{c.self, chain.ActiveName},
+		&chain.PermissionLevel{c.self, chain.ActiveName},
 		MTG_XIN,
 		chain.NewName("txrequest"),
 		&notify,
@@ -364,7 +393,7 @@ func (c *Contract) HandleRefund(clientId chain.Uint128, assetId chain.Uint128, a
 	}
 
 	chain.NewAction(
-		chain.PermissionLevel{c.self, chain.ActiveName},
+		&chain.PermissionLevel{c.self, chain.ActiveName},
 		MTG_XIN,
 		chain.NewName("txrequest"),
 		&notify,
@@ -385,7 +414,7 @@ func (c *Contract) GetNextIndex(key uint64, initialValue uint64) uint64 {
 }
 
 func (c *Contract) IncNonce() {
-	assert(!c.nonceIncreased, "nonce already increased")
+	//	assert(!c.nonceIncreased, "nonce already increased")
 	key := uint64(KEY_NONCE)
 	db := NewCounterDB(c.self, c.self)
 	if it, item := db.Get(key); it.IsOk() {
@@ -396,6 +425,7 @@ func (c *Contract) IncNonce() {
 		item := Counter{id: key, count: 2}
 		db.Store(&item, c.self)
 	}
+	//	c.nonceIncreased = true
 }
 
 func (c *Contract) GetNonce() uint64 {
@@ -452,4 +482,52 @@ func (c *Contract) SubEOSBalance(amount *chain.Asset) {
 	data.amount.Sub(amount)
 	check(data.amount.Amount > 0, "Balance not enough")
 	db.Set(data, c.self)
+}
+
+func (c *Contract) GetNextAccountId() uint64 {
+	return c.GetNextIndex(KEY_ACCOUNT_INDEX, 1)
+}
+
+func (c *Contract) GetNexAvailableAccount() chain.Name {
+	db := NewAccountCacheDB(c.self, c.self)
+	item := db.Get()
+	check(item != nil, "No availabe account")
+
+	account := item.account
+
+	item.id += 1
+	item.account = GetAccountNameFromId(item.id)
+
+	CreateNewAccount(c.self, ACCOUNT_OWNER, item.account)
+
+	db.Set(item, c.self)
+	return account
+}
+
+func (c *Contract) GetSymbol(assetId chain.Uint128) chain.Symbol {
+	assetDB := NewMixinAssetDB(c.self, c.self)
+	idxDB := assetDB.GetIdxDBByAssetId()
+	itAssetId := idxDB.Find(assetId)
+	assert(itAssetId.IsOk(), "asset id not found")
+	it, asset := assetDB.Get(itAssetId.Primary)
+	assert(it.IsOk(), "asset not found")
+	return asset.symbol
+}
+
+func (c *Contract) ShowError(err string) {
+	chain.NewAction(
+		&chain.PermissionLevel{c.self, chain.ActiveName},
+		c.self,
+		chain.NewName("error"),
+		err,
+	).Send()
+}
+
+func (c *Contract) GetCreateAccountFee() *chain.Asset {
+	db := NewCreateAccountFeeDB(c.self, c.self)
+	accountFee := db.Get()
+	if accountFee == nil {
+		return chain.NewAsset(0, chain.NewSymbol("EOS", 4))
+	}
+	return &accountFee.fee
 }

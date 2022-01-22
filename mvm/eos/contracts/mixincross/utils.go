@@ -5,7 +5,11 @@ import (
 	"github.com/uuosio/chain/hex"
 )
 
-//table signers
+const (
+	alphabet = "abcdefghijklmnopqrstuvwxyz"
+)
+
+//table signers ignore
 type Signer struct {
 	account    chain.Name //primary : t.account.N
 	public_key chain.PublicKey
@@ -22,7 +26,7 @@ func VerifySignatures(data []byte, signatures []chain.Signature) bool {
 		it, _ = signerDB.Next(it)
 	}
 
-	threshold := len(signers)/3*2 + 1
+	threshold := len(signers)*2/3 + 1
 	validSignatures := 0
 
 	verfiedSignatures := make([]*chain.Signature, 0, len(signers))
@@ -92,63 +96,80 @@ func GetClientId(memo string) (*chain.Uint128, bool) {
 	return out, true
 }
 
-func GetSymbol(assetId chain.Uint128) chain.Symbol {
-	switch assetId {
-	case ASSET_ID_EOS:
-		return chain.NewSymbol("EOS", 4)
-	case ASSET_ID_BTC:
-		return chain.NewSymbol("MBTC", 8)
-	case ASSET_ID_PUSD:
-		return chain.NewSymbol("MPUSD", 8)
-	case ASSET_ID_USDT:
-		return chain.NewSymbol("MUSDT", 8)
-	case ASSET_ID_XIN:
-		return chain.NewSymbol("MXIN", 8)
-	case ASSET_ID_ETH:
-		return chain.NewSymbol("METH", 8)
-	case ASSET_ID_CNB:
-		return chain.NewSymbol("MCNB", 8)
-	default:
-		check(false, "unsupported asset id")
-		return chain.Symbol{}
+func GetAccountNameFromId(accountId uint64) chain.Name {
+	strName := []byte{'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'm', 'v', 'm'}
+	for i := 0; i < 9; i++ {
+		j := accountId % 26
+		strName[i] = alphabet[j]
+		accountId /= 26
+		if accountId == 0 {
+			break
+		}
 	}
+	name := chain.NewName(string(strName))
+	if !DEBUG {
+		check(!chain.IsAccount(name), "account name already exists")
+	}
+	return name
 }
 
-func GetAssetId(sym chain.Symbol) (assetId chain.Uint128, ok bool) {
-	ok = true
-	switch sym {
-	case chain.NewSymbol("EOS", 4):
-		assetId = ASSET_ID_EOS
-	case chain.NewSymbol("MBTC", 8):
-		assetId = ASSET_ID_BTC
-	case chain.NewSymbol("MPUSD", 8):
-		assetId = ASSET_ID_PUSD
-	case chain.NewSymbol("MUSDT", 8):
-		assetId = ASSET_ID_USDT
-	case chain.NewSymbol("MXIN", 8):
-		assetId = ASSET_ID_XIN
-	case chain.NewSymbol("METH", 8):
-		assetId = ASSET_ID_ETH
-	case chain.NewSymbol("MCNB", 8):
-		assetId = ASSET_ID_CNB
-	default:
-		ok = false
-		assetId = chain.Uint128{}
+func CreateNewAccount(creator chain.Name, ownerAccount chain.Name, newAccount chain.Name) {
+	if DEBUG {
+		if chain.IsAccount(newAccount) {
+			return
+		}
 	}
-	return
-}
+	account := NewAccount{}
+	account.Creator = creator
+	account.Name = newAccount
 
-func IsAssetSupported(assetId chain.Uint128) bool {
-	switch assetId {
-	case ASSET_ID_EOS:
-	case ASSET_ID_BTC:
-	case ASSET_ID_PUSD:
-	case ASSET_ID_USDT:
-	case ASSET_ID_XIN:
-	case ASSET_ID_ETH:
-	case ASSET_ID_CNB:
-	default:
-		return false
+	account.Owner.Threshold = 1
+	account.Owner.Accounts = []PermissionLevelWeight{
+		PermissionLevelWeight{
+			PermissionLevel{
+				Actor:      ownerAccount,
+				Permission: chain.NewName("active"),
+			},
+			1,
+		},
 	}
-	return true
+
+	account.Active.Threshold = 1
+	account.Active.Accounts = []PermissionLevelWeight{
+		PermissionLevelWeight{
+			PermissionLevel{
+				Actor:      creator,
+				Permission: chain.NewName("active"),
+			},
+			1,
+		},
+		PermissionLevelWeight{
+			PermissionLevel{
+				Actor:      creator,
+				Permission: chain.NewName("multisig"),
+			},
+			1,
+		},
+	}
+
+	chain.NewAction(
+		&chain.PermissionLevel{Actor: creator, Permission: chain.ActiveName},
+		chain.EosioContractName,
+		chain.NewName("newaccount"),
+		&account,
+	).Send()
+
+	// Payer    chain.Name
+	// Receiver chain.Name
+	// Quant    chain.Asset
+
+	// buyRam := BuyRam{m.self, newAccountName, paid}
+	chain.NewAction(
+		&chain.PermissionLevel{Actor: creator, Permission: chain.ActiveName},
+		chain.EosioContractName,
+		chain.NewName("buyrambytes"),
+		creator,
+		newAccount,
+		RAM_BYTES,
+	).Send()
 }
