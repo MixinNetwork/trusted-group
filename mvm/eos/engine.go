@@ -676,7 +676,7 @@ func (e *Engine) loopExecGroupEvents(address string) {
 		refBlockId := e.GetRefBlockId()
 		tx.SetReferenceBlock(refBlockId)
 		action := chain.NewAction(
-			chain.PermissionLevel{Actor: executor, Permission: chain.NewName("active")},
+			&chain.PermissionLevel{Actor: executor, Permission: chain.NewName("active")},
 			chain.NewName(address),
 			chain.NewName("exec"),
 			executor,
@@ -688,13 +688,11 @@ func (e *Engine) loopExecGroupEvents(address string) {
 			panic(err)
 		}
 		r, err := e.chainApiPush.PushTransaction(tx, []string{sign.String()}, false)
-		// logger.Verbosef("+++++loopExecGroupEvents(%s): PushTransaction err: %v", address, err)
+		logger.Verbosef("+++++loopExecGroupEvents(%s): PushTransaction err: %v", address, err)
 		if err != nil {
 			if r != nil {
 				msg, err := r.GetString("error", "details", 0, "message")
-				if msg != "assertion failure with message: event not found!" {
-					logger.Verbosef("PushTransaction ret: err: %v", err)
-				}
+				logger.Verbosef("PushTransaction ret: err: %s %v", msg, err)
 			} else {
 				logger.Verbosef("PushTransaction ret: err: %v", err)
 			}
@@ -759,7 +757,7 @@ func (e *Engine) loopDoWorks(address string) {
 			refBlockId := e.GetRefBlockId()
 			tx.SetReferenceBlock(refBlockId)
 			action := chain.NewAction(
-				chain.PermissionLevel{Actor: executor, Permission: chain.NewName("active")},
+				&chain.PermissionLevel{Actor: executor, Permission: chain.NewName("active")},
 				chain.NewName(address),
 				chain.NewName("dowork"),
 				executor,
@@ -775,9 +773,7 @@ func (e *Engine) loopDoWorks(address string) {
 			if err != nil {
 				if r != nil {
 					msg, err := r.GetString("error", "details", 0, "message")
-					if msg != "assertion failure with message: xtransfer not found!" {
-						logger.Verbosef("PushTransaction ret: err: %v", err)
-					}
+					logger.Verbosef("PushTransaction ret: err: %s %v", msg, err)
 				} else {
 					logger.Verbosef("PushTransaction ret: err: %v", err)
 				}
@@ -786,7 +782,7 @@ func (e *Engine) loopDoWorks(address string) {
 				if err != nil {
 					panic(err)
 				}
-				logger.Verbosef("++++++exec2:%s => %s", address, console)
+				logger.Verbosef("++++++dowork:%s => %s", address, console)
 				counter += 1
 			}
 		}
@@ -877,7 +873,7 @@ func convertEventToTxEvent(evt *encoding.Event) (*TxEvent, error) {
 	return txEvent, nil
 }
 
-func (e *Engine) pushEvent(address string, evt *encoding.Event, good bool) error {
+func (e *Engine) pushEvent(address string, evt *encoding.Event, errorEvent bool) error {
 	if len(evt.Signature)/65 < e.threshold {
 		panic("not enough signatures")
 	}
@@ -896,7 +892,33 @@ func (e *Engine) pushEvent(address string, evt *encoding.Event, good bool) error
 
 	r, err := e.chainApiPush.PushTransaction(tx, signatures, false)
 	if err != nil {
-		return err
+		if evt.Nonce == 0 {
+			return err
+		}
+
+		var reason string
+		if r != nil {
+			reason, err = r.GetString("error", "details", 0, "message")
+		} else {
+			reason = err.Error()
+		}
+		if len(reason) > 256 {
+			reason = reason[:256]
+		}
+		tx, err := BuildErrorEventTransaction(e.mtgPublisherContract, address, evt, refBlockId, reason)
+		if err != nil {
+			return err
+		}
+
+		signature, err := tx.Sign(e.key, e.chainId)
+		if err != nil {
+			return err
+		}
+		signatures = []string{signature.String()}
+		r, err = e.chainApiPush.PushTransaction(tx, signatures, false)
+		if err != nil {
+			return err
+		}
 	}
 	console, err := r.GetString("processed", "action_traces", 0, "console")
 	if err != nil {

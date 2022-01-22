@@ -93,7 +93,7 @@ func genPrivateKey(share *share.PriShare) *secp256k1.PrivateKey {
 	return key
 }
 
-func BuildEventTransaction(mixincontract, eventPublisher, address string, event *encoding.Event, refBlockId string) (*chain.Transaction, error) {
+func BuildEventTransaction(mixincontract string, eventPublisher string, address string, event *encoding.Event, refBlockId string) (*chain.Transaction, error) {
 	expiration := uint32(time.Now().Unix() + TX_EXPIRATION)
 	tx := chain.NewTransaction(expiration)
 
@@ -107,7 +107,7 @@ func BuildEventTransaction(mixincontract, eventPublisher, address string, event 
 		logger.Verbosef("add process event %s", event.Process)
 		addprocess := NewAddProcess(address, event.Process, event.Signature)
 		action = chain.NewAction(
-			chain.PermissionLevel{Actor: chain.NewName(eventPublisher), Permission: chain.NewName("active")},
+			&chain.PermissionLevel{Actor: chain.NewName(eventPublisher), Permission: chain.NewName("active")},
 			chain.NewName(mixincontract),
 			chain.NewName("addprocess"),
 			addprocess,
@@ -118,12 +118,39 @@ func BuildEventTransaction(mixincontract, eventPublisher, address string, event 
 			return nil, err
 		}
 		action = chain.NewAction(
-			chain.PermissionLevel{Actor: chain.NewName(eventPublisher), Permission: chain.NewName("active")},
+			&chain.PermissionLevel{Actor: chain.NewName(eventPublisher), Permission: chain.NewName("active")},
 			chain.NewName(address),
 			chain.NewName("onevent"),
 			txEvent,
 		)
 	}
+	tx.Actions = append(tx.Actions, action)
+	return tx, nil
+}
+
+func BuildErrorEventTransaction(eventPublisher string, address string, event *encoding.Event, refBlockId string, reason string) (*chain.Transaction, error) {
+	expiration := uint32(time.Now().Unix() + TX_EXPIRATION)
+	tx := chain.NewTransaction(expiration)
+
+	if len(refBlockId) != 64 {
+		return nil, errors.New("Invalid reference block")
+	}
+	tx.SetReferenceBlock(refBlockId)
+
+	var action *chain.Action
+
+	txEvent, err := convertEventToTxEvent(event)
+	if err != nil {
+		return nil, err
+	}
+
+	action = chain.NewAction(
+		&chain.PermissionLevel{Actor: chain.NewName(eventPublisher), Permission: chain.NewName("active")},
+		chain.NewName(address),
+		chain.NewName("onerrorevent"),
+		txEvent,
+		reason,
+	)
 	tx.Actions = append(tx.Actions, action)
 	return tx, nil
 }
