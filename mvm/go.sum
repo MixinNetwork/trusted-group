@@ -329,6 +329,8 @@ github.com/learnforpractice/goeoslib v0.0.0-20211226130711-afbde972abdb h1:MSPtN
 github.com/learnforpractice/goeoslib v0.0.0-20211226130711-afbde972abdb/go.mod h1:H0I95gXzyt4IK/fhLeJCrSv5FhPSJf8ra8dRsxVWcLc=
 github.com/learnforpractice/goeoslib v0.0.0-20220112081630-9a6f664230b3 h1:S7q3Gz/500FSe0hXdgfFuuy7yjTNuaP8jVnRW5PzZqo=
 github.com/learnforpractice/goeoslib v0.0.0-20220112081630-9a6f664230b3/go.mod h1:H0I95gXzyt4IK/fhLeJCrSv5FhPSJf8ra8dRsxVWcLc=
+github.com/learnforpractice/goeoslib v0.1.0 h1:nAYOYiK/XG+tjTns+Cfqy7FM/ek4dhgmY3PlhZtGVFk=
+github.com/learnforpractice/goeoslib v0.1.0/go.mod h1:H0I95gXzyt4IK/fhLeJCrSv5FhPSJf8ra8dRsxVWcLc=
 github.com/lib/pq v1.0.0/go.mod h1:5WUZQaWbwv1U+lTReE5YruASi9Al49XbQIvNi/34Woo=
 github.com/magiconair/properties v1.8.0/go.mod h1:PppfXfuXeibc/6YijjN8zIbojt8czPbwD3XqdrwzmxQ=
 github.com/mailru/easyjson v0.0.0-20190614124828-94de47d64c63/go.mod h1:C1wdFJiN94OJF2b5HbByQZoLdCWB1Yqtg26g4irojpc=

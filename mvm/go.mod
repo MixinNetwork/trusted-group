@@ -11,7 +11,7 @@ require (
 	github.com/ethereum/go-ethereum v1.10.15
 	github.com/fox-one/mixin-sdk-go v1.5.7
 	github.com/gofrs/uuid v4.2.0+incompatible
-	github.com/learnforpractice/goeoslib v0.0.0-20220112081630-9a6f664230b3
+	github.com/learnforpractice/goeoslib v0.1.0
 	github.com/mdp/qrterminal v1.0.1
 	github.com/pelletier/go-toml v1.9.4
 	github.com/shopspring/decimal v1.3.1
