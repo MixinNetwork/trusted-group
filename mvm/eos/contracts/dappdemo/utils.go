@@ -4,6 +4,14 @@ import (
 	"github.com/uuosio/chain"
 )
 
+func check(b bool, msg string) {
+	chain.Check(b, msg)
+}
+
+func assert(b bool, msg string) {
+	chain.Assert(b, msg)
+}
+
 //table signers
 type Signer struct {
 	account    chain.Name //primary : t.account.N
@@ -54,10 +62,15 @@ func CheckDuplicatedSignature(signatures []*chain.Signature, signature *chain.Si
 	}
 }
 
-func check(b bool, msg string) {
-	chain.Check(b, msg)
+//table processes ignore
+type Process struct {
+	contract chain.Name //primary : t.contract.N
+	process  chain.Uint128
 }
 
-func assert(b bool, msg string) {
-	chain.Assert(b, msg)
+func VerifyProcess(contract chain.Name, process chain.Uint128) {
+	db := NewProcessDB(MTG_XIN, MTG_XIN)
+	it, record := db.Get(contract.N)
+	assert(it.IsOk(), "process not found!")
+	assert(record.process == process, "invalid process!")
 }

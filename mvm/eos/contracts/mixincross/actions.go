@@ -44,7 +44,7 @@ func (c *Contract) OnEvent(event *TxEvent) {
 
 	VerifySignatures(data[:dataSize], event.signatures)
 
-	assert(event.process == PROCESS_ID, "invalid process id!")
+	VerifyProcess(c.self, event.process)
 
 	c.CheckNonce(event.nonce)
 
