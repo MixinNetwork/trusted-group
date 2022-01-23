@@ -789,6 +789,47 @@ func (e *Engine) loopDoWorks(address string) {
 	}
 }
 
+func (e *Engine) GetSubmitedEvent(address string, nonce uint64, limit int) (map[uint64]bool, error) {
+	key := fmt.Sprintf("%d", nonce)
+	result, err := e.chainApiGetState.GetTableRows(
+		false,          //json bool,
+		address,        //code string,
+		address,        //scope string,
+		"submittedevs", //table string,
+		key,            //lowerbound string,
+		"",             //upperbound string,
+		limit,          //limit int,
+		"i64",          //keyType string,
+		1,              //indexPosition int
+		false,          //reverse bool,
+		false,          //showPayer bool,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := result.GetArray("rows")
+	if err != nil {
+		return nil, err
+	}
+
+	submitedEvent := make(map[uint64]bool)
+	for _, row := range rows {
+		nonce := row.(string)
+		if len(nonce) != 16 {
+			return nil, fmt.Errorf("bad nonce value")
+		}
+
+		b, err := hex.DecodeString(nonce)
+		if err != nil {
+			return nil, err
+		}
+		_nonce := binary.LittleEndian.Uint64(b)
+		submitedEvent[_nonce] = true
+	}
+	return submitedEvent, nil
+}
+
 func (e *Engine) loopPushGroupEvents(address string) {
 	for e.IsPublisher() {
 		nonce, err := e.GetAddressNonce(address)
@@ -802,17 +843,23 @@ func (e *Engine) loopPushGroupEvents(address string) {
 		if err != nil {
 			panic(err)
 		}
+		submittedEvents, err := e.GetSubmitedEvent(address, nonce, 100)
+		logger.Verbosef("++++++++++++++submittedEvents: %v, err: %v", submittedEvents, err)
+		sendCount := 0
 		for _, evt := range evts {
+			if err == nil {
+				if _, ok := submittedEvents[evt.Nonce]; ok {
+					continue
+				}
+			}
+			sendCount += 1
 			if e.eventStatus[evt.Nonce].Add(TX_EXPIRATION * time.Second).Before(time.Now()) {
 				e.eventStatus[evt.Nonce] = time.Now()
 				err := e.pushEvent(address, evt, true)
 				logger.Verbosef("pushEvent(%v, %v) => (err: %v)", address, evt, err)
 			}
-			// if err != nil && evt.Nonce != 0 {
-			// 	break
-			// }
 		}
-		if len(evts) < 100 {
+		if sendCount == 0 {
 			time.Sleep(ClockTick)
 		}
 	}
