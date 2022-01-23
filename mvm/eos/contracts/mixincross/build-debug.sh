@@ -1,2 +1,2 @@
 
-eosio-go build -tags debug -o mixinaccount.wasm .
+eosio-go build -tags debug -o mixincross.wasm .

@@ -9,7 +9,8 @@ import (
 )
 
 const (
-	DEBUG = true
+	DEBUG            = true
+	KEY_COUNTER_TEST = 7
 )
 
 func ClearDB(db database.MultiIndexInterface) {
@@ -67,12 +68,15 @@ func (c *Contract) clear() {
 	ClearSingletonDB(NewAccountCacheDB(c.self, c.self).db)
 	ClearDB(NewMixinAccountDB(c.self, c.self).MultiIndexInterface)
 	// return
-
-	ClearSingletonDB(NewEOSBalanceDB(c.self, c.self).db)
 	ClearDB(NewCounterDB(c.self, c.self).MultiIndexInterface)
 
 	// ClearDB(NewMixinAssetDB(c.self, c.self).MultiIndexInterface)
 
 	ClearDB(NewTxEventDB(c.self, c.self).MultiIndexInterface)
-	ClearDB(NewMTGWorkDB(c.self, c.self).MultiIndexInterface)
+	// ClearDB(NewMTGWorkDB(c.self, c.self).MultiIndexInterface)
+}
+
+//action test
+func (c *Contract) test() {
+	c.GetNextIndex(KEY_COUNTER_TEST, 1)
 }

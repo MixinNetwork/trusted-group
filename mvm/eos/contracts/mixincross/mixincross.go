@@ -35,7 +35,7 @@ var (
 	ASSET_ID_EOS = chain.Uint128([16]byte{0x6c, 0xfe, 0x56, 0x6e, 0x4a, 0xad, 0x47, 0x0b, 0x8c, 0x9a, 0x2f, 0xd3, 0x5b, 0x49, 0xc6, 0x8d})
 )
 
-//contract mixinaccount
+//contract mixincross
 type Contract struct {
 	self           chain.Name
 	firstReceiver  chain.Name
@@ -137,16 +137,9 @@ func (c *Contract) HandleEventNoNonceChecking(event *TxEvent) {
 		return
 	}
 
-	if event.asset == ASSET_ID_EOS {
-		if event.amount.Cmp(chain.NewUint128(10000, 0)) < 0 {
-			c.ShowError("EOS amount must be greater than 10000")
-			return
-		}
-	} else {
-		if event.amount.Cmp(chain.NewUint128(chain.MAX_AMOUNT, 0)) > 0 {
-			c.ShowError("amount too large")
-			return
-		}
+	if event.amount.Cmp(chain.NewUint128(chain.MAX_AMOUNT, 0)) > 0 {
+		c.ShowError("amount too large")
+		return
 	}
 
 	var to chain.Name
@@ -161,19 +154,11 @@ func (c *Contract) HandleEventNoNonceChecking(event *TxEvent) {
 		}
 	}
 
-	var quantity *chain.Asset
 	symbol := c.GetSymbol(event.asset)
-	if symbol == chain.NewSymbol("EOS", 4) {
-		quantity = chain.NewAsset(int64(event.amount.Uint64())/10000, symbol)
-	} else {
-		quantity = chain.NewAsset(int64(event.amount.Uint64()), symbol)
-	}
+	quantity := chain.NewAsset(int64(event.amount.Uint64()), symbol)
 
 	fee := c.GetTransferFee(quantity.Symbol)
 	feeAmount := int64(fee.Amount)
-	if symbol == chain.NewSymbol("EOS", 4) {
-		feeAmount *= 1e4
-	}
 	if quantity.Amount <= fee.Amount {
 		c.AddFee(quantity)
 		c.ShowError("transfer amount is less than fee")
@@ -191,17 +176,7 @@ func (c *Contract) HandleEventNoNonceChecking(event *TxEvent) {
 		return
 	}
 	from := event.members[0]
-	if symbol == chain.NewSymbol("EOS", 4) {
-		totalBalance := GetBalance(c.self, chain.TokenContractName, symbol)
-		if totalBalance.Amount < quantity.Amount {
-			c.Refund(event, "insufficient balance, refund")
-			return
-		}
-		c.TransferTo(from, to, quantity, string(event.extra), event.timestamp)
-		c.AddEOSBalance(quantity)
-	} else {
-		c.TransferTo(from, to, quantity, string(event.extra), event.timestamp)
-	}
+	c.TransferTo(from, to, quantity, string(event.extra), event.timestamp)
 }
 
 func (c *Contract) TransferTo(from chain.Uint128, to chain.Name, quantity *chain.Asset, memo string, timestamp uint64) {
@@ -212,9 +187,6 @@ func (c *Contract) TransferTo(from chain.Uint128, to chain.Name, quantity *chain
 		asset_id, ok := c.GetMixinAssetId(quantity.Symbol)
 		assert(ok, "asset not found!")
 		amount := chain.NewUint128(uint64(quantity.Amount), 0)
-		if quantity.Symbol == chain.NewSymbol("EOS", 4) {
-			amount.Mul(amount, chain.NewUint128(10000, 0))
-		}
 		c.HandleRefund(clientId, asset_id, *amount, "expired, refund")
 		return
 	}
@@ -227,7 +199,7 @@ func (c *Contract) TransferTo(from chain.Uint128, to chain.Name, quantity *chain
 	if !it2.IsOk() {
 		fee := c.GetCreateAccountFee()
 		if fee.Amount != 0 {
-			if quantity.Symbol != chain.NewSymbol("EOS", 4) {
+			if quantity.Symbol != chain.NewSymbol("MEOS", 8) {
 				c.ShowError("invalid asset for creating account")
 				return
 			}
@@ -247,75 +219,53 @@ func (c *Contract) TransferTo(from chain.Uint128, to chain.Name, quantity *chain
 		fromAccount = record.eos_account
 	}
 
-	if quantity.Symbol == chain.NewSymbol("EOS", 4) {
+	symbol := quantity.Symbol
+	sym_code := symbol.Code()
+	db := NewCurrencyStatsDB(MIXIN_WTOKENS, chain.Name{sym_code})
+	itr := db.Find(sym_code)
+	if !itr.IsOk() {
+		maxSupply := chain.NewAsset(MAX_SUPPLY, symbol)
 		chain.NewAction(
-			&chain.PermissionLevel{c.self, chain.ActiveName},
-			chain.TokenContractName,
-			chain.NewName("transfer"),
-			c.self,      //from
-			fromAccount, // to,
-			quantity,    //quantity
-			memo,
-		).Send()
-		if (to != chain.Name{}) && fromAccount != to {
-			chain.NewAction(
-				&chain.PermissionLevel{fromAccount, chain.ActiveName},
-				chain.TokenContractName,
-				chain.NewName("transfer"),
-				fromAccount, //from
-				to,          // to,
-				quantity,    //quantity
-				memo,
-			).Send()
-		}
-	} else {
-		symbol := quantity.Symbol
-		sym_code := symbol.Code()
-		db := NewCurrencyStatsDB(MIXIN_WTOKENS, chain.Name{sym_code})
-		itr := db.Find(sym_code)
-		if !itr.IsOk() {
-			maxSupply := chain.NewAsset(MAX_SUPPLY, symbol)
-			chain.NewAction(
-				&chain.PermissionLevel{MIXIN_WTOKENS, chain.ActiveName},
-				MIXIN_WTOKENS,
-				chain.NewName("create"),
-				c.self,
-				maxSupply,
-				"create",
-			).Send()
-		}
-
-		chain.NewAction(
-			&chain.PermissionLevel{c.self, chain.ActiveName},
+			&chain.PermissionLevel{MIXIN_WTOKENS, chain.ActiveName},
 			MIXIN_WTOKENS,
-			chain.NewName("issue"),
+			chain.NewName("create"),
 			c.self,
-			quantity,
-			"issue",
+			maxSupply,
+			"create",
 		).Send()
+	}
 
+	chain.NewAction(
+		&chain.PermissionLevel{c.self, chain.ActiveName},
+		MIXIN_WTOKENS,
+		chain.NewName("issue"),
+		c.self,
+		quantity,
+		"issue",
+	).Send()
+
+	chain.NewAction(
+		&chain.PermissionLevel{c.self, chain.ActiveName},
+		MIXIN_WTOKENS,
+		chain.NewName("transfer"),
+		c.self,
+		fromAccount,
+		quantity,
+		"transfer",
+	).Send()
+
+	if (to != chain.Name{}) && to != fromAccount {
 		chain.NewAction(
-			&chain.PermissionLevel{c.self, chain.ActiveName},
+			&chain.PermissionLevel{fromAccount, chain.ActiveName},
 			MIXIN_WTOKENS,
 			chain.NewName("transfer"),
-			c.self,
 			fromAccount,
+			to,
 			quantity,
 			"transfer",
 		).Send()
-
-		if (to != chain.Name{}) && to != fromAccount {
-			chain.NewAction(
-				&chain.PermissionLevel{fromAccount, chain.ActiveName},
-				MIXIN_WTOKENS,
-				chain.NewName("transfer"),
-				fromAccount,
-				to,
-				quantity,
-				"transfer",
-			).Send()
-		}
 	}
+
 }
 
 func (c *Contract) TransferOut(member *chain.Uint128, amount chain.Asset, memo string) {
@@ -323,11 +273,6 @@ func (c *Contract) TransferOut(member *chain.Uint128, amount chain.Asset, memo s
 	assert(ok, "unsupported asset id")
 	//TODO: make sure balance in MTG is sufficient.
 	_amount := chain.NewUint128(uint64(amount.Amount), 0)
-	if amount.Symbol == chain.NewSymbol("EOS", 4) {
-		_amount.Mul(_amount, chain.NewUint128(10000, 0))
-		c.SubEOSBalance(&amount)
-	}
-
 	if c.firstReceiver == MIXIN_WTOKENS {
 		chain.NewAction(
 			&chain.PermissionLevel{c.self, chain.ActiveName},
@@ -463,27 +408,6 @@ func (c *Contract) GetNextTxInIndex() uint64 {
 	return c.GetNextIndex(KEY_TX_IN_INDEX, 1)
 }
 
-func (c *Contract) AddEOSBalance(amount *chain.Asset) {
-	payer := c.self
-	db := NewEOSBalanceDB(c.self, c.self)
-	data := db.Get()
-	if data == nil {
-		db.Set(&EOSBalance{amount: *amount}, payer)
-	} else {
-		data.amount.Add(amount)
-		db.Set(data, payer)
-	}
-}
-
-func (c *Contract) SubEOSBalance(amount *chain.Asset) {
-	db := NewEOSBalanceDB(c.self, c.self)
-	data := db.Get()
-	check(data != nil, "Balance not enough")
-	data.amount.Sub(amount)
-	check(data.amount.Amount > 0, "Balance not enough")
-	db.Set(data, c.self)
-}
-
 func (c *Contract) GetNextAccountId() uint64 {
 	return c.GetNextIndex(KEY_ACCOUNT_INDEX, 1)
 }
@@ -527,7 +451,7 @@ func (c *Contract) GetCreateAccountFee() *chain.Asset {
 	db := NewCreateAccountFeeDB(c.self, c.self)
 	accountFee := db.Get()
 	if accountFee == nil {
-		return chain.NewAsset(0, chain.NewSymbol("EOS", 4))
+		return chain.NewAsset(0, chain.NewSymbol("MEOS", 8))
 	}
 	return &accountFee.fee
 }

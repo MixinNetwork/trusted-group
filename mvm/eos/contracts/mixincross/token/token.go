@@ -133,7 +133,7 @@ func (token *Token) RetireEx(account chain.Name, quantity chain.Asset, memo stri
 
 	item.supply.Sub(&quantity)
 	stats.Update(it, item, chain.SamePayer)
-	token.subBalance(account, quantity)
+	// token.subBalanceEx(account, quantity, chain.Name{0})
 }
 
 //action transfer
@@ -177,6 +177,8 @@ func (token *Token) Transfer(from chain.Name, to chain.Name, quantity chain.Asse
 		return
 	}
 
+	token.subBalance(from, quantity)
+
 	chain.NewAction(
 		chain.NewPermissionLevel(token.receiver, chain.ActiveName),
 		token.receiver,
@@ -186,7 +188,6 @@ func (token *Token) Transfer(from chain.Name, to chain.Name, quantity chain.Asse
 		"retire for transfer out",
 	).Send()
 
-	// token.RetireEx(from, quantity, "retire for transfer out")
 	//mixin asset transfer request
 	token.TxRequest(from, to, quantity, memo)
 }

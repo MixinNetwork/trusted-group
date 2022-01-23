@@ -32,21 +32,6 @@ type Counter struct {
 	count uint64
 }
 
-//table eosbalances singleton
-type EOSBalance struct {
-	amount chain.Asset
-}
-
-//table works
-type MTGWork struct {
-	id         uint64 //primary : t.id
-	expiration uint32
-	from       chain.Uint128
-	to         chain.Name
-	quantity   chain.Asset
-	memo       string
-}
-
 //table accountcache singleton
 type AccountCache struct {
 	id      uint64
