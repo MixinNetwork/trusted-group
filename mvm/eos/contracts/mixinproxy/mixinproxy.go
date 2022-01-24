@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/binary"
+
 	"github.com/uuosio/chain"
 )
 
@@ -142,18 +144,6 @@ func (c *Contract) HandleEventNoNonceChecking(event *TxEvent) {
 		return
 	}
 
-	var to chain.Name
-	toAccount := string(event.extra)
-	if toAccount == "" {
-		to = chain.Name{}
-	} else {
-		to = chain.NewName(toAccount)
-		if !chain.IsAccount(to) {
-			c.Refund(event, "account does not exists, refund")
-			return
-		}
-	}
-
 	symbol := c.GetSymbol(event.asset)
 	quantity := chain.NewAsset(int64(event.amount.Uint64()), symbol)
 
@@ -168,7 +158,7 @@ func (c *Contract) HandleEventNoNonceChecking(event *TxEvent) {
 	}
 
 	quantity.Amount -= fee.Amount
-	//deduct fee from event, in case of refund
+	//deduct fee from event, in case of refundment
 	event.amount.Sub(&event.amount, chain.NewUint128(uint64(feeAmount), 0))
 
 	if len(event.members) != 1 {
@@ -176,10 +166,73 @@ func (c *Contract) HandleEventNoNonceChecking(event *TxEvent) {
 		return
 	}
 	from := event.members[0]
-	c.TransferTo(from, to, quantity, string(event.extra), event.timestamp)
+	fromAccount, ok := c.IssueAsset(from, quantity, event.timestamp)
+	if !ok {
+		return
+	}
+
+	var action *chain.Action
+	toAccount := string(event.extra)
+	if len(event.extra) == 0 {
+		//transfer to self
+		action = nil
+	} else if len(event.extra) <= 12 {
+		to := chain.NewName(toAccount)
+		if !chain.IsAccount(to) {
+			c.Refund(event, "account does not exists, refund")
+			return
+		}
+
+		action = chain.NewAction(
+			chain.NewPermissionLevel(fromAccount, chain.ActiveName),
+			MIXIN_WTOKENS,
+			chain.NewName("transfer"),
+			fromAccount,
+			to,
+			quantity,
+			"xtranfer",
+		)
+	} else {
+		if len(event.extra) < 8*2 {
+			c.Refund(event, "invalid action data, refund!")
+			return
+		}
+
+		_account := binary.LittleEndian.Uint64(event.extra[0:8])
+		account := chain.Name{_account}
+		if !chain.IsAccount(account) {
+			c.Refund(event, "invalid account name, refund")
+			return
+		}
+
+		_action_name := binary.LittleEndian.Uint64(event.extra[8:16])
+		action_name := chain.Name{_action_name}
+		data := event.extra[16:]
+
+		action = &chain.Action{
+			account,
+			action_name,
+			nil,
+			data,
+		}
+	}
+
+	if action != nil {
+		c.SendAction(fromAccount, action)
+	}
 }
 
-func (c *Contract) TransferTo(from chain.Uint128, to chain.Name, quantity *chain.Asset, memo string, timestamp uint64) {
+func (c *Contract) SendAction(fromAccount chain.Name, action *chain.Action) {
+	action.Authorization = []*chain.PermissionLevel{
+		&chain.PermissionLevel{
+			Actor:      fromAccount,
+			Permission: chain.ActiveName,
+		},
+	}
+	action.Send()
+}
+
+func (c *Contract) IssueAsset(from chain.Uint128, quantity *chain.Asset, timestamp uint64) (chain.Name, bool) {
 	expiration := uint32(timestamp/1e9) + MTG_WORK_EXPIRATION_SECONDS
 	//handle expired work
 	if expiration < chain.CurrentTimeSeconds() {
@@ -188,7 +241,7 @@ func (c *Contract) TransferTo(from chain.Uint128, to chain.Name, quantity *chain
 		assert(ok, "asset not found!")
 		amount := chain.NewUint128(uint64(quantity.Amount), 0)
 		c.HandleRefund(clientId, asset_id, *amount, "expired, refund")
-		return
+		return chain.Name{}, false
 	}
 
 	var fromAccount chain.Name
@@ -201,11 +254,11 @@ func (c *Contract) TransferTo(from chain.Uint128, to chain.Name, quantity *chain
 		if fee.Amount != 0 {
 			if quantity.Symbol != chain.NewSymbol("MEOS", 8) {
 				c.ShowError("invalid asset for creating account")
-				return
+				return chain.Name{}, false
 			}
 			if quantity.Amount < fee.Amount {
 				c.ShowError("not enough fee for creating account")
-				return
+				return chain.Name{}, false
 			}
 			quantity.Amount -= fee.Amount
 		}
@@ -253,19 +306,7 @@ func (c *Contract) TransferTo(from chain.Uint128, to chain.Name, quantity *chain
 		quantity,
 		"transfer",
 	).Send()
-
-	if (to != chain.Name{}) && to != fromAccount {
-		chain.NewAction(
-			&chain.PermissionLevel{fromAccount, chain.ActiveName},
-			MIXIN_WTOKENS,
-			chain.NewName("transfer"),
-			fromAccount,
-			to,
-			quantity,
-			"transfer",
-		).Send()
-	}
-
+	return fromAccount, true
 }
 
 func (c *Contract) TransferOut(member *chain.Uint128, amount chain.Asset, memo string) {
