@@ -36,16 +36,18 @@ var (
 
 //contract mixinproxy
 type Contract struct {
-	self           chain.Name
-	firstReceiver  chain.Name
-	action         chain.Name
-	event          *TxEvent
-	nonceIncreased bool
+	self          chain.Name
+	firstReceiver chain.Name
+	action        chain.Name
+	process       chain.Uint128
 }
 
 func NewContract(receiver, firstReceiver, action chain.Name) *Contract {
-	c := &Contract{receiver, firstReceiver, action, nil, false}
-	// sys.Init(c)
+	db := NewProcessDB(MTG_XIN, MTG_XIN)
+	it, record := db.Get(receiver.N)
+	assert(it.IsOk(), "process not found!")
+
+	c := &Contract{receiver, firstReceiver, action, record.process}
 	return c
 }
 
@@ -325,7 +327,7 @@ func (c *Contract) TransferOut(member *chain.Uint128, amount chain.Asset, memo s
 	notify := TxRequest{
 		nonce:     id,
 		contract:  c.self,
-		process:   PROCESS_ID,
+		process:   c.process,
 		asset:     assetId,
 		members:   []chain.Uint128{*member},
 		threshold: 1,
@@ -346,7 +348,7 @@ func (c *Contract) Refund(event *TxEvent, memo string) {
 	notify := TxRequest{
 		nonce:     id,
 		contract:  c.self,
-		process:   PROCESS_ID,
+		process:   c.process,
 		asset:     event.asset,
 		members:   event.members,
 		threshold: event.threshold,
@@ -367,7 +369,7 @@ func (c *Contract) HandleRefund(clientId chain.Uint128, assetId chain.Uint128, a
 	notify := TxRequest{
 		nonce:     id,
 		contract:  c.self,
-		process:   PROCESS_ID,
+		process:   c.process,
 		asset:     assetId,
 		members:   []chain.Uint128{clientId},
 		threshold: 1,

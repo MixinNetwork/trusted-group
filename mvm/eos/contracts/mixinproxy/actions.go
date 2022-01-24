@@ -64,7 +64,7 @@ func (c *Contract) OnErrorEvent(event *TxEvent, reason *string) {
 
 	VerifySignatures(data[:dataSize], event.signatures)
 
-	assert(event.process == PROCESS_ID, "Invalid process id")
+	assert(event.process == c.process, "Invalid process id")
 
 	errorEvent.reason = dec.UnpackString()
 
@@ -170,7 +170,7 @@ func (c *Contract) OnTransfer(from chain.Name, to chain.Name, quantity chain.Ass
 	notify := TxRequest{
 		nonce:     id,
 		contract:  c.self,
-		process:   PROCESS_ID,
+		process:   c.process,
 		asset:     assetId,
 		members:   []chain.Uint128{record.client_id},
 		threshold: 1,

@@ -69,7 +69,7 @@ func (c *Contract) OnEvent(event *TxEvent) {
 
 	VerifyProcess(c.self, event.process)
 
-	assert(event.process == PROCESS_ID, "Invalid process id")
+	assert(event.process == c.process, "Invalid process id")
 
 	nonce := c.GetNonce()
 	assert(event.nonce >= nonce, "bad nonce!")
@@ -97,7 +97,7 @@ func (c *Contract) Exec(executor chain.Name) {
 		notify := TxRequest{
 			nonce:     id,
 			contract:  c.self,
-			process:   PROCESS_ID,
+			process:   c.process,
 			asset:     event.asset,
 			members:   event.members,
 			threshold: event.threshold,
