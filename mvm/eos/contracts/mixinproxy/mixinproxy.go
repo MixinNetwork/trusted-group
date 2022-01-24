@@ -262,7 +262,7 @@ func (c *Contract) IssueAsset(from chain.Uint128, quantity *chain.Asset, timesta
 			quantity.Amount -= fee.Amount
 		}
 		//		accountId := c.GetNextAccountId()
-		fromAccount = c.GetNexAvailableAccount()
+		fromAccount = c.GetNextAvailableAccount()
 		record := MixinAccount{eos_account: fromAccount, client_id: from}
 		dbAccounts.Store(&record, c.self)
 	} else {
@@ -452,7 +452,7 @@ func (c *Contract) GetNextAccountId() uint64 {
 	return c.GetNextIndex(KEY_ACCOUNT_INDEX, 1)
 }
 
-func (c *Contract) GetNexAvailableAccount() chain.Name {
+func (c *Contract) GetNextAvailableAccount() chain.Name {
 	db := NewAccountCacheDB(c.self, c.self)
 	item := db.Get()
 	check(item != nil, "No availabe account")
