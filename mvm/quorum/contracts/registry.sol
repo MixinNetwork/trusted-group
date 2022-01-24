@@ -6,11 +6,15 @@ import {BLS} from './bls.sol';
 import {StandardToken} from './erc20.sol';
 
 contract Registrable {
-    address public registry;
+    address public immutable registry;
 
     modifier onlyRegistry() {
         require(msg.sender == registry, "not registry");
         _;
+    }
+
+    constructor() {
+        registry = msg.sender;
     }
 }
 
@@ -19,7 +23,6 @@ contract MixinUser is Registrable {
     bool public burn;
 
     constructor(bytes memory _members) {
-        registry = msg.sender;
         members = _members;
     }
 
@@ -42,7 +45,6 @@ contract MixinAsset is Registrable, StandardToken {
     uint8 public constant decimals = 8;
 
     constructor(uint128 _id, string memory _name, string memory _symbol) {
-        registry = msg.sender;
         id = _id;
         name = _name;
         symbol = _symbol;
@@ -106,11 +108,15 @@ contract Registry {
         GROUP = _group;
     }
 
-    function iterate(bytes memory input) public {
-        // NEW-GROUP || sig1 || sig2
-        // verify sig1 is signed by GROUP on NEW-GROUP
-        // verify sig2 is signed by NEW-GROUP on GROUP
-        // GROUP = NEW-GROUP
+    function iterate(bytes memory raw) public {
+        require(raw.length == 256, "invalid input size");
+        uint256[4] memory group = [raw.toUint256(0), raw.toUint256(32), raw.toUint256(64), raw.toUint256(96)];
+        uint256[2] memory sig1 = [raw.toUint256(128), raw.toUint256(160)];
+        uint256[2] memory sig2 = [raw.toUint256(192), raw.toUint256(224)];
+        uint256[2] memory message = raw.slice(0, 196).hashToPoint();
+        require(sig1.verifySingle(GROUP, message));
+        require(sig2.verifySingle(group, message));
+        GROUP = group;
     }
 
     function claim(address asset, uint256 amount) public returns (bool) {
