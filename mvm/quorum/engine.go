@@ -21,24 +21,26 @@ const (
 	// function mixin(bytes calldata raw) public returns (bool)
 	EventMethod = "0x5cae8005"
 
-	ContractAgeLimit = 16
-	GasLimit         = 8000000
-	GasPrice         = 100000000000
+	DefaultContractAgeLimit = 16
+	GasLimit                = 8000000
+	GasPrice                = 100000000000
 )
 
 type Configuration struct {
-	Store      string `toml:"store"`
-	RPC        string `toml:"rpc"`
-	ChainId    int64  `toml:"chain"`
-	Base       uint64 `toml:"base"`
-	PrivateKey string `toml:"key"`
+	Store            string `toml:"store"`
+	RPC              string `toml:"rpc"`
+	ChainId          int64  `toml:"chain"`
+	Base             uint64 `toml:"base"`
+	PrivateKey       string `toml:"key"`
+	ContractAgeLimit int64  `toml:"contract-age-limit"`
 }
 
 type Engine struct {
-	db      *badger.DB
-	rpc     *RPC
-	chainId int64
-	key     string
+	db               *badger.DB
+	rpc              *RPC
+	chainId          int64
+	key              string
+	contractAgeLimit int64
 }
 
 func Boot(conf *Configuration) (*Engine, error) {
@@ -47,7 +49,7 @@ func Boot(conf *Configuration) (*Engine, error) {
 	if err != nil {
 		return nil, err
 	}
-	e := &Engine{db: db, rpc: rpc, chainId: conf.ChainId}
+	e := &Engine{db: db, rpc: rpc, chainId: conf.ChainId, contractAgeLimit: conf.ContractAgeLimit}
 	if conf.PrivateKey != "" {
 		priv, err := crypto.HexToECDSA(conf.PrivateKey)
 		if err != nil {
@@ -81,8 +83,16 @@ func (e *Engine) VerifyAddress(address string, hash []byte) error {
 	if err != nil {
 		return err
 	}
-	if height < birth+ContractAgeLimit {
-		return fmt.Errorf("too young %d %d", birth, height)
+	var contractAgeLimit uint64
+	if e.contractAgeLimit > 0 {
+		contractAgeLimit = uint64(e.contractAgeLimit)
+	} else if e.contractAgeLimit < 0 {
+		contractAgeLimit = 0
+	} else {
+		contractAgeLimit = DefaultContractAgeLimit
+	}
+	if height < birth+contractAgeLimit {
+		return fmt.Errorf("too young %d %d, age limit %d", birth, height, contractAgeLimit)
 	}
 
 	// TODO ABI
