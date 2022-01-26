@@ -186,6 +186,13 @@ func (bs *BadgerStore) WriteSignedGroupEventAndExpirePending(event *encoding.Eve
 	})
 }
 
+func (bs *BadgerStore) EnsurePendingEventDeleted(event *encoding.Event) {
+	bs.Badger().Update(func(txn *badger.Txn) error {
+		pending := buildPendingEventTimedKey(event)
+		return txn.Delete(pending)
+	})
+}
+
 func (bs *BadgerStore) ListSignedGroupEvents(pid string, limit int) ([]*encoding.Event, error) {
 	txn := bs.Badger().NewTransaction(false)
 	defer txn.Discard()

@@ -149,6 +149,7 @@ func (m *Machine) appendPendingGroupEventSignature(e *encoding.Event, msg, parti
 		return err
 	}
 	if fullSignature {
+		m.store.EnsurePendingEventDeleted(e)
 		return nil
 	}
 

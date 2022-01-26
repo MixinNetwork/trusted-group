@@ -15,6 +15,8 @@ type Store interface {
 	ListSignedGroupEvents(pid string, limit int) ([]*encoding.Event, error)
 	ExpireGroupEventsWithCost(events []*encoding.Event, cost common.Integer) error
 
+	EnsurePendingEventDeleted(event *encoding.Event)
+
 	CheckAccountSnapshot(as *AccountSnapshot) (bool, error)
 	WriteAccountSnapshot(as *AccountSnapshot) error
 
