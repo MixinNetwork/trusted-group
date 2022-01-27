@@ -151,6 +151,7 @@ func (e *Engine) loopGetLogs(base uint64) {
 			offset = base
 		}
 		logs, err := e.rpc.GetLogs(EventTopic, offset, offset+10)
+		logger.Verbosef("loopGetLogs(%d) => GetLogs(%d) => %d, %v", base, offset, len(logs), err)
 		if err != nil {
 			time.Sleep(1 * time.Minute)
 			continue

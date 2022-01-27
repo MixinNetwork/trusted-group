@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -80,10 +81,11 @@ func invokeProcessCmd(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	extra, _ := hex.DecodeString(c.String("extra"))
 	op := &encoding.Operation{
 		Purpose: encoding.OperationPurposeGroupEvent,
 		Process: c.String("process"),
-		Extra:   []byte(c.String("extra")),
+		Extra:   extra,
 	}
 	input := mixin.TransferInput{
 		AssetID: c.String("asset"),

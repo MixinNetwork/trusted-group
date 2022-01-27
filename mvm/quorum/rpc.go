@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/shopspring/decimal"
@@ -159,33 +160,14 @@ func (chain *RPC) GetLogs(topic string, from, to uint64) ([]*Log, error) {
 	}
 	var logs []*Log
 	for _, r := range resp.Result {
-		b, err := hex.DecodeString(r.Data[2:])
+		data, err := parseTransactionLog(r.Data)
 		if err != nil {
-			return nil, err
-		}
-		if len(b)%32 != 0 {
-			return nil, fmt.Errorf("invalid log %s", r.Data)
-		}
-		if len(b) < 128 {
-			return nil, fmt.Errorf("invalid log %s", r.Data)
-		}
-		bi := new(big.Int).SetBytes(b[:32])
-		if !bi.IsInt64() {
-			return nil, fmt.Errorf("invalid log %s", r.Data)
-		}
-		if bi.Int64() != 0x20 {
-			return nil, fmt.Errorf("invalid log %s", r.Data)
-		}
-		bi = new(big.Int).SetBytes(b[32:64])
-		if !bi.IsInt64() {
-			return nil, fmt.Errorf("invalid log %s", r.Data)
-		}
-		if bi.Int64() > 512 {
-			return nil, fmt.Errorf("invalid log %s", r.Data)
+			logger.Verbosef("GetLogs(%d, %d) => parseTransactionLog(%s) => %v", from, to, r.Data, err)
+			continue
 		}
 		log := &Log{
 			address: formatAddress(r.Address),
-			data:    b[64 : 64+bi.Int64()],
+			data:    data,
 		}
 		logs = append(logs, log)
 	}
@@ -233,6 +215,37 @@ func (chain *RPC) call(method string, params []interface{}) ([]byte, error) {
 	defer resp.Body.Close()
 
 	return io.ReadAll(resp.Body)
+}
+
+func parseTransactionLog(data string) ([]byte, error) {
+	b, err := hex.DecodeString(data)
+	if err != nil {
+		return nil, err
+	}
+	if len(b)%32 != 0 {
+		return nil, fmt.Errorf("invalid log length %s %d", data, len(b))
+	}
+	if len(b) < 128 {
+		return nil, fmt.Errorf("invalid log length %s %d", data, len(b))
+	}
+
+	bi := new(big.Int).SetBytes(b[:32])
+	if !bi.IsInt64() {
+		return nil, fmt.Errorf("invalid log data %s %s", data, bi.String())
+	}
+	if bi.Int64() != 0x20 {
+		return nil, fmt.Errorf("invalid log data %s %d", data, bi.Int64())
+	}
+
+	bi = new(big.Int).SetBytes(b[32:64])
+	if !bi.IsInt64() {
+		return nil, fmt.Errorf("invalid log size %s %s", data, bi.String())
+	}
+	if bi.Int64() > 512 {
+		return nil, fmt.Errorf("invalid log size %s %d", data, bi.Int64())
+	}
+
+	return b[64 : 64+bi.Int64()], nil
 }
 
 func formatAddress(to string) string {
