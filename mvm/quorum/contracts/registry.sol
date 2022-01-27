@@ -29,6 +29,9 @@ contract MixinUser is Registrable {
     }
 
     function run(bytes memory extra) external onlyRegistry() returns (bool, bytes memory) {
+        if (extra.length < 24) {
+            return (true, extra);
+        }
         address process = extra.toAddress(0);
         bytes memory input = extra.slice(20, extra.length - 20);
         return process.call(input);
@@ -205,18 +208,17 @@ contract Registry {
         return MixinUser(evt.user).run(evt.extra);
     }
 
-    function parseEventExtra(bytes memory raw, uint offset) public pure returns(uint, bytes memory, uint64) {
+    function parseEventExtra(bytes memory raw, uint offset) internal pure returns(uint, bytes memory, uint64) {
         uint size = raw.toUint16(offset);
         offset = offset + 2;
         bytes memory extra = raw.slice(offset, size);
-        require(extra.length > 20, "invalid event extra");
         offset = offset + size;
         uint64 timestamp = raw.toUint64(offset);
         offset = offset + 8;
         return (offset, extra, timestamp);
     }
 
-    function parseEventAmount(bytes memory raw, uint offset) public pure returns(uint, uint256) {
+    function parseEventAmount(bytes memory raw, uint offset) internal pure returns(uint, uint256) {
         uint size = raw.toUint16(offset);
         offset = offset + 2;
         require(size <= 32, "integer out of bounds");
@@ -225,7 +227,7 @@ contract Registry {
         return (offset, amount);
     }
 
-    function parseEventUser(bytes memory raw, uint offset) public returns (uint, address) {
+    function parseEventUser(bytes memory raw, uint offset) internal returns (uint, address) {
         uint16 size = raw.toUint16(offset);
         size = 2 + size * 16 + 2;
         bytes memory members = raw.slice(offset, size);
@@ -233,7 +235,7 @@ contract Registry {
         return (offset, getOrCreateUserContract(members));
     }
 
-    function parseEventAsset(bytes memory raw, uint offset) public returns (uint, address) {
+    function parseEventAsset(bytes memory raw, uint offset) internal returns (uint, address) {
         uint128 id = raw.toUint128(offset);
         require(id > 0, "invalid asset");
         offset = offset + 16;
@@ -249,51 +251,50 @@ contract Registry {
         return (offset, addr);
     }
 
-    function getOrCreateAssetContract(uint128 id, string memory symbol, string memory name) public returns (address) {
+    function getOrCreateAssetContract(uint128 id, string memory symbol, string memory name) internal returns (address) {
         bytes memory code = getAssetContractCode(id, symbol, name);
         address asset = getContractAddress(code);
         if (assets[asset] > 0) {
             return asset;
         }
-        address addr = deploy(code, id);
-        require(addr == asset, "malformed user contract address");
+        address addr = deploy(code, VERSION);
+        require(addr == asset, "malformed asset contract address");
         assets[asset] = id;
         emit AssetCreated(asset, id);
         return asset;
     }
 
-    function getOrCreateUserContract(bytes memory members) public returns (address) {
+    function getOrCreateUserContract(bytes memory members) internal returns (address) {
         bytes memory code = getUserContractCode(members);
         address user = getContractAddress(code);
         if (users[user].length > 0) {
             return user;
         }
-        uint salt = uint(keccak256(members));
-        address addr = deploy(code, salt);
+        address addr = deploy(code, VERSION);
         require(addr == user, "malformed user contract address");
         users[user] = members;
         emit UserCreated(user, members);
         return user;
     }
 
-    function getUserContractCode(bytes memory members) public pure returns (bytes memory) {
+    function getUserContractCode(bytes memory members) internal pure returns (bytes memory) {
         bytes memory code = type(MixinUser).creationCode;
         bytes memory args = abi.encode(members);
         return abi.encodePacked(code, args);
     }
 
-    function getAssetContractCode(uint id, string memory symbol, string memory name) public pure returns (bytes memory) {
+    function getAssetContractCode(uint id, string memory symbol, string memory name) internal pure returns (bytes memory) {
         bytes memory code = type(MixinAsset).creationCode;
         bytes memory args = abi.encode(id, symbol, name);
         return abi.encodePacked(code, args);
     }
 
-    function getContractAddress(bytes memory code) public view returns (address) {
+    function getContractAddress(bytes memory code) internal view returns (address) {
         code = abi.encodePacked(bytes1(0xff), address(this), VERSION, keccak256(code));
         return address(uint160(uint(keccak256(code))));
     }
 
-    function deploy(bytes memory bytecode, uint _salt) public returns (address) {
+    function deploy(bytes memory bytecode, uint _salt) internal returns (address) {
         address addr;
         assembly {
             addr := create2(
