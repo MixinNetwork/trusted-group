@@ -19,6 +19,8 @@ contract Registrable {
 }
 
 contract MixinUser is Registrable {
+    using BytesLib for bytes;
+
     bytes public members;
     bool public burn;
 
@@ -26,7 +28,9 @@ contract MixinUser is Registrable {
         members = _members;
     }
 
-    function run(address process, bytes memory input) external onlyRegistry() returns (bool, bytes memory) {
+    function run(bytes memory extra) external onlyRegistry() returns (bool, bytes memory) {
+        address process = extra.toAddress(0);
+        bytes memory input = extra.slice(20, extra.length - 20);
         return process.call(input);
     }
 
@@ -83,8 +87,10 @@ contract Registry {
     event UserCreated(address at, bytes members);
     event AssetCreated(address at, uint id);
     event MixinTransaction(bytes);
+    event MixinEvent(Event evt);
 
     uint256 public constant VERSION = 1;
+    uint128 public immutable PID;
 
     uint256[4] public GROUP;
     uint64 public INBOUND = 0;
@@ -94,18 +100,19 @@ contract Registry {
     mapping(address => uint128) assets;
 
     struct Event {
+        uint128 process;
         uint64 nonce;
         address user;
         address asset;
         uint256 amount;
-        address process;
-        bytes input;
+        bytes extra;
         uint64 timestamp;
         uint256[2] sig;
     }
 
-    constructor(uint256[4] memory _group) {
+    constructor(uint256[4] memory _group, uint128 _pid) {
         GROUP = _group;
+        PID = _pid;
     }
 
     function iterate(bytes memory raw) public {
@@ -147,11 +154,11 @@ contract Registry {
         OUTBOUND = OUTBOUND + 1;
     }
 
-    // nonce || members || threshold || asset || amount || extra || timestamp || sig
+    // process || nonce || asset || amount || extra || timestamp || members || threshold || sig
     function buildMixinTransaction(uint64 nonce, bytes memory receiver, uint128 asset, uint256 amount, bytes memory extra) internal view returns (bytes memory) {
         require(extra.length < 128, "extra too large");
-        bytes memory raw = uint64ToFixedBytes(nonce);
-        raw = raw.concat(receiver);
+        bytes memory raw = uint128ToFixedBytes(PID);
+        raw = raw.concat(uint64ToFixedBytes(nonce));
         raw = raw.concat(uint128ToFixedBytes(asset));
         (bytes memory ab, uint16 al) = uint256ToVarBytes(amount);
         raw = raw.concat(uint16ToFixedBytes(al));
@@ -159,28 +166,31 @@ contract Registry {
         raw = raw.concat(uint16ToFixedBytes(uint16(extra.length)));
         raw = raw.concat(extra);
         raw = raw.concat(uint64ToFixedBytes(uint64(block.timestamp)));
+        raw = raw.concat(receiver);
         raw = raw.concat(new bytes(2));
         return raw;
     }
 
+    // process || nonce || asset || amount || extra || timestamp || members || threshold || sig
     function mixin(bytes memory raw) public returns (bool, bytes memory) {
         require(raw.length >= 141, "event data too small");
 
         Event memory evt;
         uint256 offset = 0;
 
+        evt.process = raw.toUint128(offset);
+        require(evt.process == PID, "invalid process");
+        offset = offset + 16;
+
         evt.nonce = raw.toUint64(offset);
         require(evt.nonce == INBOUND, "invalid nonce");
         INBOUND = INBOUND + 1;
         offset = offset + 8;
 
-        (offset, evt.user) = parseEventUser(raw, offset);
         (offset, evt.asset) = parseEventAsset(raw, offset);
         (offset, evt.amount) = parseEventAmount(raw, offset);
-        (offset, evt.process, evt.input) = parseEventInput(raw, offset);
-
-        evt.timestamp = raw.toUint64(offset);
-        offset = offset + 8;
+        (offset, evt.extra, evt.timestamp) = parseEventExtra(raw, offset);
+        (offset, evt.user) = parseEventUser(raw, offset);
 
         offset = offset + 2;
         evt.sig = [raw.toUint256(offset), raw.toUint256(offset+32)];
@@ -190,19 +200,20 @@ contract Registry {
         offset = offset + 64;
         require(raw.length == offset, "malformed event encoding");
 
+        emit MixinEvent(evt);
         MixinAsset(evt.asset).mint(evt.user, evt.amount);
-        return MixinUser(evt.user).run(evt.process, evt.input);
+        return MixinUser(evt.user).run(evt.extra);
     }
 
-    function parseEventInput(bytes memory raw, uint offset) public pure returns(uint, address, bytes memory) {
-        address process = raw.toAddress(offset);
-        offset = offset + 20;
-
+    function parseEventExtra(bytes memory raw, uint offset) public pure returns(uint, bytes memory, uint64) {
         uint size = raw.toUint16(offset);
         offset = offset + 2;
-        bytes memory input = raw.slice(offset, size);
+        bytes memory extra = raw.slice(offset, size);
+        require(extra.length > 20, "invalid event extra");
         offset = offset + size;
-        return (offset, process, input);
+        uint64 timestamp = raw.toUint64(offset);
+        offset = offset + 8;
+        return (offset, extra, timestamp);
     }
 
     function parseEventAmount(bytes memory raw, uint offset) public pure returns(uint, uint256) {
