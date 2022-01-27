@@ -68,17 +68,21 @@ func bootCmd(c *cli.Context) error {
 		return err
 	}
 
-	en, err := quorum.Boot(conf.Quorum)
-	if err != nil {
-		return err
+	if conf.Quorum.RPC != "" {
+		en, err := quorum.Boot(conf.Quorum)
+		if err != nil {
+			return err
+		}
+		im.AddEngine(machine.ProcessPlatformQuorum, en)
 	}
-	im.AddEngine(machine.ProcessPlatformQuorum, en)
 
-	enEos, err := eos.Boot(conf.Eos, group.GetThreshold())
-	if err != nil {
-		return err
+	if conf.Eos.MixinContract != "" {
+		enEos, err := eos.Boot(conf.Eos, group.GetThreshold())
+		if err != nil {
+			return err
+		}
+		im.AddEngine(machine.ProcessPlatformEos, enEos)
 	}
-	im.AddEngine(machine.ProcessPlatformEos, enEos)
 
 	go im.Loop(ctx)
 

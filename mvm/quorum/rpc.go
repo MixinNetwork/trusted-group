@@ -160,7 +160,7 @@ func (chain *RPC) GetLogs(topic string, from, to uint64) ([]*Log, error) {
 	}
 	var logs []*Log
 	for _, r := range resp.Result {
-		data, err := parseTransactionLog(r.Data)
+		data, err := parseTransactionLog(r.Data[2:])
 		if err != nil {
 			logger.Verbosef("GetLogs(%d, %d) => parseTransactionLog(%s) => %v", from, to, r.Data, err)
 			continue
