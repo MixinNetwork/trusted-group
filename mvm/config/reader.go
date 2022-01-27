@@ -18,7 +18,7 @@ type Configuration struct {
 	MTG       *mtg.Configuration            `toml:"mtg"`
 	Machine   *machine.Configuration        `toml:"machine"`
 	Quorum    *quorum.Configuration         `toml:"quorum"`
-	Eos       *eos.Configuration            `toml:"eos"`
+	EOS       *eos.Configuration            `toml:"eos"`
 	Messenger *messenger.MixinConfiguration `toml:"messenger"`
 }
 
