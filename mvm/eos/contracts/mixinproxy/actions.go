@@ -129,7 +129,7 @@ func (c *Contract) Transfer(from chain.Name, to chain.Name, quantity chain.Asset
 		return
 	}
 
-	if c.firstReceiver != chain.TokenContractName && c.firstReceiver != MIXIN_WTOKENS {
+	if c.firstReceiver != MIXIN_WTOKENS {
 		return
 	}
 

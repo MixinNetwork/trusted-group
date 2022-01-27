@@ -149,6 +149,7 @@ func (m *Machine) appendPendingGroupEventSignature(e *encoding.Event, msg, parti
 		return err
 	}
 	if fullSignature {
+		m.store.EnsurePendingEventDeleted(e)
 		return nil
 	}
 
@@ -219,7 +220,7 @@ func (m *Machine) handleEosGroupMessages(ctx context.Context, address string, ev
 	if !ok {
 		sm[evt.ID()] = time.Now()
 	} else {
-		if lst.Add(time.Minute * 5).Before(time.Now()) {
+		if fullSignature && lst.Add(time.Minute*5).Before(time.Now()) {
 			partial := m.engines[ProcessPlatformEos].SignEvent(address, evt)
 			evt.Signature = partial
 			threshold := make([]byte, 8)
