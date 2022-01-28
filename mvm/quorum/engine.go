@@ -27,20 +27,18 @@ const (
 )
 
 type Configuration struct {
-	Store            string `toml:"store"`
-	RPC              string `toml:"rpc"`
-	ChainId          int64  `toml:"chain"`
-	Base             uint64 `toml:"base"`
-	PrivateKey       string `toml:"key"`
-	ContractAgeLimit int64  `toml:"contract-age-limit"`
+	Store      string `toml:"store"`
+	RPC        string `toml:"rpc"`
+	ChainId    int64  `toml:"chain"`
+	Base       uint64 `toml:"base"`
+	PrivateKey string `toml:"key"`
 }
 
 type Engine struct {
-	db               *badger.DB
-	rpc              *RPC
-	chainId          int64
-	key              string
-	contractAgeLimit int64
+	db      *badger.DB
+	rpc     *RPC
+	chainId int64
+	key     string
 }
 
 func Boot(conf *Configuration) (*Engine, error) {
@@ -49,7 +47,7 @@ func Boot(conf *Configuration) (*Engine, error) {
 	if err != nil {
 		return nil, err
 	}
-	e := &Engine{db: db, rpc: rpc, chainId: conf.ChainId, contractAgeLimit: conf.ContractAgeLimit}
+	e := &Engine{db: db, rpc: rpc, chainId: conf.ChainId}
 	if conf.PrivateKey != "" {
 		priv, err := crypto.HexToECDSA(conf.PrivateKey)
 		if err != nil {
@@ -70,29 +68,10 @@ func (e *Engine) SignEvent(address string, event *encoding.Event) []byte {
 	return nil
 }
 
-func (e *Engine) VerifyAddress(address string, hash []byte) error {
+func (e *Engine) VerifyAddress(address string, _ []byte) error {
 	err := ethereum.VerifyAddress(address)
 	if err != nil {
 		return err
-	}
-	height, err := e.rpc.GetBlockHeight()
-	if err != nil {
-		panic(err)
-	}
-	birth, err := e.rpc.GetContractBirthBlock(address, string(hash))
-	if err != nil {
-		return err
-	}
-	var contractAgeLimit uint64
-	if e.contractAgeLimit > 0 {
-		contractAgeLimit = uint64(e.contractAgeLimit)
-	} else if e.contractAgeLimit < 0 {
-		contractAgeLimit = 0
-	} else {
-		contractAgeLimit = DefaultContractAgeLimit
-	}
-	if height < birth+contractAgeLimit {
-		return fmt.Errorf("too young %d %d, age limit %d", birth, height, contractAgeLimit)
 	}
 
 	// TODO ABI

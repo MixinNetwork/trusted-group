@@ -64,34 +64,6 @@ func (chain *RPC) GetBlockHeight() (uint64, error) {
 	return ethereumNumberToUint64(resp.Result)
 }
 
-func (chain *RPC) GetContractBirthBlock(address, hash string) (uint64, error) {
-	body, err := chain.call("eth_getTransactionReceipt", []interface{}{hash})
-	if err != nil {
-		return 0, err
-	}
-	var resp struct {
-		Result struct {
-			BlockNumber     string `json:"blockNumber"`
-			ContractAddress string `json:"contractAddress"`
-		} `json:"result"`
-		Error *EthereumError `json:"error,omitempty"`
-	}
-	err = json.Unmarshal(body, &resp)
-	if err != nil {
-		return 0, err
-	}
-	if resp.Error != nil {
-		return 0, resp.Error
-	}
-	if resp.Result.ContractAddress == "" {
-		return 0, fmt.Errorf("not a contract %s", address)
-	}
-	if formatAddress(resp.Result.ContractAddress) != address {
-		return 0, fmt.Errorf("malformed %s %s %s", address, hash, resp.Result.ContractAddress)
-	}
-	return ethereumNumberToUint64(resp.Result.BlockNumber)
-}
-
 func (chain *RPC) GetAddressNonce(address string) (uint64, error) {
 	body, err := chain.call("eth_getTransactionCount", []interface{}{address, "latest"})
 	if err != nil {
