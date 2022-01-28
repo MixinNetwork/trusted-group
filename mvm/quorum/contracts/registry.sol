@@ -103,7 +103,6 @@ contract Registry {
     mapping(address => uint128) assets;
 
     struct Event {
-        uint128 process;
         uint64 nonce;
         address user;
         address asset;
@@ -113,9 +112,16 @@ contract Registry {
         uint256[2] sig;
     }
 
-    constructor(uint256[4] memory _group, uint128 _pid) {
-        GROUP = _group;
-        PID = _pid;
+    constructor(bytes memory raw, uint128 pid) {
+        require(raw.length == 128);
+        require(pid > 0);
+        GROUP = [
+            raw.toUint256(0),
+            raw.toUint256(32),
+            raw.toUint256(64),
+            raw.toUint256(96)
+        ];
+        PID = pid;
     }
 
     function iterate(bytes memory raw) public {
@@ -181,8 +187,8 @@ contract Registry {
         Event memory evt;
         uint256 offset = 0;
 
-        evt.process = raw.toUint128(offset);
-        require(evt.process == PID, "invalid process");
+        uint128 id = raw.toUint128(offset);
+        require(id == PID, "invalid process");
         offset = offset + 16;
 
         evt.nonce = raw.toUint64(offset);
@@ -190,10 +196,10 @@ contract Registry {
         INBOUND = INBOUND + 1;
         offset = offset + 8;
 
-        (offset, evt.asset) = parseEventAsset(raw, offset);
-        (offset, evt.amount) = parseEventAmount(raw, offset);
+        (offset, id, evt.amount) = parseEventAsset(raw, offset);
         (offset, evt.extra, evt.timestamp) = parseEventExtra(raw, offset);
         (offset, evt.user) = parseEventUser(raw, offset);
+        (evt.asset, evt.extra) = parseEventInput(id, evt.extra);
 
         offset = offset + 2;
         evt.sig = [raw.toUint256(offset), raw.toUint256(offset+32)];
@@ -218,13 +224,16 @@ contract Registry {
         return (offset, extra, timestamp);
     }
 
-    function parseEventAmount(bytes memory raw, uint offset) internal pure returns(uint, uint256) {
+    function parseEventAsset(bytes memory raw, uint offset) internal pure returns(uint, uint128, uint256) {
+        uint128 id = raw.toUint128(offset);
+        require(id > 0, "invalid asset");
+        offset = offset + 16;
         uint size = raw.toUint16(offset);
         offset = offset + 2;
         require(size <= 32, "integer out of bounds");
         uint256 amount = new bytes(32 - size).concat(raw.slice(offset, size)).toUint256(0);
         offset = offset + size;
-        return (offset, amount);
+        return (offset, id, amount);
     }
 
     function parseEventUser(bytes memory raw, uint offset) internal returns (uint, address) {
@@ -232,23 +241,23 @@ contract Registry {
         size = 2 + size * 16 + 2;
         bytes memory members = raw.slice(offset, size);
         offset = offset + size;
-        return (offset, getOrCreateUserContract(members));
+        address user = getOrCreateUserContract(members);
+        return (offset, user);
     }
 
-    function parseEventAsset(bytes memory raw, uint offset) internal returns (uint, address) {
-        uint128 id = raw.toUint128(offset);
-        require(id > 0, "invalid asset");
-        offset = offset + 16;
-        uint16 size = raw.toUint16(offset);
+    function parseEventInput(uint128 id, bytes memory extra) internal returns (address, bytes memory) {
+        uint offset = 0;
+        uint16 size = extra.toUint16(offset);
         offset = offset + 2;
-        string memory symbol = string(raw.slice(offset, size));
+        string memory symbol = string(extra.slice(offset, size));
         offset = offset + size;
-        size = raw.toUint16(offset);
+        size = extra.toUint16(offset);
         offset = offset + 2;
-        string memory name = string(raw.slice(offset, size));
+        string memory name = string(extra.slice(offset, size));
         offset = offset + size;
-        address addr = getOrCreateAssetContract(id, symbol, name);
-        return (offset, addr);
+        bytes memory input = extra.slice(offset, extra.length - offset);
+        address asset = getOrCreateAssetContract(id, symbol, name);
+        return (asset, input);
     }
 
     function getOrCreateAssetContract(uint128 id, string memory symbol, string memory name) internal returns (address) {
