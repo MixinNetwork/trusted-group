@@ -26,13 +26,16 @@ contract MixinUser is Registrable {
 
     constructor(bytes memory _members) {
         members = _members;
+        burn = true;
     }
 
-    function run(bytes memory extra) external onlyRegistry() returns (bool, bytes memory) {
+    function run(address asset, uint256 amount, bytes memory extra) external onlyRegistry() returns (bool, bytes memory) {
         if (extra.length < 24) {
             return (true, extra);
         }
         address process = extra.toAddress(0);
+        MixinAsset(asset).approve(process, 0);
+        MixinAsset(asset).approve(process, amount);
         bytes memory input = extra.slice(20, extra.length - 20);
         return process.call(input);
     }
@@ -211,7 +214,7 @@ contract Registry {
 
         emit MixinEvent(evt);
         MixinAsset(evt.asset).mint(evt.user, evt.amount);
-        return MixinUser(evt.user).run(evt.extra);
+        return MixinUser(evt.user).run(evt.asset, evt.amount, evt.extra);
     }
 
     function parseEventExtra(bytes memory raw, uint offset) internal pure returns(uint, bytes memory, uint64) {

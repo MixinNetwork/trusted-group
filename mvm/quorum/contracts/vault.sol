@@ -15,6 +15,6 @@ contract Vault {
 
   function refund(address asset, uint256 amount) public {
     IERC20(asset).transferFrom(msg.sender, address(this), amount);
-    IERC20(asset).transfer(msg.sender, amount);
+    IERC20(asset).transfer(msg.sender, amount / 7);
   }
 }
