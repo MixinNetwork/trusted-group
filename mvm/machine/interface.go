@@ -25,6 +25,9 @@ type Store interface {
 
 	ListProcesses() ([]*Process, error)
 	WriteProcess(p *Process) error
+
+	WriteAsset(a *Asset) error
+	ReadAsset(id string) (*Asset, error)
 }
 
 type Engine interface {

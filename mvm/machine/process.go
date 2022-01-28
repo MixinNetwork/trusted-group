@@ -25,6 +25,8 @@ type Process struct {
 	Address    string
 	Credit     common.Integer
 	Nonce      uint64
+
+	Asset bool
 }
 
 func (m *Machine) Spawn(ctx context.Context, p *Process) {

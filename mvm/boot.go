@@ -15,6 +15,7 @@ import (
 	"github.com/MixinNetwork/trusted-group/mvm/quorum"
 	"github.com/MixinNetwork/trusted-group/mvm/rpc"
 	"github.com/MixinNetwork/trusted-group/mvm/store"
+	"github.com/fox-one/mixin-sdk-go"
 	"github.com/urfave/cli/v2"
 )
 
@@ -59,11 +60,21 @@ func bootCmd(c *cli.Context) error {
 		return err
 	}
 
+	s := &mixin.Keystore{
+		ClientID:   conf.Messenger.UserId,
+		SessionID:  conf.Messenger.SessionId,
+		PrivateKey: conf.Messenger.Key,
+	}
+	mixin, err := mixin.NewFromKeystore(s)
+	if err != nil {
+		return err
+	}
+
 	messenger, err := messenger.NewMixinMessenger(ctx, conf.Messenger)
 	if err != nil {
 		return err
 	}
-	im, err := machine.Boot(conf.Machine, group, db, messenger)
+	im, err := machine.Boot(conf.Machine, group, db, messenger, mixin)
 	if err != nil {
 		return err
 	}

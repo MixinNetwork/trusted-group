@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
+	"strings"
 	"sync"
 
 	"github.com/MixinNetwork/mixin/common"
@@ -16,6 +17,7 @@ import (
 	"github.com/drand/kyber"
 	"github.com/drand/kyber/group/mod"
 	"github.com/drand/kyber/share"
+	"github.com/fox-one/mixin-sdk-go"
 	"github.com/shopspring/decimal"
 )
 
@@ -30,6 +32,7 @@ type Configuration struct {
 
 type Machine struct {
 	store      Store
+	mixin      *mixin.Client
 	group      *mtg.Group
 	share      *share.PriShare
 	poly       *share.PubPoly
@@ -40,7 +43,7 @@ type Machine struct {
 	signerLock *sync.Mutex
 }
 
-func Boot(conf *Configuration, group *mtg.Group, store Store, m messenger.Messenger) (*Machine, error) {
+func Boot(conf *Configuration, group *mtg.Group, store Store, m messenger.Messenger, mixin *mixin.Client) (*Machine, error) {
 	pb, err := hex.DecodeString(conf.Poly)
 	if err != nil {
 		return nil, err
@@ -56,6 +59,7 @@ func Boot(conf *Configuration, group *mtg.Group, store Store, m messenger.Messen
 	logger.Printf("Machine.Boot(%s)", poly.Commit().String())
 	return &Machine{
 		store:      store,
+		mixin:      mixin,
 		group:      group,
 		share:      share,
 		poly:       poly,
@@ -139,6 +143,7 @@ func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address 
 		Credit:     common.Zero,
 		Nonce:      0,
 	}
+	proc.Asset = strings.Contains(string(extra), "META")
 	err = m.store.WriteProcess(proc)
 	if err != nil {
 		panic(err)
@@ -149,13 +154,20 @@ func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address 
 	return true
 }
 
-func (m *Machine) WriteGroupEvent(pid string, out *mtg.Output, extra []byte) {
+func (m *Machine) WriteGroupEvent(ctx context.Context, pid string, out *mtg.Output, extra []byte) {
 	m.procLock.RLock()
 	defer m.procLock.RUnlock()
 
 	proc := m.processes[pid]
 	if proc == nil {
 		return
+	}
+	if proc.Asset {
+		meta, err := m.fetchAssetMeta(ctx, out.AssetID)
+		if err != nil {
+			panic(err)
+		}
+		extra = append(meta, extra...)
 	}
 
 	done, err := m.store.CheckPendingGroupEventIdentifier(out.UTXOID)
