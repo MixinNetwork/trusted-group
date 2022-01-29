@@ -29,15 +29,17 @@ contract MixinUser is Registrable {
         burn = true;
     }
 
-    function run(address asset, uint256 amount, bytes memory extra) external onlyRegistry() returns (bool, bytes memory) {
+    function run(address asset, uint256 amount, bytes memory extra) external onlyRegistry() returns (bool result) {
         if (extra.length < 24) {
-            return (true, extra);
+            return true;
         }
         address process = extra.toAddress(0);
         MixinAsset(asset).approve(process, 0);
         MixinAsset(asset).approve(process, amount);
         bytes memory input = extra.slice(20, extra.length - 20);
-        return process.call(input);
+        (result, input) = process.call(input);
+        try Registry(registry).claim(asset, amount) {} catch {}
+        return result;
     }
 
     function toggle() external {
@@ -185,7 +187,7 @@ contract Registry {
     }
 
     // process || nonce || asset || amount || extra || timestamp || members || threshold || sig
-    function mixin(bytes memory raw) public returns (bool, bytes memory) {
+    function mixin(bytes memory raw) public returns (bool) {
         require(raw.length >= 141, "event data too small");
 
         Event memory evt;
