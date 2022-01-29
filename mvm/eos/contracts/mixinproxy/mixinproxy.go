@@ -160,14 +160,32 @@ func (c *Contract) HandleEventNoNonceChecking(event *TxEvent) {
 	//deduct fee from event, in case of refundment
 	event.amount.Sub(&event.amount, chain.NewUint128(uint64(feeAmount), 0))
 
+	expiration := uint32(event.timestamp/1e9) + MTG_WORK_EXPIRATION_SECONDS
+	//handle expired work
+	if expiration < chain.CurrentTimeSeconds() {
+		c.Refund(event, "expired, refund")
+	}
+
 	if len(event.members) != 1 {
 		c.ShowError("multisig event not supported currently")
 		return
 	}
 	from := event.members[0]
-	fromAccount, ok := c.IssueAsset(from, quantity, event.timestamp)
+	fromAccount, ok := c.GetAccount(from)
 	if !ok {
-		return
+		fee := c.GetCreateAccountFee()
+		if fee.Amount != 0 {
+			if quantity.Symbol != chain.NewSymbol("MEOS", 8) {
+				c.ShowError("invalid asset for creating account")
+				return
+			}
+			if quantity.Amount < fee.Amount {
+				c.ShowError("not enough fee for creating account")
+				return
+			}
+			quantity.Amount -= fee.Amount
+		}
+		fromAccount = c.CreateNewAccount(from)
 	}
 
 	var action *chain.Action
@@ -216,6 +234,11 @@ func (c *Contract) HandleEventNoNonceChecking(event *TxEvent) {
 		}
 	}
 
+	ok = c.IssueAsset(fromAccount, quantity, event.timestamp)
+	if !ok {
+		return
+	}
+
 	if action != nil {
 		c.SendAction(fromAccount, action)
 	}
@@ -231,46 +254,36 @@ func (c *Contract) SendAction(fromAccount chain.Name, action *chain.Action) {
 	action.Send()
 }
 
-func (c *Contract) IssueAsset(from chain.Uint128, quantity *chain.Asset, timestamp uint64) (chain.Name, bool) {
-	expiration := uint32(timestamp/1e9) + MTG_WORK_EXPIRATION_SECONDS
-	//handle expired work
-	if expiration < chain.CurrentTimeSeconds() {
-		clientId := from
-		asset_id, ok := c.GetMixinAssetId(quantity.Symbol)
-		assert(ok, "asset not found!")
-		amount := chain.NewUint128(uint64(quantity.Amount), 0)
-		c.HandleRefund(clientId, asset_id, *amount, "expired, refund")
+func (c *Contract) GetAccount(userId chain.Uint128) (chain.Name, bool) {
+	dbAccounts := NewMixinAccountDB(c.self, c.self)
+	idxDB := dbAccounts.GetIdxDBByClientId()
+	it2 := idxDB.Find(userId)
+	if !it2.IsOk() {
 		return chain.Name{}, false
 	}
 
+	it, record := dbAccounts.Get(it2.Primary)
+	if !it.IsOk() {
+		return chain.Name{}, false
+	}
+
+	return record.eos_account, true
+}
+
+func (c *Contract) CreateNewAccount(from chain.Uint128) chain.Name {
 	var fromAccount chain.Name
 	dbAccounts := NewMixinAccountDB(c.self, c.self)
 	idxDB := dbAccounts.GetIdxDBByClientId()
 	it2 := idxDB.Find(from)
+	assert(it2.IsOk(), "account already exists!")
+	//		accountId := c.GetNextAccountId()
+	fromAccount = c.GetNextAvailableAccount()
+	record := MixinAccount{eos_account: fromAccount, client_id: from}
+	dbAccounts.Store(&record, c.self)
+	return fromAccount
+}
 
-	if !it2.IsOk() {
-		fee := c.GetCreateAccountFee()
-		if fee.Amount != 0 {
-			if quantity.Symbol != chain.NewSymbol("MEOS", 8) {
-				c.ShowError("invalid asset for creating account")
-				return chain.Name{}, false
-			}
-			if quantity.Amount < fee.Amount {
-				c.ShowError("not enough fee for creating account")
-				return chain.Name{}, false
-			}
-			quantity.Amount -= fee.Amount
-		}
-		//		accountId := c.GetNextAccountId()
-		fromAccount = c.GetNextAvailableAccount()
-		record := MixinAccount{eos_account: fromAccount, client_id: from}
-		dbAccounts.Store(&record, c.self)
-	} else {
-		it, record := dbAccounts.Get(it2.Primary)
-		assert(it.IsOk(), "account not found!")
-		fromAccount = record.eos_account
-	}
-
+func (c *Contract) IssueAsset(fromAccount chain.Name, quantity *chain.Asset, timestamp uint64) bool {
 	symbol := quantity.Symbol
 	sym_code := symbol.Code()
 	db := NewCurrencyStatsDB(MIXIN_WTOKENS, chain.Name{sym_code})
@@ -305,7 +318,7 @@ func (c *Contract) IssueAsset(from chain.Uint128, quantity *chain.Asset, timesta
 		quantity,
 		"transfer",
 	).Send()
-	return fromAccount, true
+	return true
 }
 
 func (c *Contract) TransferOut(member *chain.Uint128, amount chain.Asset, memo string) {
@@ -442,10 +455,6 @@ func (c *Contract) CheckAndIncNonce(oldNonce uint64) {
 
 func (c *Contract) GetNextTxRequestNonce() uint64 {
 	return c.GetNextIndex(KEY_TX_OUT_INDEX, 1)
-}
-
-func (c *Contract) GetNextTxInIndex() uint64 {
-	return c.GetNextIndex(KEY_TX_IN_INDEX, 1)
 }
 
 func (c *Contract) GetNextAccountId() uint64 {

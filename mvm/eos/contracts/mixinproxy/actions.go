@@ -44,7 +44,7 @@ func (c *Contract) OnEvent(event *TxEvent) {
 
 	VerifySignatures(data[:dataSize], event.signatures)
 
-	VerifyProcess(c.self, event.process)
+	assert(event.process == c.process, "invalid process!")
 
 	c.CheckNonce(event.nonce)
 
@@ -137,7 +137,6 @@ func (c *Contract) Transfer(from chain.Name, to chain.Name, quantity chain.Asset
 	if !ok {
 		return
 	}
-	//TODO: check free amount of MTG
 	c.TransferOut(cliendId, quantity, "MTGWork")
 }
 
@@ -155,12 +154,7 @@ func (c *Contract) OnTransfer(from chain.Name, to chain.Name, quantity chain.Ass
 		return
 	}
 
-	var amount *chain.Uint128
-	if quantity.Symbol == chain.NewSymbol("EOS", 4) {
-		amount = chain.NewUint128(uint64(quantity.Amount*10000), 0)
-	} else {
-		amount = chain.NewUint128(uint64(quantity.Amount), 0)
-	}
+	amount := chain.NewUint128(uint64(quantity.Amount), 0)
 
 	assetDB := NewMixinAssetDB(c.self, c.self)
 	it, asset := assetDB.Get(quantity.Symbol.Code())

@@ -64,3 +64,9 @@ type TotalFee struct {
 type CreateAccountFee struct {
 	fee chain.Asset
 }
+
+//table processes ignore
+type Process struct {
+	contract chain.Name //primary : t.contract.N
+	process  chain.Uint128
+}

@@ -173,16 +173,3 @@ func CreateNewAccount(creator chain.Name, ownerAccount chain.Name, newAccount ch
 		RAM_BYTES,
 	).Send()
 }
-
-//table processes ignore
-type Process struct {
-	contract chain.Name //primary : t.contract.N
-	process  chain.Uint128
-}
-
-func VerifyProcess(contract chain.Name, process chain.Uint128) {
-	db := NewProcessDB(MTG_XIN, MTG_XIN)
-	it, record := db.Get(contract.N)
-	assert(it.IsOk(), "process not found!")
-	assert(record.process == process, "invalid process!")
-}
