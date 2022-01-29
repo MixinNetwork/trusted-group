@@ -102,8 +102,9 @@ contract Registry {
     uint64 public INBOUND = 0;
     uint64 public OUTBOUND = 0;
 
-    mapping(address => bytes) users;
-    mapping(address => uint128) assets;
+    mapping(address => bytes) public users;
+    mapping(address => uint128) public assets;
+    mapping(uint => address) public contracts;
 
     struct Event {
         uint64 nonce;
@@ -264,6 +265,10 @@ contract Registry {
     }
 
     function getOrCreateAssetContract(uint128 id, string memory symbol, string memory name) internal returns (address) {
+        address old = contracts[id];
+        if (old != address(0)) {
+            return old;
+        }
         bytes memory code = getAssetContractCode(id, symbol, name);
         address asset = getContractAddress(code);
         if (assets[asset] > 0) {
@@ -272,11 +277,17 @@ contract Registry {
         address addr = deploy(code, VERSION);
         require(addr == asset, "malformed asset contract address");
         assets[asset] = id;
+        contracts[id] = asset;
         emit AssetCreated(asset, id);
         return asset;
     }
 
     function getOrCreateUserContract(bytes memory members) internal returns (address) {
+        uint id = uint256(keccak256(members));
+        address old = contracts[id];
+        if (old != address(0)) {
+            return old;
+        }
         bytes memory code = getUserContractCode(members);
         address user = getContractAddress(code);
         if (users[user].length > 0) {
@@ -285,6 +296,7 @@ contract Registry {
         address addr = deploy(code, VERSION);
         require(addr == user, "malformed user contract address");
         users[user] = members;
+        contracts[id] = user;
         emit UserCreated(user, members);
         return user;
     }
