@@ -858,11 +858,11 @@ func (e *Engine) loopPushGroupEvents(address string) {
 					continue
 				}
 			}
-			sendCount += 1
 			if e.eventStatus[evt.Nonce].Add(TX_EXPIRATION * time.Second).Before(time.Now()) {
 				e.eventStatus[evt.Nonce] = time.Now()
 				err := e.pushEvent(address, evt, true)
 				logger.Verbosef("pushEvent(%v, %v) => (err: %v)", address, evt, err)
+				sendCount += 1
 			}
 		}
 		if sendCount == 0 {
