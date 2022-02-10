@@ -83,7 +83,7 @@ func Boot(conf *Configuration, threshold int) (*Engine, error) {
 	if err != nil {
 		panic(fmt.Errorf("Invalid private key: %s", conf.PrivateKey))
 	}
-	pubKey := key.GetPublicKey().String()
+	pubKey := key.GetPublicKey()
 	pubKeyVerified := false
 
 	if len(conf.PublicKeys) == 0 {
@@ -91,11 +91,11 @@ func Boot(conf *Configuration, threshold int) (*Engine, error) {
 	}
 	pubs := make([]*secp256k1.PublicKey, 0, len(conf.PublicKeys))
 	for _, pub := range conf.PublicKeys {
-		pubKeyVerified = pubKeyVerified || (pub == pubKey)
 		_pub, err := secp256k1.NewPublicKeyFromBase58(pub)
 		if err != nil {
 			panic(fmt.Errorf("Invalid public key: %s", pub))
 		}
+		pubKeyVerified = pubKeyVerified || (*_pub == *pubKey)
 		pubs = append(pubs, _pub)
 	}
 
