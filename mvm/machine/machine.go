@@ -57,6 +57,11 @@ func Boot(conf *Configuration, group *mtg.Group, store Store, m messenger.Messen
 	}
 	share := unmarshalPrivShare(sb)
 	logger.Printf("Machine.Boot(%s)", poly.Commit().String())
+
+	if !poly.Check(share) {
+		panic("invalid machine.share: poly check failed")
+	}
+
 	return &Machine{
 		store:      store,
 		mixin:      mixin,
