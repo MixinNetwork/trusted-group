@@ -11,7 +11,6 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
-
 	"github.com/dgraph-io/badger/v3"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/learnforpractice/goeoslib/chain"
@@ -84,17 +83,24 @@ func Boot(conf *Configuration, threshold int) (*Engine, error) {
 	if err != nil {
 		panic(fmt.Errorf("Invalid private key: %s", conf.PrivateKey))
 	}
+	pubKey := key.GetPublicKey().String()
+	pubKeyVerified := false
 
 	if len(conf.PublicKeys) == 0 {
 		panic("public-keys not specified!")
 	}
 	pubs := make([]*secp256k1.PublicKey, 0, len(conf.PublicKeys))
 	for _, pub := range conf.PublicKeys {
+		pubKeyVerified = pubKeyVerified || (pub == pubKey)
 		_pub, err := secp256k1.NewPublicKeyFromBase58(pub)
 		if err != nil {
 			panic(fmt.Errorf("Invalid public key: %s", pub))
 		}
 		pubs = append(pubs, _pub)
+	}
+
+	if !pubKeyVerified {
+		panic("invalid eos.key: public key not found in eos.public-keys")
 	}
 
 	if conf.MixinContract == "" {
