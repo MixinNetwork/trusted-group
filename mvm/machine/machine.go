@@ -92,7 +92,7 @@ func (m *Machine) Loop(ctx context.Context) {
 func (m *Machine) AddEngine(platform string, engine Engine) {
 	switch platform {
 	case ProcessPlatformQuorum:
-	case ProcessPlatformEos:
+	case ProcessPlatformEOS:
 	default:
 		return
 	}
@@ -198,7 +198,7 @@ func (m *Machine) WriteGroupEvent(ctx context.Context, pid string, out *mtg.Outp
 	if err != nil {
 		panic(err)
 	}
-	err = m.store.WritePendingGroupEventAndNonce(evt, out.UTXOID)
+	err = m.store.WritePendingGroupEventAndNonce(evt, out.UTXOID, proc.SignType())
 	if err != nil {
 		panic(err)
 	}

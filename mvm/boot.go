@@ -88,11 +88,11 @@ func bootCmd(c *cli.Context) error {
 	}
 
 	if conf.EOS != nil {
-		enEos, err := eos.Boot(conf.EOS, group.GetThreshold())
+		enEOS, err := eos.Boot(conf.EOS, group.GetThreshold())
 		if err != nil {
 			return err
 		}
-		im.AddEngine(machine.ProcessPlatformEos, enEos)
+		im.AddEngine(machine.ProcessPlatformEOS, enEOS)
 	}
 
 	go im.Loop(ctx)

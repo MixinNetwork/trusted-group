@@ -7,7 +7,7 @@ import (
 
 type Store interface {
 	CheckPendingGroupEventIdentifier(id string) (bool, error)
-	WritePendingGroupEventAndNonce(event *encoding.Event, id string) error
+	WritePendingGroupEventAndNonce(event *encoding.Event, id string, signType int) error
 	ListPendingGroupEvents(limit int) ([]*encoding.Event, error)
 	ReadGroupEventSignatures(pid string, nonce uint64, signType int) ([][]byte, bool, error)
 	WritePendingGroupEventSignatures(pid string, nonce uint64, partials [][]byte, signType int) error

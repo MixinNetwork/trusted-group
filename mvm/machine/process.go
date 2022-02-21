@@ -15,7 +15,7 @@ import (
 
 const (
 	ProcessPlatformQuorum   = "quorum"
-	ProcessPlatformEos      = "eos"
+	ProcessPlatformEOS      = "eos"
 	ProcessCreditMulplifier = 10
 )
 
@@ -33,6 +33,16 @@ func (m *Machine) Spawn(ctx context.Context, p *Process) {
 	logger.Verbosef("Spawn(%s, %s, %s, %d)", p.Identifier, p.Platform, p.Address, p.Nonce)
 	go m.loopSendEvents(ctx, p)
 	go m.loopReceiveEvents(ctx, p)
+}
+
+func (p *Process) SignType() int {
+	switch p.Platform {
+	case ProcessPlatformQuorum:
+		return SignTypeTBLS
+	case ProcessPlatformEOS:
+		return SignTypeSECP256K1
+	}
+	panic(p.Platform)
 }
 
 func (m *Machine) loopSendEvents(ctx context.Context, p *Process) {

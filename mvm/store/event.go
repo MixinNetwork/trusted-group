@@ -26,7 +26,7 @@ func (bs *BadgerStore) CheckPendingGroupEventIdentifier(id string) (bool, error)
 	return ts > 0, err
 }
 
-func (bs *BadgerStore) WritePendingGroupEventAndNonce(event *encoding.Event, id string) error {
+func (bs *BadgerStore) WritePendingGroupEventAndNonce(event *encoding.Event, id string, sigType int) error {
 	return bs.Badger().Update(func(txn *badger.Txn) error {
 		if event.Timestamp <= 0 {
 			panic(event.Timestamp)
@@ -39,6 +39,10 @@ func (bs *BadgerStore) WritePendingGroupEventAndNonce(event *encoding.Event, id 
 		}
 		err = bs.writePendingGroupEventIdentifier(txn, id, event.Timestamp)
 		if err != nil {
+			return err
+		}
+		full, err := bs.checkSignedEvent(txn, event.Process, event.Nonce, sigType)
+		if err != nil || full {
 			return err
 		}
 
@@ -93,22 +97,8 @@ func (bs *BadgerStore) ReadGroupEventSignatures(pid string, nonce uint64, signTy
 	txn := bs.Badger().NewTransaction(false)
 	defer txn.Discard()
 
-	key := buildSignedEventTimedKey(pid, nonce)
+	key := buildPendingEventSignaturesKey(pid, nonce)
 	item, err := txn.Get(key)
-	if err == nil {
-		val, err := item.ValueCopy(nil)
-		if err != nil {
-			return nil, false, err
-		}
-		var evt encoding.Event
-		err = encoding.JSONUnmarshal(val, &evt)
-		return [][]byte{evt.Signature}, true, err
-	} else if err != badger.ErrKeyNotFound {
-		return nil, false, err
-	}
-
-	key = buildPendingEventSignaturesKey(pid, nonce)
-	item, err = txn.Get(key)
 	if err == badger.ErrKeyNotFound {
 		return nil, false, nil
 	} else if err != nil {
@@ -144,13 +134,11 @@ func (bs *BadgerStore) ReadGroupEventSignatures(pid string, nonce uint64, signTy
 
 func (bs *BadgerStore) WritePendingGroupEventSignatures(pid string, nonce uint64, partials [][]byte, signType int) error {
 	return bs.Badger().Update(func(txn *badger.Txn) error {
-		key := buildSignedEventTimedKey(pid, nonce)
-		_, err := txn.Get(key)
-		if err == nil {
-			return nil
-		} else if err != badger.ErrKeyNotFound {
+		full, err := bs.checkSignedEvent(txn, pid, nonce, signType)
+		if err != nil || full {
 			return err
 		}
+
 		var val []byte
 		for _, p := range partials {
 			if machine.SignTypeTBLS == signType {
@@ -164,28 +152,23 @@ func (bs *BadgerStore) WritePendingGroupEventSignatures(pid string, nonce uint64
 			}
 			val = append(val, p...)
 		}
-		key = buildPendingEventSignaturesKey(pid, nonce)
+		key := buildPendingEventSignaturesKey(pid, nonce)
 		return txn.Set(key, val)
 	})
 }
 
 func (bs *BadgerStore) WriteSignedGroupEventAndExpirePending(event *encoding.Event, signType int) error {
 	return bs.Badger().Update(func(txn *badger.Txn) error {
-		if signType == machine.SignTypeTBLS {
-			if len(event.Signature) != 64 {
-				panic(hex.EncodeToString(event.Signature))
-			}
-		} else if signType == machine.SignTypeSECP256K1 {
-			remain := len(event.Signature) % 65
-			if remain != 1 {
-				panic(fmt.Errorf("not a full signature: %x", event.Signature))
-			}
-		} else {
-			panic(fmt.Errorf("unknown signature type: %d", signType))
+		if !checkFullSignature(event.Signature, signType) {
+			panic(hex.EncodeToString(event.Signature))
+		}
+		full, err := bs.checkSignedEvent(txn, event.Process, event.Nonce, signType)
+		if err != nil || full {
+			return err
 		}
 
 		pending := buildPendingEventTimedKey(event)
-		err := txn.Delete(pending)
+		err = txn.Delete(pending)
 		if err != nil {
 			return err
 		}
@@ -257,6 +240,21 @@ func (bs *BadgerStore) ExpireGroupEventsWithCost(events []*encoding.Event, cost 
 	})
 }
 
+func (bs *BadgerStore) checkSignedEvent(txn *badger.Txn, pid string, nonce uint64, sigType int) (bool, error) {
+	key := buildPendingEventSignaturesKey(pid, nonce)
+	item, err := txn.Get(key)
+	if err == badger.ErrKeyNotFound {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	val, err := item.ValueCopy(nil)
+	if err != nil {
+		return false, err
+	}
+	return checkFullSignature(val, sigType), nil
+}
+
 func (bs *BadgerStore) writePendingGroupEventIdentifier(txn *badger.Txn, id string, ts uint64) error {
 	buf := uint64Bytes(ts)
 	key := append([]byte(prefixPendingEventIdentifier), id...)
@@ -296,4 +294,14 @@ func buildSignedEventTimedKey(pid string, nonce uint64) []byte {
 	buf := uint64Bytes(nonce)
 	key := append([]byte(prefixSignedEventQueue), pid...)
 	return append(key, buf...)
+}
+
+func checkFullSignature(val []byte, sigType int) bool {
+	if sigType == machine.SignTypeTBLS {
+		return len(val) == 64
+	} else if sigType == machine.SignTypeSECP256K1 {
+		return len(val)%65 == 1
+	} else {
+		panic(sigType)
+	}
 }

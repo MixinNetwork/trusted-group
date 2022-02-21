@@ -25,7 +25,7 @@ func (m *Machine) ProcessOutput(ctx context.Context, out *mtg.Output) {
 	switch op.Purpose {
 	case encoding.OperationPurposeAddProcess:
 		ok := m.AddProcess(ctx, op.Process, op.Platform, op.Address, out, op.Extra)
-		if ok && op.Platform == ProcessPlatformEos {
+		if ok && op.Platform == ProcessPlatformEOS {
 			m.WriteGroupEvent(ctx, op.Process, out, op.Extra)
 		}
 	case encoding.OperationPurposeGroupEvent:
