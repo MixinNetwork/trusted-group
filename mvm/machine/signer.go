@@ -92,6 +92,7 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 		}
 		process := m.getProcess(evt.Process)
 		if process == nil {
+			logger.Verbosef("getProcess(%s) => %v", evt)
 			continue
 		}
 		if process.Platform == ProcessPlatformEos {
@@ -104,6 +105,7 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 		msg := evt.Encode()
 
 		partials, fullSignature, err := m.store.ReadGroupEventSignatures(evt.Process, evt.Nonce, SignTypeTBLS)
+		logger.Verbosef("ReadGroupEventSignatures(%s, %d) => %v %v %v", evt.Process, evt.Nonce, partials, fullSignature, err)
 		if err != nil {
 			panic(err)
 		}

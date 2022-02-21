@@ -21,9 +21,8 @@ const (
 	// function mixin(bytes calldata raw) public returns (bool)
 	EventMethod = "0x5cae8005"
 
-	DefaultContractAgeLimit = 16
-	GasLimit                = 8000000
-	GasPrice                = 100000000000
+	GasLimit = 8000000
+	GasPrice = 10000000000
 )
 
 type Configuration struct {
