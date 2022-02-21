@@ -89,12 +89,26 @@ func (bs *BadgerStore) ListPendingGroupEvents(limit int) ([]*encoding.Event, err
 	return evts, nil
 }
 
-func (bs *BadgerStore) ReadPendingGroupEventSignatures(pid string, nonce uint64, signType int) ([][]byte, bool, error) {
+func (bs *BadgerStore) ReadGroupEventSignatures(pid string, nonce uint64, signType int) ([][]byte, bool, error) {
 	txn := bs.Badger().NewTransaction(false)
 	defer txn.Discard()
 
-	key := buildPendingEventSignaturesKey(pid, nonce)
+	key := buildSignedEventTimedKey(pid, nonce)
 	item, err := txn.Get(key)
+	if err == nil {
+		val, err := item.ValueCopy(nil)
+		if err != nil {
+			return nil, false, err
+		}
+		var evt encoding.Event
+		err = encoding.JSONUnmarshal(val, &evt)
+		return [][]byte{evt.Signature}, true, err
+	} else if err != badger.ErrKeyNotFound {
+		return nil, false, err
+	}
+
+	key = buildPendingEventSignaturesKey(pid, nonce)
+	item, err = txn.Get(key)
 	if err == badger.ErrKeyNotFound {
 		return nil, false, nil
 	} else if err != nil {
@@ -183,13 +197,6 @@ func (bs *BadgerStore) WriteSignedGroupEventAndExpirePending(event *encoding.Eve
 		key := buildSignedEventTimedKey(event.Process, event.Nonce)
 		val := encoding.JSONMarshalPanic(event)
 		return txn.Set(key, val)
-	})
-}
-
-func (bs *BadgerStore) EnsurePendingEventDeleted(event *encoding.Event) {
-	bs.Badger().Update(func(txn *badger.Txn) error {
-		pending := buildPendingEventTimedKey(event)
-		return txn.Delete(pending)
 	})
 }
 

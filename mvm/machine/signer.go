@@ -103,7 +103,7 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 		evt.Signature = nil
 		msg := evt.Encode()
 
-		partials, fullSignature, err := m.store.ReadPendingGroupEventSignatures(evt.Process, evt.Nonce, SignTypeTBLS)
+		partials, fullSignature, err := m.store.ReadGroupEventSignatures(evt.Process, evt.Nonce, SignTypeTBLS)
 		if err != nil {
 			panic(err)
 		}
@@ -144,12 +144,11 @@ func (m *Machine) appendPendingGroupEventSignature(e *encoding.Event, msg, parti
 	m.signerLock.Lock()
 	defer m.signerLock.Unlock()
 
-	partials, fullSignature, err := m.store.ReadPendingGroupEventSignatures(e.Process, e.Nonce, signType)
+	partials, fullSignature, err := m.store.ReadGroupEventSignatures(e.Process, e.Nonce, signType)
 	if err != nil {
 		return err
 	}
 	if fullSignature {
-		m.store.EnsurePendingEventDeleted(e)
 		return nil
 	}
 
@@ -211,7 +210,7 @@ func (m *Machine) handleEosGroupMessages(ctx context.Context, address string, ev
 		return
 	}
 
-	_, fullSignature, err := m.store.ReadPendingGroupEventSignatures(evt.Process, evt.Nonce, SignTypeSECP256K1)
+	_, fullSignature, err := m.store.ReadGroupEventSignatures(evt.Process, evt.Nonce, SignTypeSECP256K1)
 	if err != nil {
 		panic(err)
 	}

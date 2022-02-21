@@ -9,13 +9,11 @@ type Store interface {
 	CheckPendingGroupEventIdentifier(id string) (bool, error)
 	WritePendingGroupEventAndNonce(event *encoding.Event, id string) error
 	ListPendingGroupEvents(limit int) ([]*encoding.Event, error)
-	ReadPendingGroupEventSignatures(pid string, nonce uint64, signType int) ([][]byte, bool, error)
+	ReadGroupEventSignatures(pid string, nonce uint64, signType int) ([][]byte, bool, error)
 	WritePendingGroupEventSignatures(pid string, nonce uint64, partials [][]byte, signType int) error
 	WriteSignedGroupEventAndExpirePending(event *encoding.Event, signType int) error
 	ListSignedGroupEvents(pid string, limit int) ([]*encoding.Event, error)
 	ExpireGroupEventsWithCost(events []*encoding.Event, cost common.Integer) error
-
-	EnsurePendingEventDeleted(event *encoding.Event)
 
 	CheckAccountSnapshot(as *AccountSnapshot) (bool, error)
 	WriteAccountSnapshot(as *AccountSnapshot) error
