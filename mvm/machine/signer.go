@@ -92,7 +92,7 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 		}
 		process := m.getProcess(evt.Process)
 		if process == nil {
-			logger.Verbosef("getProcess(%s) => %v", evt)
+			logger.Verbosef("getProcess(%s) => %v", evt.Process, evt)
 			continue
 		}
 		if process.Platform == ProcessPlatformEos {
