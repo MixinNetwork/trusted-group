@@ -112,6 +112,11 @@ func main() {
 					},
 				},
 			},
+			{
+				Name:   "decode",
+				Usage:  "Decode a MVM message",
+				Action: decodeMsgCmd,
+			},
 		},
 	}
 
