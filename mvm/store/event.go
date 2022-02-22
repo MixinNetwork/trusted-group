@@ -41,10 +41,6 @@ func (bs *BadgerStore) WritePendingGroupEventAndNonce(event *encoding.Event, id 
 		if err != nil {
 			return err
 		}
-		full, err := bs.checkSignedEvent(txn, event.Process, event.Nonce, sigType)
-		if err != nil || full {
-			return err
-		}
 
 		proc, err := bs.readProcess(txn, event.Process)
 		if err != nil {
@@ -58,6 +54,12 @@ func (bs *BadgerStore) WritePendingGroupEventAndNonce(event *encoding.Event, id 
 		if err != nil {
 			return err
 		}
+
+		full, err := bs.checkSignedEvent(txn, event.Process, event.Nonce, sigType)
+		if err != nil || full {
+			return err
+		}
+
 		key := buildPendingEventTimedKey(event)
 		val := encoding.JSONMarshalPanic(event)
 		return txn.Set(key, val)
