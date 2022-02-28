@@ -66,7 +66,7 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 
 			threshold := make([]byte, 8)
 			binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
-			err = m.messenger.BroadcastMessage(ctx, append(e.Encode(), threshold...))
+			err = m.queueMessage(ctx, append(e.Encode(), threshold...))
 			if err != nil {
 				panic(err)
 			}
@@ -131,7 +131,7 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 			evt.Signature = partials[0]
 			threshold := make([]byte, 8)
 			binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
-			m.messenger.SendMessage(ctx, peer, append(evt.Encode(), threshold...))
+			m.messenger.QueueMessage(ctx, peer, append(evt.Encode(), threshold...))
 			sm[evt.ID()] = time.Now()
 		default:
 			// FIXME ensure valid partial signature
@@ -250,4 +250,14 @@ func (m *Machine) eosWriteFullSignatures(e *encoding.Event, partials [][]byte) e
 	}
 	e.Signature = append(e.Signature, byte(len(partials)))
 	return m.store.WriteSignedGroupEventAndExpirePending(e, SignTypeSECP256K1)
+}
+
+func (m *Machine) queueMessage(ctx context.Context, b []byte) error {
+	for _, p := range m.group.GetMembers() {
+		err := m.messenger.QueueMessage(ctx, p, b)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
