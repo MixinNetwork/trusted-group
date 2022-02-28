@@ -2,36 +2,6 @@
 pragma solidity >=0.8.0 <0.9.0;
 
 /**
- * @title SafeMath
- * @dev Math operations with safety checks that throw on error
- */
-library SafeMath {
-  function mul(uint256 a, uint256 b) internal pure returns (uint256) {
-    uint256 c = a * b;
-    assert(a == 0 || c / a == b);
-    return c;
-  }
-
-  function div(uint256 a, uint256 b) internal pure returns (uint256) {
-    // assert(b > 0); // Solidity automatically throws when dividing by 0
-    uint256 c = a / b;
-    // assert(a == b * c + a % b); // There is no case in which this doesn't hold
-    return c;
-  }
-
-  function sub(uint256 a, uint256 b) internal pure returns (uint256) {
-    assert(b <= a);
-    return a - b;
-  }
-
-  function add(uint256 a, uint256 b) internal pure returns (uint256) {
-    uint256 c = a + b;
-    assert(c >= a);
-    return c;
-  }
-}
-
-/**
  * @title ERC20 interface
  * @dev see https://github.com/ethereum/EIPs/issues/20
  */
@@ -53,8 +23,6 @@ interface IERC20 {
  * @dev Based on code by FirstBlood: https://github.com/Firstbloodio/token/blob/master/smart_contract/FirstBloodToken.sol
  */
 abstract contract StandardToken is IERC20 {
-  using SafeMath for uint256;
-
   mapping(address => uint256) balances;
   mapping (address => mapping (address => uint256)) allowed;
 
@@ -74,10 +42,8 @@ abstract contract StandardToken is IERC20 {
    */
   function _transfer(address _from, address _to, uint256 _value) internal {
     require(_to != address(0));
-
-    // SafeMath.sub will throw if there is not enough balance.
-    balances[_from] = balances[_from].sub(_value);
-    balances[_to] = balances[_to].add(_value);
+    balances[_from] = balances[_from] - _value;
+    balances[_to] = balances[_to] + _value;
     emit Transfer(_from, _to, _value);
   }
 
@@ -88,10 +54,9 @@ abstract contract StandardToken is IERC20 {
    * @param _value uint256 the amount of tokens to be transferred
    */
   function _transferFrom(address _from, address _to, uint256 _value) internal {
-    uint256 _allowance = allowed[_from][msg.sender];
     require(_to != address(0));
-    require (_value <= _allowance);
-    allowed[_from][msg.sender] = _allowance.sub(_value);
+    uint256 _allowance = allowed[_from][msg.sender];
+    allowed[_from][msg.sender] = _allowance - _value;
     _transfer(_from, _to, _value);
   }
 
