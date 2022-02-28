@@ -115,7 +115,7 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 		case len(sig) == 64:
 			err = crypto.Verify(m.poly.Commit(), msg, sig)
 			if err != nil && evt.Timestamp > 1638789832002675803 { // FIXME remove this timestamp check
-				logger.Verbosef("crypto.Verify(%x, %x) => %v", msg, sig, err)
+				logger.Verbosef("crypto.Verify(%x, %x) => %v %v", msg, sig, evt, err)
 				continue
 			}
 			evt.Signature = sig

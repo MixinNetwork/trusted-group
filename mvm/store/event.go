@@ -34,7 +34,7 @@ func (bs *BadgerStore) WritePendingGroupEventAndNonce(event *encoding.Event, id 
 		ts, err := bs.readPendingGroupEventIdentifier(txn, id)
 		if err != nil {
 			return err
-		} else if ts > 0 && ts != event.Timestamp {
+		} else if ts > 0 {
 			panic(id)
 		}
 		err = bs.writePendingGroupEventIdentifier(txn, id, event.Timestamp)
@@ -174,6 +174,7 @@ func (bs *BadgerStore) WriteSignedGroupEventAndExpirePending(event *encoding.Eve
 		if err != nil {
 			return err
 		}
+
 		ps := buildPendingEventSignaturesKey(event.Process, event.Nonce)
 		err = txn.Set(ps, event.Signature)
 		if err != nil {
