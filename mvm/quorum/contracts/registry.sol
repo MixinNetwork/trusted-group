@@ -135,7 +135,7 @@ contract Registry {
         uint256[4] memory group = [raw.toUint256(0), raw.toUint256(32), raw.toUint256(64), raw.toUint256(96)];
         uint256[2] memory sig1 = [raw.toUint256(128), raw.toUint256(160)];
         uint256[2] memory sig2 = [raw.toUint256(192), raw.toUint256(224)];
-        uint256[2] memory message = raw.slice(0, 196).hashToPoint();
+        uint256[2] memory message = raw.slice(0, 128).hashToPoint();
         require(sig1.verifySingle(GROUP, message));
         require(sig2.verifySingle(group, message));
         GROUP = group;
