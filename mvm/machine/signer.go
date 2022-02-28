@@ -66,7 +66,7 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 
 			threshold := make([]byte, 8)
 			binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
-			err = m.messenger.SendMessage(ctx, append(e.Encode(), threshold...))
+			err = m.messenger.BroadcastMessage(ctx, append(e.Encode(), threshold...))
 			if err != nil {
 				panic(err)
 			}
@@ -81,7 +81,7 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 	sm := make(map[string]time.Time)
 	for {
-		_, b, err := m.messenger.ReceiveMessage(ctx)
+		peer, b, err := m.messenger.ReceiveMessage(ctx)
 		if err != nil {
 			logger.Verbosef("Machine.ReceiveMessage() => %s", err)
 			panic(err)
@@ -131,7 +131,7 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 			evt.Signature = partials[0]
 			threshold := make([]byte, 8)
 			binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
-			m.messenger.SendMessage(ctx, append(evt.Encode(), threshold...))
+			m.messenger.SendMessage(ctx, peer, append(evt.Encode(), threshold...))
 			sm[evt.ID()] = time.Now()
 		default:
 			// FIXME ensure valid partial signature
@@ -227,7 +227,7 @@ func (m *Machine) handleEOSGroupMessages(ctx context.Context, address string, ev
 			evt.Signature = partial
 			threshold := make([]byte, 8)
 			binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
-			m.messenger.SendMessage(ctx, append(evt.Encode(), threshold...))
+			m.messenger.BroadcastMessage(ctx, append(evt.Encode(), threshold...))
 			sm[evt.ID()] = time.Now()
 		}
 	}
