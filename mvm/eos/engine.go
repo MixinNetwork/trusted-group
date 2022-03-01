@@ -382,8 +382,8 @@ func (e *Engine) ParseTxLogFromActionTrace(obj chain.JsonObject) *TxLog {
 	return txLog
 }
 
-func (e *Engine) FetchActions(blockNum uint64) ([]interface{}, error) {
-	actions := make([]interface{}, 0)
+func (e *Engine) FetchActions(blockNum uint64) ([]chain.JsonObject, error) {
+	actions := make([]chain.JsonObject, 0)
 	block, err := e.chainApiGetState.GetBlockTrace(blockNum)
 	if err != nil {
 		return nil, err
@@ -415,16 +415,13 @@ func (e *Engine) FetchActions(blockNum uint64) ([]interface{}, error) {
 			if !ok {
 				return nil, fmt.Errorf("bad action object")
 			}
-			// value, err := act.GetUint64("global_sequence")
-			// if err != nil {
-			// 	return nil, err
-			// }
+
 			receiver, err := act.GetString("receiver")
 			if err != nil {
 				return nil, err
 			}
 
-			if "mtgxinmtgxin" != receiver {
+			if e.mixinContract != receiver {
 				continue
 			}
 
@@ -444,7 +441,7 @@ func (e *Engine) FetchActions(blockNum uint64) ([]interface{}, error) {
 			if action != "ontxlog" {
 				continue
 			}
-			actions = append(actions, action)
+			actions = append(actions, act)
 		}
 	}
 	return actions, nil
@@ -460,24 +457,18 @@ func (e *Engine) PullContractEvents() error {
 	if err == ErrorNotIrreversible {
 		return nil
 	}
-
+	e.storeWriteCurrentBlockNum(curBlockNum + 1)
 	if len(actions) == 0 {
 		return nil
 	}
 
 	e.parseActions(actions)
-	e.storeWriteCurrentBlockNum(curBlockNum + 1)
 	return nil
 }
 
-func (e *Engine) parseActions(actions []interface{}) {
+func (e *Engine) parseActions(actions []chain.JsonObject) {
 	for _, action := range actions {
-		obj, ok := chain.NewJsonObjectFromInterface(action)
-		if !ok {
-			panic("invalid action")
-		}
-
-		txLog := e.ParseTxLogFromActionTrace(obj)
+		txLog := e.ParseTxLogFromActionTrace(action)
 		evt := convertTxLogToEvent(txLog)
 
 		err := e.storeWriteContractEvent(txLog.contract.String(), evt)
