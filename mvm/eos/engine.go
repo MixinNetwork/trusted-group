@@ -428,6 +428,15 @@ func (e *Engine) FetchActions(blockNum uint64) ([]interface{}, error) {
 				continue
 			}
 
+			account, err := act.GetString("account")
+			if err != nil {
+				return nil, err
+			}
+
+			if account != receiver {
+				continue
+			}
+
 			action, err := act.GetString("action")
 			if err != nil {
 				return nil, err
@@ -436,10 +445,6 @@ func (e *Engine) FetchActions(blockNum uint64) ([]interface{}, error) {
 				continue
 			}
 			actions = append(actions, action)
-			// data, err := act.GetString("data")
-			// if err != nil {
-			// 	return nil, err
-			// }
 		}
 	}
 	return actions, nil
