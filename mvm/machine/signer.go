@@ -17,6 +17,8 @@ import (
 const (
 	SignTypeTBLS      = 1
 	SignTypeSECP256K1 = 2
+
+	messagePeriod = time.Hour
 )
 
 func (m *Machine) getProcess(pid string) *Process {
@@ -41,7 +43,7 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 				m.writeSignedGroupEventAndExpirePending(e, SignTypeTBLS)
 				continue
 			}
-			lst := sm[e.ID()].Add(time.Minute * 5)
+			lst := sm[e.ID()].Add(messagePeriod)
 			if lst.After(time.Now()) {
 				continue
 			}
@@ -125,7 +127,7 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 				panic(err)
 			}
 		case fullSignature:
-			if sm[evt.ID()].Add(time.Minute * 5).After(time.Now()) {
+			if sm[evt.ID()].Add(messagePeriod).After(time.Now()) {
 				continue
 			}
 			evt.Signature = partials[0]
@@ -221,15 +223,13 @@ func (m *Machine) handleEOSGroupMessages(ctx context.Context, address string, ev
 	lst, ok := sm[evt.ID()]
 	if !ok {
 		sm[evt.ID()] = time.Now()
-	} else {
-		if fullSignature && lst.Add(time.Minute*5).Before(time.Now()) {
-			partial := m.engines[ProcessPlatformEOS].SignEvent(address, evt)
-			evt.Signature = partial
-			threshold := make([]byte, 8)
-			binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
-			m.messenger.BroadcastMessage(ctx, append(evt.Encode(), threshold...))
-			sm[evt.ID()] = time.Now()
-		}
+	} else if fullSignature && lst.Add(messagePeriod).Before(time.Now()) {
+		partial := m.engines[ProcessPlatformEOS].SignEvent(address, evt)
+		evt.Signature = partial
+		threshold := make([]byte, 8)
+		binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
+		m.messenger.BroadcastMessage(ctx, append(evt.Encode(), threshold...))
+		sm[evt.ID()] = time.Now()
 	}
 
 	if fullSignature {
