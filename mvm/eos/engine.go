@@ -452,7 +452,9 @@ func (e *Engine) PullContractEvents() error {
 	if curBlockNum < e.startBlockNum {
 		curBlockNum = e.startBlockNum
 	}
-
+	if curBlockNum%100 == 0 {
+		logger.Verbosef("+++++++++++++current block num %d", curBlockNum)
+	}
 	actions, err := e.FetchActions(curBlockNum)
 	if err == ErrorNotIrreversible {
 		return nil
