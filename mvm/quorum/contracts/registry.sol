@@ -311,7 +311,7 @@ contract Registry {
 
     function getAssetContractCode(uint id, string memory symbol, string memory name) internal pure returns (bytes memory) {
         bytes memory code = type(MixinAsset).creationCode;
-        bytes memory args = abi.encode(id, symbol, name);
+        bytes memory args = abi.encode(id, name, symbol);
         return abi.encodePacked(code, args);
     }
 
