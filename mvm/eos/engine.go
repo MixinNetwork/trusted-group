@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -29,19 +30,23 @@ const (
 	MAX_ACTIONS   = 100
 )
 
+var (
+	ErrorNotIrreversible = errors.New("ErrorNotIrreversible")
+)
+
 type Configuration struct {
-	Store               string   `toml:"store"`
-	RPCPush             string   `toml:"rpc-push"`
-	RPCGetState         string   `toml:"rpc-get-state"`
-	PrivateKey          string   `toml:"key"`
-	MixinContract       string   `toml:"mixin-contract"`
-	MTGPublisher        string   `toml:"mtg-publisher"`
-	MTGExecutor         string   `toml:"mtg-executor"`
-	MTGExecutorKey      string   `toml:"mtg-executor-key"`
-	ChainId             string   `toml:"chain-id"`
-	PublicKeys          []string `toml:"public-keys"`
-	Publisher           bool     `toml:"publisher"`
-	ActionStartSequence uint64   `toml:"action-start-sequence"`
+	Store          string   `toml:"store"`
+	RPCPush        string   `toml:"rpc-push"`
+	RPCGetState    string   `toml:"rpc-get-state"`
+	PrivateKey     string   `toml:"key"`
+	MixinContract  string   `toml:"mixin-contract"`
+	MTGPublisher   string   `toml:"mtg-publisher"`
+	MTGExecutor    string   `toml:"mtg-executor"`
+	MTGExecutorKey string   `toml:"mtg-executor-key"`
+	ChainId        string   `toml:"chain-id"`
+	PublicKeys     []string `toml:"public-keys"`
+	Publisher      bool     `toml:"publisher"`
+	StartBlockNum  uint64   `toml:"start-block-num"`
 }
 
 type Engine struct {
@@ -62,7 +67,7 @@ type Engine struct {
 	lastIrrBlockTime     time.Time
 	lastIrrBlockId       string
 	eventStatus          map[uint64]time.Time
-	actionStartSequence  uint64
+	startBlockNum        uint64
 }
 
 func Boot(conf *Configuration, threshold int) (*Engine, error) {
@@ -145,7 +150,7 @@ func Boot(conf *Configuration, threshold int) (*Engine, error) {
 		threshold:            threshold,
 		mutex:                new(sync.Mutex),
 		eventStatus:          make(map[uint64]time.Time),
-		actionStartSequence:  conf.ActionStartSequence,
+		startBlockNum:        conf.StartBlockNum,
 	}
 
 	if e.key != nil {
@@ -348,72 +353,17 @@ func (e *Engine) EnsureSendGroupEvents(address string, events []*encoding.Event)
 
 func (e *Engine) loopContractEvents() {
 	for {
-		count, err := e.PullContractEvents()
+		err := e.PullContractEvents()
 		if err != nil {
 			logger.Verbosef("PullContractEvents return error: %v", err)
-		}
-		if count == 0 {
-			time.Sleep(ClockTick)
 		}
 	}
 }
 
 func (e *Engine) ParseTxLogFromActionTrace(obj chain.JsonObject) *TxLog {
-	actionObj, err := obj.GetJsonObject("action_trace", "act")
+	data, err := obj.GetString("data")
 	if err != nil {
 		panic(err)
-	}
-
-	if DEBUG {
-		receiver, err := obj.GetString("action_trace", "receiver")
-		if err != nil {
-			panic(err)
-		}
-
-		if receiver != e.mixinContract {
-			panic(fmt.Errorf("receiver not match: expected: %s, got: %s", e.mixinContract, receiver))
-		}
-
-		account, err := actionObj.GetString("account")
-		if err != nil {
-			panic(err)
-		}
-		if account != e.mixinContract {
-			panic("Invalid main account")
-		}
-
-		action_name, err := actionObj.GetString("name")
-		if err != nil {
-			panic(err)
-		}
-		if action_name != TX_LOG_ACTION {
-			panic(fmt.Errorf("Invalid action name, expected: %s, got: %s", TX_LOG_ACTION, action_name))
-		}
-
-		actor, err := actionObj.GetString("authorization", 0, "actor")
-		if err != nil {
-			panic(err)
-		}
-
-		if actor != e.mixinContract {
-			panic(fmt.Errorf("Invalid permission actor, expected: %s, got: %s", e.mixinContract, actor))
-		}
-
-		permission, err := actionObj.GetString("authorization", 0, "permission")
-		if err != nil {
-			panic(err)
-		}
-		if permission != "active" {
-			panic(fmt.Errorf("Invalid permission, expected: active, got: %s", permission))
-		}
-	}
-
-	data, err := actionObj.GetString("hex_data")
-	if err != nil {
-		data, err = actionObj.GetString("data")
-		if err != nil {
-			panic(err)
-		}
 	}
 
 	b, err := hex.DecodeString(data)
@@ -432,159 +382,102 @@ func (e *Engine) ParseTxLogFromActionTrace(obj chain.JsonObject) *TxLog {
 	return txLog
 }
 
-func (e *Engine) AdjustOffset(txReqeustIndex uint64) uint64 {
-	//Fetch the first action trace for calculating the offset
-	r, err := e.chainApiGetState.GetActions(e.mixinContract, 0, 1)
-	if err != nil {
-		panic(err)
-	}
-
-	actions, err := r.GetArray("actions")
-	if err != nil {
-		panic(err)
-	}
-	if len(actions) == 0 {
-		panic("no actions found while trying to reset offset.")
-	}
-
-	obj, ok := chain.NewJsonObjectFromInterface(actions[0])
-	if !ok {
-		panic("invalid action")
-	}
-
-	txLog := e.ParseTxLogFromActionTrace(obj)
-
-	if txReqeustIndex < txLog.id {
-		panic(fmt.Errorf("new action history is not overlapped with the old one, txLog.id: %d, txReqeustIndex: %d", txLog.id, txReqeustIndex))
-	}
-
-	return txReqeustIndex - txLog.id
-}
-
-func (e *Engine) FetchActions(offset uint64) ([]interface{}, error) {
-	r, err := e.chainApiGetState.GetActions(e.mixinContract, int(offset), MAX_ACTIONS)
+func (e *Engine) FetchActions(blockNum uint64) ([]chain.JsonObject, error) {
+	actions := make([]chain.JsonObject, 0)
+	block, err := e.chainApiGetState.GetBlockTrace(blockNum)
 	if err != nil {
 		return nil, err
 	}
 
-	actions, err := r.GetArray("actions")
+	value, err := block.GetString("status")
 	if err != nil {
-		panic(err)
+		return nil, err
+	}
+
+	if value != "irreversible" {
+		return nil, ErrorNotIrreversible
+	}
+
+	txs, err := block.GetArray("transactions")
+	for _, _tx := range txs {
+		tx, ok := chain.NewJsonObjectFromInterface(_tx)
+		if !ok {
+			return nil, fmt.Errorf("bad tx object")
+		}
+
+		acts, err := tx.GetArray("actions")
+		if err != nil {
+			return nil, err
+		}
+
+		for _, _act := range acts {
+			act, ok := chain.NewJsonObjectFromInterface(_act)
+			if !ok {
+				return nil, fmt.Errorf("bad action object")
+			}
+
+			receiver, err := act.GetString("receiver")
+			if err != nil {
+				return nil, err
+			}
+
+			if e.mixinContract != receiver {
+				continue
+			}
+
+			account, err := act.GetString("account")
+			if err != nil {
+				return nil, err
+			}
+
+			if account != receiver {
+				continue
+			}
+
+			action, err := act.GetString("action")
+			if err != nil {
+				return nil, err
+			}
+			if action != "ontxlog" {
+				continue
+			}
+			actions = append(actions, act)
+		}
 	}
 	return actions, nil
 }
 
-func (e *Engine) PullContractEvents() (int, error) {
-	txRequestCount, err := e.GetTxRequestsCount()
+func (e *Engine) PullContractEvents() error {
+	curBlockNum := e.storeReadCurrentBlockNum()
+	if curBlockNum < e.startBlockNum {
+		curBlockNum = e.startBlockNum
+	}
+	if curBlockNum%100 == 0 {
+		logger.Verbosef("+++++++++++++current block num %d", curBlockNum)
+	}
+	actions, err := e.FetchActions(curBlockNum)
 	if err != nil {
-		return 0, err
+		return err
+	}
+	e.storeWriteCurrentBlockNum(curBlockNum + 1)
+	if len(actions) == 0 {
+		return nil
 	}
 
-	currentTxRequestIndex := e.storeReadTxRequestNonce()
-
-	offset := e.storeReadContractLogsOffset(e.mixinContract)
-
-	tryFetchActions := true
-	for tryFetchActions {
-		tryFetchActions = false
-		actions, err := e.FetchActions(offset)
-		logger.Verbosef("+++++++PullContractEvents txRequestCount: %d, txReqeustIndex: %d, offset: %d, len(actions): %d, err: %v", txRequestCount, currentTxRequestIndex, offset, len(actions), err)
-		if err != nil {
-			return 0, err
-		}
-
-		if len(actions) == 0 {
-			if currentTxRequestIndex > 0 && txRequestCount >= currentTxRequestIndex+1 {
-				//Eos node has been started from a new snapshoot, try to reset offset accordingly
-				offset = e.AdjustOffset(currentTxRequestIndex)
-				logger.Verbosef("+++try to adjust offset. e.AdjustOffset(%d) => %d", currentTxRequestIndex, offset)
-				tryFetchActions = true
-				continue
-			} else {
-				return 0, nil
-			}
-		} else {
-			var count int
-			count, tryFetchActions = e.parseActions(currentTxRequestIndex, actions)
-			if tryFetchActions {
-				offset = e.AdjustOffset(currentTxRequestIndex)
-				logger.Verbosef("parseActions return true, try to adjust offset: AdjustOffset(%d) => offset: %d", currentTxRequestIndex, offset)
-				continue
-			}
-			return count, nil
-		}
-	}
-	return 0, nil
+	e.parseActions(actions)
+	return nil
 }
 
-func (e *Engine) parseActions(txRequestIndex uint64, actions []interface{}) (int, bool) {
-	lastIndex := uint64(0)
-	count := 0
-	for i, action := range actions {
-		obj, ok := chain.NewJsonObjectFromInterface(action)
-		if !ok {
-			panic("invalid action")
-		}
-		logger.Verbosef("++++++++++action index %d", i)
-		blockNum, err := obj.GetUint64("block_num")
-		if err != nil {
-			panic(err)
-		}
-		info := e.GetLatestChainInfo()
-		logger.Verbosef("+++++++++blockNum: %d, LastIrreversibleBlockNum: %d, blockNum - LastIrreversibleBlockNum: %d", blockNum, info.LastIrreversibleBlockNum, int64(blockNum)-int64(info.LastIrreversibleBlockNum))
-		if uint32(blockNum) > info.LastIrreversibleBlockNum {
-			break
-		}
-		count += 1
-
-		seq, err := obj.GetUint64("account_action_seq")
-		if err != nil {
-			panic(err)
-		}
-
-		lastIndex = seq
-
-		txLog := e.ParseTxLogFromActionTrace(obj)
-		globalSeq, err := obj.GetUint64("global_action_seq")
-		if err != nil {
-			panic(err)
-		}
-
-		if globalSeq < e.actionStartSequence {
-			txRequestIndex = txLog.id + 1
-			continue
-		}
-		if txRequestIndex != txLog.id {
-			if i == 0 {
-				//Eos node has been started from a new snapshoot, try to reset offset accordingly
-				logger.Verbosef("Invalid tx log id, expected: %d, got: %d", txRequestIndex, txLog.id)
-				//need adjust offset
-				return 0, true
-			} else {
-				panic(fmt.Errorf("Invalid tx log id, expected: %d, got: %d", txRequestIndex, txLog.id))
-			}
-		}
-
-		txRequestIndex += 1
-
+func (e *Engine) parseActions(actions []chain.JsonObject) {
+	for _, action := range actions {
+		txLog := e.ParseTxLogFromActionTrace(action)
 		evt := convertTxLogToEvent(txLog)
-		if err != nil {
-			panic(err)
-		}
 
-		err = e.storeWriteContractEvent(txLog.contract.String(), evt)
+		err := e.storeWriteContractEvent(txLog.contract.String(), evt)
 		if err != nil {
 			panic(err)
 		}
 	}
-
-	if count == 0 {
-		return 0, false
-	}
-
-	e.storeWriteTxRequestNonce(txRequestIndex)
-	e.storeWriteContractLogsOffset(e.mixinContract, lastIndex+1)
-	return count, false
 }
 
 func (e *Engine) ReceiveGroupEvents(address string, offset uint64, limit int) ([]*encoding.Event, error) {

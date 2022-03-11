@@ -13,6 +13,7 @@ const (
 	prefixEosContractEventQueue = "EOS:CONTRACT:EVENT:QUEUE:"
 	prefixEosGroupEventQueue    = "EOS:GROUP:EVENT:QUEUE:"
 	prefixTxRequestNonce        = "EOS:TXREQUEST:OFFSET:"
+	prefixCurrentBlockNum       = "EOS:CURRENTBLOCKNUM:OFFSET:"
 )
 
 func (e *Engine) storeWriteContractNotifier(address, notifier string) error {
@@ -66,11 +67,11 @@ func (e *Engine) storeListContractAddresses() ([]string, error) {
 	return addresses, nil
 }
 
-func (e *Engine) storeReadContractLogsOffset(address string) uint64 {
+func (e *Engine) storeReadCurrentBlockNum() uint64 {
 	txn := e.db.NewTransaction(false)
 	defer txn.Discard()
 
-	key := []byte(prefixEosContractLogOffset + address)
+	key := []byte(prefixCurrentBlockNum)
 	item, err := txn.Get(key)
 	if err == badger.ErrKeyNotFound {
 		return 0
@@ -85,36 +86,10 @@ func (e *Engine) storeReadContractLogsOffset(address string) uint64 {
 	return binary.BigEndian.Uint64(val)
 }
 
-func (e *Engine) storeWriteContractLogsOffset(address string, offset uint64) error {
-	key := []byte(prefixEosContractLogOffset + address)
+func (e *Engine) storeWriteCurrentBlockNum(blockNum uint64) error {
+	key := []byte(prefixCurrentBlockNum)
 	return e.db.Update(func(txn *badger.Txn) error {
-		return txn.Set(key, uint64Bytes(offset))
-	})
-}
-
-func (e *Engine) storeReadTxRequestNonce() uint64 {
-	txn := e.db.NewTransaction(false)
-	defer txn.Discard()
-
-	key := []byte(prefixTxRequestNonce)
-	item, err := txn.Get(key)
-	if err == badger.ErrKeyNotFound {
-		return 0
-	} else if err != nil {
-		panic(err)
-	}
-
-	val, err := item.ValueCopy(nil)
-	if err != nil {
-		panic(err)
-	}
-	return binary.BigEndian.Uint64(val)
-}
-
-func (e *Engine) storeWriteTxRequestNonce(offset uint64) error {
-	key := []byte(prefixTxRequestNonce)
-	return e.db.Update(func(txn *badger.Txn) error {
-		return txn.Set(key, uint64Bytes(offset))
+		return txn.Set(key, uint64Bytes(blockNum))
 	})
 }
 

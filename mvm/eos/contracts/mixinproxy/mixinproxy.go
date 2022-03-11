@@ -188,6 +188,10 @@ func (c *Contract) HandleEventNoNonceChecking(event *TxEvent) {
 		fromAccount = c.CreateNewAccount(from)
 	}
 
+	if quantity.Amount <= 0 {
+		return
+	}
+
 	var action *chain.Action
 	toAccount := string(event.extra)
 	if len(event.extra) == 0 {
@@ -275,7 +279,7 @@ func (c *Contract) CreateNewAccount(from chain.Uint128) chain.Name {
 	dbAccounts := NewMixinAccountDB(c.self, c.self)
 	idxDB := dbAccounts.GetIdxDBByClientId()
 	it2 := idxDB.Find(from)
-	assert(it2.IsOk(), "account already exists!")
+	assert(!it2.IsOk(), "account already exists!!")
 	//		accountId := c.GetNextAccountId()
 	fromAccount = c.GetNextAvailableAccount()
 	record := MixinAccount{eos_account: fromAccount, client_id: from}
