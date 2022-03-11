@@ -164,6 +164,7 @@ func (c *Contract) HandleEventNoNonceChecking(event *TxEvent) {
 	//handle expired work
 	if expiration < chain.CurrentTimeSeconds() {
 		c.Refund(event, "expired, refund")
+		return
 	}
 
 	if len(event.members) != 1 {
