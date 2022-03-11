@@ -572,7 +572,7 @@ func (e *Engine) parseActions(txRequestIndex uint64, actions []interface{}) (int
 			panic(err)
 		}
 
-		err = e.storeWriteContractEvent(txLog.contract.String(), evt)
+		err = e.storeWriteGroupEvents(txLog.contract.String(), []*encoding.Event{evt})
 		if err != nil {
 			panic(err)
 		}

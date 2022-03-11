@@ -140,7 +140,7 @@ func (e *Engine) loopGetLogs(base uint64) {
 			if err != nil {
 				continue
 			}
-			err = e.storeWriteContractEvent(log.address, evt)
+			err = e.storeWriteGroupEvents(log.address, []*encoding.Event{evt})
 			if err != nil {
 				panic(err)
 			}

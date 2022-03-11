@@ -119,21 +119,6 @@ func (e *Engine) storeReadLastContractEventNonce(address string) uint64 {
 	return evt.Nonce
 }
 
-func (e *Engine) storeWriteContractEvent(address string, evt *encoding.Event) error {
-	key := []byte(prefixQuorumContractEventQueue + address)
-	key = append(key, uint64Bytes(evt.Nonce)...)
-	val := encoding.JSONMarshalPanic(evt)
-	return e.db.Update(func(txn *badger.Txn) error {
-		_, err := txn.Get(key)
-		if err == nil {
-			return nil
-		} else if err != badger.ErrKeyNotFound {
-			return err
-		}
-		return txn.Set(key, val)
-	})
-}
-
 func (e *Engine) storeListContractEvents(address string, offset uint64, limit int) ([]*encoding.Event, error) {
 	txn := e.db.NewTransaction(false)
 	defer txn.Discard()
