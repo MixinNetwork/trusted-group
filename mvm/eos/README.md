@@ -31,13 +31,13 @@ zstd -d snapshot-2021-12-05-04-eos-v5-0219028238.bin.zst
 4. Start an Eos node with the snapshot 
 
 ```
-nodeos --data-dir data-dir --config-dir config-dir --filter-on="mtgxinmtgxin:ontxlog:mtgxinmtgxin" --plugin eosio::history_api_plugin --snapshot snapshot-2021-12-05-04-eos-v5-0219028238.bin
+nodeos --data-dir data-dir --config-dir config-dir --plugin eosio::trace_api_plugin --trace-no-abis --snapshot snapshot-2021-12-05-04-eos-v5-0219028238.bin
 ```
 
 For the next time you start the node, just run the following command:
 
 ```bash
-nodeos --data-dir data-dir --config-dir config-dir --filter-on="mtgxinmtgxin:ontxlog:mtgxinmtgxin" --plugin eosio::history_api_plugin 
+nodeos --data-dir data-dir --config-dir config-dir --plugin eosio::trace_api_plugin --trace-no-abis 
 ```
 
 ## Config Eos in MVM config file
