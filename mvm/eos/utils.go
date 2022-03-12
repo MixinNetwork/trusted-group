@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	TX_EXPIRATION = 9
+	TX_EXPIRATION = 15
 )
 
 func uuidToBytes(id string) []byte {
