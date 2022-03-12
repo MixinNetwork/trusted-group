@@ -355,7 +355,11 @@ func (e *Engine) loopContractEvents() {
 	for {
 		err := e.PullContractEvents()
 		if err != nil {
-			logger.Verbosef("PullContractEvents return error: %v", err)
+			if err == ErrorNotIrreversible {
+				time.Sleep(time.Second * 3)
+			} else {
+				logger.Verbosef("PullContractEvents return error: %v", err)
+			}
 		}
 	}
 }
