@@ -142,6 +142,7 @@ func (c *Contract) Transfer(from chain.Name, to chain.Name, quantity chain.Asset
 
 //action ontransfer
 func (c *Contract) OnTransfer(from chain.Name, to chain.Name, quantity chain.Asset, memo string) {
+	chain.RequireAuth(MIXIN_WTOKENS)
 	//this is a deposit transfer
 	if from == c.self {
 		return
