@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"net/http"
+	_ "net/http/pprof"
 	"os/user"
 	"path/filepath"
 	"strings"
@@ -53,6 +55,14 @@ func bootCmd(c *cli.Context) error {
 		if err != nil {
 			panic(err)
 		}
+	}()
+
+	go func() {
+		if !c.Bool("profile") {
+			return
+		}
+
+		go http.ListenAndServe(":9239", http.DefaultServeMux)
 	}()
 
 	group, err := mtg.BuildGroup(ctx, db, conf.MTG)
