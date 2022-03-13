@@ -38,6 +38,12 @@ func main() {
 						Value:   9000,
 						Usage:   "The RPC server http port",
 					},
+					&cli.BoolFlag{
+						Name:    "profile",
+						Aliases: nil,
+						Value:   false,
+						Usage:   "Enable profile",
+					},
 				},
 			},
 			{
