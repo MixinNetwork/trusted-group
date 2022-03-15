@@ -33,7 +33,7 @@ func getInfo(store *store.BadgerStore) (map[string]interface{}, error) {
 }
 
 func getMTGKeys(conf *config.Configuration) (map[string]string, error) {
-	if conf.Machine == nil || conf.Machine.Poly == "" {
+	if conf == nil || conf.Machine == nil || conf.Machine.Poly == "" {
 		return nil, errors.New("invalid config machine")
 	}
 	pb, err := hex.DecodeString(conf.Machine.Poly)

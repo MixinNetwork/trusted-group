@@ -84,11 +84,11 @@ func (impl *RPC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			renderer.RenderData(info)
 		}
 	case "getmtgkeys":
-		key, err := getMTGKeys(impl.conf)
+		keys, err := getMTGKeys(impl.conf)
 		if err != nil {
 			renderer.RenderError(err)
 		} else {
-			renderer.RenderData(key)
+			renderer.RenderData(keys)
 		}
 	default:
 		renderer.RenderError(fmt.Errorf("invalid method %s", call.Method))
