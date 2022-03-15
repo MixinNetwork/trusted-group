@@ -3,7 +3,7 @@ package rpc
 import (
 	"encoding/binary"
 	"encoding/hex"
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/MixinNetwork/tip/crypto"
@@ -34,14 +34,17 @@ func getInfo(store *store.BadgerStore) (map[string]interface{}, error) {
 
 func getMTGKeys(conf *config.Configuration) (map[string]string, error) {
 	if conf.Machine == nil || conf.Machine.Poly == "" {
-		return nil, fmt.Errorf("invalid config machine")
+		return nil, errors.New("invalid config machine")
 	}
 	pb, err := hex.DecodeString(conf.Machine.Poly)
 	if err != nil {
 		return nil, err
 	}
 
-	commitments := unmarshalCommitments(pb)
+	commitments, err := unmarshalCommitments(pb)
+	if err != nil {
+		return nil, err
+	}
 	suite := en256.NewSuiteG2()
 	poly := share.NewPubPoly(suite, suite.Point().Base(), commitments)
 	return map[string]string{"mtg": poly.Commit().String()}, nil
@@ -56,14 +59,14 @@ func readDrainingCheckpoint(store *store.BadgerStore, key string) (time.Time, er
 	return time.Unix(0, ts), nil
 }
 
-func unmarshalCommitments(b []byte) []kyber.Point {
+func unmarshalCommitments(b []byte) ([]kyber.Point, error) {
 	var commits []kyber.Point
 	for i, l := 0, len(b)/128; i < l; i++ {
 		point, err := crypto.PubKeyFromBytes(b[i*128 : (i+1)*128])
 		if err != nil {
-			panic(err)
+			return commits, err
 		}
 		commits = append(commits, point)
 	}
-	return commits
+	return commits, nil
 }
