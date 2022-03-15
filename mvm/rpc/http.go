@@ -6,11 +6,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/MixinNetwork/trusted-group/mvm/config"
 	"github.com/MixinNetwork/trusted-group/mvm/store"
 )
 
 type RPC struct {
 	store *store.BadgerStore
+	conf  *config.Configuration
 }
 
 type Call struct {
@@ -81,6 +83,13 @@ func (impl *RPC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			renderer.RenderData(info)
 		}
+	case "getmvmpublickey":
+		key, err := getMVMPublicKey(impl.conf)
+		if err != nil {
+			renderer.RenderError(err)
+		} else {
+			renderer.RenderData(key)
+		}
 	default:
 		renderer.RenderError(fmt.Errorf("invalid method %s", call.Method))
 	}
@@ -106,8 +115,11 @@ func handleCORS(handler http.Handler) http.Handler {
 	})
 }
 
-func NewServer(store *store.BadgerStore, port int) *http.Server {
-	rpc := &RPC{store: store}
+func NewServer(store *store.BadgerStore, conf *config.Configuration, port int) *http.Server {
+	rpc := &RPC{
+		store: store,
+		conf:  conf,
+	}
 	handler := handleCORS(rpc)
 
 	server := &http.Server{
