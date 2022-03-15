@@ -83,8 +83,8 @@ func (impl *RPC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			renderer.RenderData(info)
 		}
-	case "getmvmpublickey":
-		key, err := getMVMPublicKey(impl.conf)
+	case "getmtgkey":
+		key, err := getMTGKeys(impl.conf)
 		if err != nil {
 			renderer.RenderError(err)
 		} else {

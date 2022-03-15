@@ -32,7 +32,7 @@ func getInfo(store *store.BadgerStore) (map[string]interface{}, error) {
 	}, nil
 }
 
-func getMVMPublicKey(conf *config.Configuration) (map[string]string, error) {
+func getMTGKeys(conf *config.Configuration) (map[string]string, error) {
 	if conf.Machine == nil || conf.Machine.Poly == "" {
 		return nil, fmt.Errorf("invalid config machine")
 	}
