@@ -83,7 +83,7 @@ func (impl *RPC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			renderer.RenderData(info)
 		}
-	case "getmtgkey":
+	case "getmtgkeys":
 		key, err := getMTGKeys(impl.conf)
 		if err != nil {
 			renderer.RenderError(err)
