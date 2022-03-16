@@ -81,11 +81,11 @@ func (c *Contract) AddFee(fee *chain.Asset) {
 }
 
 func (c *Contract) HandleErrorEvent(event *TxEvent) {
-	c.HandleEventNoNonceChecking(event)
+	c.HandleEventNoNonceChecking(event, nil)
 }
 
 func (c *Contract) HandleNormalEvent(event *TxEvent) {
-	c.HandleEventNoNonceChecking(event)
+	c.HandleEventNoNonceChecking(event, nil)
 }
 
 func (c *Contract) CheckNonce(eventNonce uint64) {
@@ -129,29 +129,58 @@ func (c *Contract) StoreNonce(eventNonce uint64) {
 	db.Store(&SubmittedEvent{eventNonce}, c.self)
 }
 
-func (c *Contract) HandleEventNoNonceChecking(event *TxEvent) {
-	assetDB := NewMixinAssetDB(c.self, c.self)
-	idxDB := assetDB.GetIdxDBByAssetId()
-	itAssetId := idxDB.Find(event.asset)
-	if !itAssetId.IsOk() {
-		//c.Refund(event, "unsupported asset id, refund!")
-		return
+func (c *Contract) parseAction(extra []byte) *chain.Action {
+	if len(extra) < 8*2 {
+		return nil
 	}
 
-	if event.amount.Cmp(chain.NewUint128(chain.MAX_AMOUNT, 0)) > 0 {
-		c.ShowError("amount too large")
-		return
+	_account := binary.LittleEndian.Uint64(extra[0:8])
+	account := chain.Name{_account}
+	if !chain.IsAccount(account) {
+		return nil
 	}
 
-	symbol := c.GetSymbol(event.asset)
+	_action_name := binary.LittleEndian.Uint64(extra[8:16])
+	action_name := chain.Name{_action_name}
+	data := extra[16:]
+
+	return &chain.Action{
+		account,
+		action_name,
+		nil,
+		data,
+	}
+}
+
+func (c *Contract) CheckFee(quantity *chain.Asset) (*chain.Asset, bool) {
+	fee := c.GetTransferFee(quantity.Symbol)
+	if quantity.Amount <= fee.Amount {
+		c.ShowError("transfer amount is less than fee")
+		return nil, false
+	} else {
+	}
+	return fee, true
+}
+
+func (c *Contract) HandleExpiration(event *TxEvent) bool {
+	expiration := uint32(event.timestamp/1e9) + MTG_WORK_EXPIRATION_SECONDS
+	if expiration > chain.CurrentTimeSeconds() {
+		return false
+	}
+
+	symbol, ok := c.GetSymbol(event.asset)
+	if !ok {
+		return true
+	}
+
 	quantity := chain.NewAsset(int64(event.amount.Uint64()), symbol)
 
-	fee := c.GetTransferFee(quantity.Symbol)
-	feeAmount := int64(fee.Amount)
+	fee := c.GetTransferFee(symbol)
+	feeAmount := fee.Amount
 	if quantity.Amount <= fee.Amount {
 		c.AddFee(quantity)
 		c.ShowError("transfer amount is less than fee")
-		return
+		return true
 	} else {
 		c.AddFee(fee)
 	}
@@ -160,17 +189,30 @@ func (c *Contract) HandleEventNoNonceChecking(event *TxEvent) {
 	//deduct fee from event, in case of refundment
 	event.amount.Sub(&event.amount, chain.NewUint128(uint64(feeAmount), 0))
 
-	expiration := uint32(event.timestamp/1e9) + MTG_WORK_EXPIRATION_SECONDS
-	//handle expired work
-	if expiration < chain.CurrentTimeSeconds() {
-		c.Refund(event, "expired, refund")
+	c.Refund(event, "expired, refund")
+	return true
+}
+
+func (c *Contract) HandleEventNoNonceChecking(event *TxEvent, memo []byte) {
+	if event.amount.Cmp(chain.NewUint128(chain.MAX_AMOUNT, 0)) > 0 {
+		c.ShowError("amount too large")
 		return
 	}
 
-	if len(event.members) != 1 {
-		c.ShowError("multisig event not supported currently")
+	symbol, ok := c.GetSymbol(event.asset)
+	if !ok {
 		return
 	}
+	quantity := chain.NewAsset(int64(event.amount.Uint64()), symbol)
+
+	fee, ok := c.CheckFee(quantity)
+	if !ok {
+		c.AddFee(quantity)
+		return
+	}
+	c.AddFee(fee)
+	quantity.Amount -= fee.Amount
+
 	from := event.members[0]
 	fromAccount, ok := c.GetAccount(from)
 	if !ok {
@@ -194,48 +236,30 @@ func (c *Contract) HandleEventNoNonceChecking(event *TxEvent) {
 	}
 
 	var action *chain.Action
-	toAccount := string(event.extra)
-	if len(event.extra) == 0 {
-		//transfer to self
-		action = nil
-	} else if len(event.extra) <= 12 {
-		to := chain.NewName(toAccount)
-		if !chain.IsAccount(to) {
-			c.Refund(event, "account does not exists, refund")
-			return
+	if memo == nil {
+		if len(event.extra) == 0 {
+			//transfer to self
+			action = nil
+		} else {
+			check(event.extra[0] == EVENT_NORMAL, "bad extra type")
+			extra := event.extra[1:]
+			action = c.parseAction(extra)
+			if action == nil {
+				c.Refund(event, "invalid action data, refund!")
+			}
 		}
-
-		action = chain.NewAction(
-			chain.NewPermissionLevel(fromAccount, chain.ActiveName),
-			MIXIN_WTOKENS,
-			chain.NewName("transfer"),
-			fromAccount,
-			to,
-			quantity,
-			"xtranfer",
-		)
 	} else {
-		if len(event.extra) < 8*2 {
+		check(event.extra[0] == EVENT_PENDING, "not an extended extra type")
+		extra := event.extra[1:]
+		check(len(extra) >= 32, "bad extra")
+		checksum := chain.Checksum256{}
+		copy(checksum[:], extra)
+		chain.AssertSha256(memo, checksum) //check extra hash
+		op := DecodeOperation(memo)
+		check(op.Extra[0] == 0, "invalid extra type")
+		action = c.parseAction(op.Extra[1:])
+		if action == nil {
 			c.Refund(event, "invalid action data, refund!")
-			return
-		}
-
-		_account := binary.LittleEndian.Uint64(event.extra[0:8])
-		account := chain.Name{_account}
-		if !chain.IsAccount(account) {
-			c.Refund(event, "invalid account name, refund")
-			return
-		}
-
-		_action_name := binary.LittleEndian.Uint64(event.extra[8:16])
-		action_name := chain.Name{_action_name}
-		data := event.extra[16:]
-
-		action = &chain.Action{
-			account,
-			action_name,
-			nil,
-			data,
 		}
 	}
 
@@ -482,14 +506,19 @@ func (c *Contract) GetNextAvailableAccount() chain.Name {
 	return account
 }
 
-func (c *Contract) GetSymbol(assetId chain.Uint128) chain.Symbol {
+func (c *Contract) GetSymbol(assetId chain.Uint128) (chain.Symbol, bool) {
 	assetDB := NewMixinAssetDB(c.self, c.self)
 	idxDB := assetDB.GetIdxDBByAssetId()
 	itAssetId := idxDB.Find(assetId)
-	assert(itAssetId.IsOk(), "asset id not found")
+	if !itAssetId.IsOk() {
+		return chain.Symbol{}, false
+	}
+
 	it, asset := assetDB.Get(itAssetId.Primary)
-	assert(it.IsOk(), "asset not found")
-	return asset.symbol
+	if !it.IsOk() {
+		return chain.Symbol{}, false
+	}
+	return asset.symbol, true
 }
 
 func (c *Contract) ShowError(err string) {

@@ -21,6 +21,13 @@ type ErrorTxEvent struct {
 	reason string
 }
 
+//table pendingevts
+type PendingEvent struct {
+	event   TxEvent       //primary : t.event.nonce
+	account chain.Name    //IDX64: ByAccount : t.account.N : t.account.N
+	hash    chain.Uint256 //IDX256: ByHash : t.hash : t.hash
+}
+
 //table submittedevs
 type SubmittedEvent struct {
 	nonce uint64 //primary : t.nonce

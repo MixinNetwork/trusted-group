@@ -2,10 +2,14 @@ package eos
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"sync"
 	"time"
 
@@ -68,6 +72,11 @@ type Engine struct {
 	lastIrrBlockId       string
 	eventStatus          map[uint64]time.Time
 	startBlockNum        uint64
+	actionRequestClient  *http.Client
+}
+
+type ExtendedAction struct {
+	Data string `json:"data"`
 }
 
 func Boot(conf *Configuration, threshold int) (*Engine, error) {
@@ -135,6 +144,15 @@ func Boot(conf *Configuration, threshold int) (*Engine, error) {
 	}
 
 	logger.Verbosef("++++conf.Publisher: %v", conf.Publisher)
+
+	tr := &http.Transport{
+		MaxIdleConns:       10,
+		IdleConnTimeout:    15 * time.Second,
+		DisableCompression: true,
+	}
+
+	client := &http.Client{Transport: tr}
+
 	e := &Engine{
 		db:                   db,
 		chainApiPush:         chain.NewChainApi(conf.RPCPush),
@@ -151,6 +169,7 @@ func Boot(conf *Configuration, threshold int) (*Engine, error) {
 		mutex:                new(sync.Mutex),
 		eventStatus:          make(map[uint64]time.Time),
 		startBlockNum:        conf.StartBlockNum,
+		actionRequestClient:  client,
 	}
 
 	if e.key != nil {
@@ -611,6 +630,107 @@ func (e *Engine) loopExecGroupEvents(address string) {
 	}
 }
 
+func (e *Engine) getOriginDataByUrl(url string) ([]byte, error) {
+	resp, err := e.actionRequestClient.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	a := ExtendedAction{}
+	err = json.Unmarshal(body, &a)
+	if err != nil {
+		return nil, err
+	}
+
+	rawAction, err := hex.DecodeString(a.Data)
+	if err != nil {
+		return nil, err
+	}
+	return rawAction, nil
+}
+
+func (e *Engine) execPendingEvent(address string, url string, hash []byte) {
+	tx := chain.NewTransaction(uint32(time.Now().Unix()) + TX_EXPIRATION)
+	originMemo, err := e.getOriginDataByUrl(url)
+	if err != nil {
+		originMemo = []byte{}
+	}
+
+	h := sha256.New()
+	h.Write(originMemo)
+	digest := h.Sum(nil)
+	if bytes.Compare(digest, hash) != 0 {
+		logger.Verbosef("+++++invalid original data hash")
+		originMemo = []byte{}
+	}
+
+	executor := chain.NewName(e.mtgExecutor)
+	refBlockId := e.GetRefBlockId()
+	tx.SetReferenceBlock(refBlockId)
+	action := chain.NewAction(
+		&chain.PermissionLevel{Actor: executor, Permission: chain.NewName("active")},
+		chain.NewName(address),
+		chain.NewName("execpending"),
+		executor,
+		originMemo,
+	)
+	tx.Actions = append(tx.Actions, action)
+	sign, err := tx.Sign(e.mtgExecutorKey, e.chainId)
+	if err != nil {
+		panic(err)
+	}
+	r, err := e.chainApiPush.PushTransaction(tx, []string{sign.String()}, false)
+	logger.Verbosef("+++++loopExecPendingEvents(%s): PushTransaction err: %v", address, err)
+	if err != nil {
+		if r != nil {
+			msg, err := r.GetString("error", "details", 0, "message")
+			logger.Verbosef("PushTransaction ret: err: %s %v", msg, err)
+		} else {
+			logger.Verbosef("PushTransaction ret: err: %v", err)
+		}
+		time.Sleep(time.Second * 5)
+	} else {
+		console, err := r.GetString("processed", "action_traces", 0, "console")
+		if err != nil {
+			panic(err)
+		}
+		logger.Verbosef("++++++execPendingEvent:%s => %s", address, console)
+	}
+}
+
+func (e *Engine) loopExecPendingEvents(address string) {
+	if !e.IsExecutor() {
+		return
+	}
+	executedEvent := make(map[uint64]time.Time)
+	for {
+		events, err := e.GetPendingEvents(address, 20)
+		if err != nil {
+			time.Sleep(time.Second * 3)
+			continue
+		}
+
+		for _, event := range events {
+			if executedEvent[event.nonce].Add(TX_EXPIRATION * time.Second).After(time.Now()) {
+				continue
+			}
+			executedEvent[event.nonce] = time.Now()
+			if event.extra[0] == 1 && len(event.extra) > 33 {
+				hash := event.extra[1:33]
+				url := string(event.extra[33:])
+				go e.execPendingEvent(address, url, hash)
+			} else {
+				go e.execPendingEvent(address, "", nil)
+			}
+		}
+	}
+}
+
 func (e *Engine) loopDoWorks(address string) {
 	if !e.IsExecutor() {
 		return
@@ -733,6 +853,44 @@ func (e *Engine) GetSubmitedEvent(address string, nonce uint64, limit int) (map[
 	return submitedEvent, nil
 }
 
+func (e *Engine) GetPendingEvents(address string, limit int) ([]*TxEvent, error) {
+	result, err := e.chainApiGetState.GetTableRows(
+		false,         //json bool,
+		address,       //code string,
+		address,       //scope string,
+		"pendingevts", //table string,
+		"",            //lowerbound string,
+		"",            //upperbound string,
+		limit,         //limit int,
+		"i64",         //keyType string,
+		1,             //indexPosition int
+		false,         //reverse bool,
+		false,         //showPayer bool,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := result.GetArray("rows")
+	if err != nil {
+		return nil, err
+	}
+
+	pendingEvents := make([]*TxEvent, 0, len(rows))
+	for _, row := range rows {
+		rawEvent, err := hex.DecodeString(row.(string))
+		if err != nil {
+			return nil, err
+		}
+		event, err := decodeTxEvent(rawEvent)
+		if err != nil {
+			return nil, err
+		}
+		pendingEvents = append(pendingEvents, event)
+	}
+	return pendingEvents, nil
+}
+
 func (e *Engine) loopPushGroupEvents(address string) {
 	for e.IsPublisher() {
 		nonce, err := e.GetAddressNonce(address)
@@ -783,9 +941,61 @@ func (e *Engine) loopHandleContracts() {
 			contracts[c] = true
 			go e.loopPushGroupEvents(c)
 			go e.loopExecGroupEvents(c)
+			go e.loopExecPendingEvents(c)
 			go e.loopDoWorks(c)
 		}
 	}
+}
+
+func decodeTxEvent(data []byte) (*TxEvent, error) {
+	var err error
+	dec := chain.NewDecoder(data)
+	t := &TxEvent{}
+	t.nonce, err = dec.UnpackUint64()
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := dec.Unpack(&t.process); err != nil {
+		return nil, err
+	}
+
+	if _, err := dec.Unpack(&t.asset); err != nil {
+		return nil, err
+	}
+
+	{
+		length, err := dec.UnpackLength()
+		if err != nil {
+			return nil, err
+		}
+		t.members = make([]chain.Uint128, length)
+		for i := 0; i < length; i++ {
+			if _, err := dec.Unpack(&t.members[i]); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	t.threshold, err = dec.UnpackInt32()
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := dec.Unpack(&t.amount); err != nil {
+		return nil, err
+	}
+
+	t.extra, err = dec.UnpackBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	t.timestamp, err = dec.UnpackUint64()
+	if err != nil {
+		return nil, err
+	}
+	return t, nil
 }
 
 func convertEventToTxEvent(evt *encoding.Event) (*TxEvent, error) {
@@ -852,6 +1062,7 @@ func (e *Engine) pushEvent(address string, evt *encoding.Event, errorEvent bool)
 		} else {
 			reason = err.Error()
 		}
+		logger.Verbosef("error message %v", reason)
 		if len(reason) > 256 {
 			reason = reason[:256]
 		}

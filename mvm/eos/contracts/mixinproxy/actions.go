@@ -48,7 +48,46 @@ func (c *Contract) OnEvent(event *TxEvent) {
 
 	c.CheckNonce(event.nonce)
 
+	if len(event.members) != 1 {
+		c.ShowError("multisig event not supported currently")
+		return
+	}
+
+	account, ok := c.GetAccount(event.members[0])
+	if !ok {
+		return
+	}
+
+	if c.HandleExpiration(event) {
+		return
+	}
+
+	if c.HandlePendingEvent(account, event) {
+		return
+	}
+
 	c.HandleNormalEvent(event)
+}
+
+func (c *Contract) HandlePendingEvent(account chain.Name, event *TxEvent) bool {
+	//large extra, handled in execpending action
+	if len(event.extra) <= 0 {
+		return false
+	}
+
+	if event.extra[0] == EVENT_PENDING {
+		if len(event.extra) < 1+32 {
+			c.ShowError("invalid extra")
+			return true
+		}
+		db := NewPendingEventDB(c.self, c.self)
+		hash := chain.Uint256{}
+		copy(hash[:], event.extra[1:33])
+		pendingEvent := PendingEvent{event: *event, account: account, hash: hash}
+		db.Store(&pendingEvent, c.self)
+		return true
+	}
+	return false
 }
 
 //action onerrorevent ignore
@@ -73,6 +112,19 @@ func (c *Contract) OnErrorEvent(event *TxEvent, reason *string) {
 
 	c.StoreNonce(event.nonce)
 
+	if c.HandleExpiration(event) {
+		return
+	}
+
+	account, ok := c.GetAccount(event.members[0])
+	if !ok {
+		return
+	}
+
+	if c.HandlePendingEvent(account, event) {
+		return
+	}
+
 	db := NewErrorTxEventDB(c.self, c.self)
 	it := db.Find(event.nonce)
 	assert(!it.IsOk(), "event already exists!")
@@ -82,13 +134,44 @@ func (c *Contract) OnErrorEvent(event *TxEvent, reason *string) {
 //action exec
 func (c *Contract) Exec(executor chain.Name) {
 	chain.RequireAuth(executor)
+	{
+		db := NewPendingEventDB(c.self, c.self)
+		it := db.Lowerbound(uint64(0))
+		if it.IsOk() {
+			item := db.GetByIterator(it)
+			if c.HandleExpiration(&item.event) {
+				db.Remove(it)
+				return
+			}
+		}
+	}
+
+	{
+		db := NewErrorTxEventDB(c.self, c.self)
+		it := db.Lowerbound(uint64(0))
+		assert(it.IsOk(), "error event not found!")
+		errorEvent := db.GetByIterator(it)
+		db.Remove(it)
+
+		if c.HandleExpiration(&errorEvent.event) {
+			return
+		}
+		c.HandleErrorEvent(&errorEvent.event)
+	}
+}
+
+//action execpending
+func (c *Contract) ExecPendingEventByExtra(executor chain.Name, nonce uint64, extra []byte) {
+	chain.RequireAuth(executor)
 	//	db := NewTxEventDB(c.self, c.self)
-	db := NewErrorTxEventDB(c.self, c.self)
-	it := db.Lowerbound(uint64(0))
-	assert(it.IsOk(), "error event not found!")
-	errorEvent := db.GetByIterator(it)
-	c.HandleErrorEvent(&errorEvent.event)
+	db := NewPendingEventDB(c.self, c.self)
+	it, item := db.Get(nonce)
+	check(it.IsOk(), "pending event not found")
 	db.Remove(it)
+	if c.HandleExpiration(&item.event) {
+		return
+	}
+	c.HandleEventNoNonceChecking(&item.event, extra)
 }
 
 //action dowork
