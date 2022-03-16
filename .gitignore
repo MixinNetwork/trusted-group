@@ -14,6 +14,7 @@ sample/configs/yml.go.2.production
 sample/configs/yml.go.3.production
 sample/configs/doc
 .DS_Store
+config.toml
 local.sh
 deploy.sh
 /mvm/mvm
