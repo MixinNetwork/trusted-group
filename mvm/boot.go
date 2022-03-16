@@ -50,7 +50,7 @@ func bootCmd(c *cli.Context) error {
 		if c.Int("port") < 1000 {
 			return
 		}
-		server := rpc.NewServer(db, c.Int("port"))
+		server := rpc.NewServer(db, conf, c.Int("port"))
 		err := server.ListenAndServe()
 		if err != nil {
 			panic(err)
