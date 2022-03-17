@@ -732,16 +732,11 @@ func (e *Engine) loopExecPendingEvents(address string) {
 			if event.extra[0] == 1 && len(event.extra) > 33 {
 				hash := event.extra[1:33]
 				url := string(event.extra[33:])
-				err := e.execPendingEvent(address, event.nonce, url, hash)
-				if err == nil {
-					count += 1
-				}
+				go e.execPendingEvent(address, event.nonce, url, hash)
 			} else {
-				err := e.execPendingEvent(address, event.nonce, "", nil)
-				if err == nil {
-					count += 1
-				}
+				go e.execPendingEvent(address, event.nonce, "", nil)
 			}
+			count += 1
 		}
 		if count == 0 {
 			time.Sleep(time.Second * 3)
