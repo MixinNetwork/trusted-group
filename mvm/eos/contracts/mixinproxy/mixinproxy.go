@@ -80,14 +80,6 @@ func (c *Contract) AddFee(fee *chain.Asset) {
 	}
 }
 
-func (c *Contract) HandleErrorEvent(event *TxEvent) {
-	c.HandleEventNoNonceChecking(event, nil)
-}
-
-func (c *Contract) HandleNormalEvent(event *TxEvent) {
-	c.HandleEventNoNonceChecking(event, nil)
-}
-
 func (c *Contract) CheckNonce(eventNonce uint64) {
 	nonce := c.GetNonce()
 	assert(eventNonce >= nonce, "bad nonce!")
@@ -193,12 +185,7 @@ func (c *Contract) HandleExpiration(event *TxEvent) bool {
 	return true
 }
 
-func (c *Contract) HandleEventNoNonceChecking(event *TxEvent, memo []byte) {
-	if event.amount.Cmp(chain.NewUint128(chain.MAX_AMOUNT, 0)) > 0 {
-		c.ShowError("amount too large")
-		return
-	}
-
+func (c *Contract) HandleEventWithExtra(fromAccount chain.Name, event *TxEvent, extra []byte) {
 	symbol, ok := c.GetSymbol(event.asset)
 	if !ok {
 		return
@@ -212,31 +199,14 @@ func (c *Contract) HandleEventNoNonceChecking(event *TxEvent, memo []byte) {
 	}
 	c.AddFee(fee)
 	quantity.Amount -= fee.Amount
-
-	from := event.members[0]
-	fromAccount, ok := c.GetAccount(from)
-	if !ok {
-		fee := c.GetCreateAccountFee()
-		if fee.Amount != 0 {
-			if quantity.Symbol != chain.NewSymbol("MEOS", 8) {
-				c.ShowError("invalid asset for creating account")
-				return
-			}
-			if quantity.Amount < fee.Amount {
-				c.ShowError("not enough fee for creating account")
-				return
-			}
-			quantity.Amount -= fee.Amount
-		}
-		fromAccount = c.CreateNewAccount(from)
-	}
-
 	if quantity.Amount <= 0 {
 		return
 	}
 
+	event.amount.Sub(&event.amount, chain.NewUint128(uint64(fee.Amount), 0))
+
 	var action *chain.Action
-	if memo == nil {
+	if extra == nil {
 		if len(event.extra) == 0 {
 			//transfer to self
 			action = nil
@@ -254,8 +224,8 @@ func (c *Contract) HandleEventNoNonceChecking(event *TxEvent, memo []byte) {
 		check(len(extra) >= 32, "bad extra")
 		checksum := chain.Checksum256{}
 		copy(checksum[:], extra)
-		chain.AssertSha256(memo, checksum) //check extra hash
-		op := DecodeOperation(memo)
+		chain.AssertSha256(extra, checksum) //check extra hash
+		op := DecodeOperation(extra)
 		check(op.Extra[0] == 0, "invalid extra type")
 		action = c.parseAction(op.Extra[1:])
 		if action == nil {
@@ -472,7 +442,6 @@ func (c *Contract) CheckAndIncNonce(oldNonce uint64) {
 	key := uint64(KEY_NONCE)
 	db := NewCounterDB(c.self, c.self)
 	if it, item := db.Get(key); it.IsOk() {
-		chain.Println("++++CheckAndIncNonce:", item.count, oldNonce)
 		check(item.count == oldNonce, "Invalid nonce")
 		item.count = oldNonce + 1
 		db.Update(it, item, chain.SamePayer)

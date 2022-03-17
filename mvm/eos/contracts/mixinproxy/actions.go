@@ -48,13 +48,24 @@ func (c *Contract) OnEvent(event *TxEvent) {
 
 	c.CheckNonce(event.nonce)
 
+	if c.HandleExpiration(event) {
+		return
+	}
+
+	if event.amount.Cmp(chain.NewUint128(chain.MAX_AMOUNT, 0)) > 0 {
+		c.ShowError("amount too large")
+		return
+	}
+
 	if len(event.members) != 1 {
 		c.ShowError("multisig event not supported currently")
 		return
 	}
 
-	account, ok := c.GetAccount(event.members[0])
+	clientId := event.members[0]
+	account, ok := c.GetAccount(clientId)
 	if !ok {
+		c.CreateAccount(event)
 		return
 	}
 
@@ -62,14 +73,43 @@ func (c *Contract) OnEvent(event *TxEvent) {
 		return
 	}
 
-	if c.HandlePendingEvent(account, event) {
+	if len(event.extra) > 0 && event.extra[0] == EVENT_PENDING {
+		c.StorePendingEvent(account, event)
 		return
 	}
 
-	c.HandleNormalEvent(event)
+	c.HandleEventWithExtra(account, event, nil)
 }
 
-func (c *Contract) HandlePendingEvent(account chain.Name, event *TxEvent) bool {
+func (c *Contract) CreateAccount(event *TxEvent) (chain.Name, bool) {
+	symbol, ok := c.GetSymbol(event.asset)
+	if !ok {
+		return chain.Name{}, false
+	}
+	quantity := chain.NewAsset(int64(event.amount.Uint64()), symbol)
+
+	clientId := event.members[0]
+	account, ok := c.GetAccount(event.members[0])
+	if ok {
+		return account, true
+	}
+	fee := c.GetCreateAccountFee()
+
+	if quantity.Symbol != chain.NewSymbol("MEOS", 8) {
+		c.ShowError("invalid asset for creating account")
+		return chain.Name{}, false
+	}
+
+	if quantity.Amount < fee.Amount {
+		c.ShowError("not enough fee for creating account")
+		return chain.Name{}, false
+	}
+	quantity.Amount -= fee.Amount
+
+	return c.CreateNewAccount(clientId), true
+}
+
+func (c *Contract) StorePendingEvent(account chain.Name, event *TxEvent) bool {
 	//large extra, handled in execpending action
 	if len(event.extra) <= 0 {
 		return false
@@ -116,12 +156,17 @@ func (c *Contract) OnErrorEvent(event *TxEvent, reason *string) {
 		return
 	}
 
+	if event.amount.Cmp(chain.NewUint128(chain.MAX_AMOUNT, 0)) > 0 {
+		c.ShowError("amount too large")
+		return
+	}
+
 	account, ok := c.GetAccount(event.members[0])
 	if !ok {
 		return
 	}
 
-	if c.HandlePendingEvent(account, event) {
+	if c.StorePendingEvent(account, event) {
 		return
 	}
 
@@ -156,7 +201,13 @@ func (c *Contract) Exec(executor chain.Name) {
 		if c.HandleExpiration(&errorEvent.event) {
 			return
 		}
-		c.HandleErrorEvent(&errorEvent.event)
+		clientId := errorEvent.event.members[0]
+		account, ok := c.GetAccount(clientId)
+		if !ok {
+			c.CreateAccount(&errorEvent.event)
+			return
+		}
+		c.HandleEventWithExtra(account, &errorEvent.event, nil)
 	}
 }
 
@@ -171,7 +222,10 @@ func (c *Contract) ExecPendingEventByExtra(executor chain.Name, nonce uint64, ex
 	if c.HandleExpiration(&item.event) {
 		return
 	}
-	c.HandleEventNoNonceChecking(&item.event, extra)
+
+	account, ok := c.GetAccount(item.event.members[0])
+	check(ok, "account not found!")
+	c.HandleEventWithExtra(account, &item.event, extra)
 }
 
 //action dowork
