@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -72,7 +73,7 @@ type Engine struct {
 	lastIrrBlockId       string
 	eventStatus          map[uint64]time.Time
 	startBlockNum        uint64
-	actionRequestClient  *http.Client
+	extraRequestClient   *http.Client
 }
 
 type ExtendedAction struct {
@@ -169,7 +170,7 @@ func Boot(conf *Configuration, threshold int) (*Engine, error) {
 		mutex:                new(sync.Mutex),
 		eventStatus:          make(map[uint64]time.Time),
 		startBlockNum:        conf.StartBlockNum,
-		actionRequestClient:  client,
+		extraRequestClient:   client,
 	}
 
 	if e.key != nil {
@@ -630,8 +631,17 @@ func (e *Engine) loopExecGroupEvents(address string) {
 	}
 }
 
-func (e *Engine) getOriginDataByUrl(url string) ([]byte, error) {
-	resp, err := e.actionRequestClient.Get(url)
+func (e *Engine) getOriginDataByUrl(url string, hash string) ([]byte, error) {
+	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+		return nil, fmt.Errorf("unsupported url: %v", url)
+	}
+
+	args := map[string]string{
+		"hash": hash,
+	}
+	_args, err := json.Marshal(args)
+	buf := bytes.NewBuffer(_args)
+	resp, err := e.extraRequestClient.Post(url, "application/json", buf)
 	if err != nil {
 		return nil, err
 	}
@@ -654,19 +664,21 @@ func (e *Engine) getOriginDataByUrl(url string) ([]byte, error) {
 	return rawAction, nil
 }
 
-func (e *Engine) execPendingEvent(address string, url string, hash []byte) {
+func (e *Engine) execPendingEvent(address string, nonce uint64, url string, hash []byte) {
 	tx := chain.NewTransaction(uint32(time.Now().Unix()) + TX_EXPIRATION)
-	originMemo, err := e.getOriginDataByUrl(url)
+	_hash := hex.EncodeToString(hash)
+	originMemo, err := e.getOriginDataByUrl(url, _hash)
 	if err != nil {
-		originMemo = []byte{}
+		logger.Verbosef("+++execPendingEvent: %v", err)
+		return
 	}
 
 	h := sha256.New()
 	h.Write(originMemo)
 	digest := h.Sum(nil)
 	if bytes.Compare(digest, hash) != 0 {
-		logger.Verbosef("+++++invalid original data hash")
-		originMemo = []byte{}
+		logger.Verbosef("+++++invalid original data hash: %x %x", digest, hash)
+		return
 	}
 
 	executor := chain.NewName(e.mtgExecutor)
@@ -677,6 +689,7 @@ func (e *Engine) execPendingEvent(address string, url string, hash []byte) {
 		chain.NewName(address),
 		chain.NewName("execpending"),
 		executor,
+		nonce,
 		originMemo,
 	)
 	tx.Actions = append(tx.Actions, action)
@@ -685,7 +698,7 @@ func (e *Engine) execPendingEvent(address string, url string, hash []byte) {
 		panic(err)
 	}
 	r, err := e.chainApiPush.PushTransaction(tx, []string{sign.String()}, false)
-	logger.Verbosef("+++++loopExecPendingEvents(%s): PushTransaction err: %v", address, err)
+	logger.Verbosef("+++++execPendingEvent(%s): PushTransaction err: %v", address, err)
 	if err != nil {
 		if r != nil {
 			msg, err := r.GetString("error", "details", 0, "message")
@@ -710,7 +723,8 @@ func (e *Engine) loopExecPendingEvents(address string) {
 	executedEvent := make(map[uint64]time.Time)
 	for {
 		events, err := e.GetPendingEvents(address, 20)
-		if err != nil {
+		logger.Verbosef("+++loopExecPendingEvents -> len(events): %v", len(events))
+		if err != nil || len(events) == 0 {
 			time.Sleep(time.Second * 3)
 			continue
 		}
@@ -723,9 +737,9 @@ func (e *Engine) loopExecPendingEvents(address string) {
 			if event.extra[0] == 1 && len(event.extra) > 33 {
 				hash := event.extra[1:33]
 				url := string(event.extra[33:])
-				go e.execPendingEvent(address, url, hash)
+				go e.execPendingEvent(address, event.nonce, url, hash)
 			} else {
-				go e.execPendingEvent(address, "", nil)
+				go e.execPendingEvent(address, event.nonce, "", nil)
 			}
 		}
 	}
