@@ -664,21 +664,20 @@ func (e *Engine) getOriginDataByUrl(url string, hash string) ([]byte, error) {
 	return rawAction, nil
 }
 
-func (e *Engine) execPendingEvent(address string, nonce uint64, url string, hash []byte) {
+func (e *Engine) execPendingEvent(address string, nonce uint64, url string, hash []byte) error {
 	tx := chain.NewTransaction(uint32(time.Now().Unix()) + TX_EXPIRATION)
 	_hash := hex.EncodeToString(hash)
 	originMemo, err := e.getOriginDataByUrl(url, _hash)
 	if err != nil {
 		logger.Verbosef("+++execPendingEvent: %v", err)
-		return
+		return err
 	}
 
 	h := sha256.New()
 	h.Write(originMemo)
 	digest := h.Sum(nil)
 	if bytes.Compare(digest, hash) != 0 {
-		logger.Verbosef("+++++invalid original data hash: %x %x", digest, hash)
-		return
+		return fmt.Errorf("Invalid original data hash: %x %x", digest, hash)
 	}
 
 	executor := chain.NewName(e.mtgExecutor)
@@ -706,14 +705,9 @@ func (e *Engine) execPendingEvent(address string, nonce uint64, url string, hash
 		} else {
 			logger.Verbosef("PushTransaction ret: err: %v", err)
 		}
-		time.Sleep(time.Second * 5)
-	} else {
-		console, err := r.GetString("processed", "action_traces", 0, "console")
-		if err != nil {
-			panic(err)
-		}
-		logger.Verbosef("++++++execPendingEvent:%s => %s", address, console)
+		return err
 	}
+	return nil
 }
 
 func (e *Engine) loopExecPendingEvents(address string) {
@@ -729,6 +723,7 @@ func (e *Engine) loopExecPendingEvents(address string) {
 			continue
 		}
 
+		count := 0
 		for _, event := range events {
 			if executedEvent[event.nonce].Add(TX_EXPIRATION * time.Second).After(time.Now()) {
 				continue
@@ -737,10 +732,19 @@ func (e *Engine) loopExecPendingEvents(address string) {
 			if event.extra[0] == 1 && len(event.extra) > 33 {
 				hash := event.extra[1:33]
 				url := string(event.extra[33:])
-				go e.execPendingEvent(address, event.nonce, url, hash)
+				err := e.execPendingEvent(address, event.nonce, url, hash)
+				if err == nil {
+					count += 1
+				}
 			} else {
-				go e.execPendingEvent(address, event.nonce, "", nil)
+				err := e.execPendingEvent(address, event.nonce, "", nil)
+				if err == nil {
+					count += 1
+				}
 			}
+		}
+		if count == 0 {
+			time.Sleep(time.Second * 3)
 		}
 	}
 }
