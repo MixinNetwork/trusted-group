@@ -1,4 +1,5 @@
 import os
+import io
 import sys
 import json
 import time
@@ -34,6 +35,9 @@ def uuid2uint128(uuid_str):
     process = uuid.UUID(uuid_str)
     process = int.from_bytes(process.bytes, 'little')
     return '0x' + process.to_bytes(16, 'big').hex()
+
+def uuid2bytes(uuid_str):
+    return uuid.UUID(uuid_str).bytes
 
 def print_console(tx):
     cf = currentframe()
@@ -159,8 +163,8 @@ class Test(object):
         print_console(r)
         # rows = cls.chain.get_table_rows(True, MTG_XIN_CONTRACT, MTG_XIN_CONTRACT, 'signers', '', '', 10)
         # logger.info(rows)
-        client_id = 'e0148fc6-0e10-470e-8127-166e0829c839'
-        process = uuid2uint128(client_id)
+        process_id_str = 'e0148fc6-0e10-470e-8127-166e0829c839'
+        process = uuid2uint128(process_id_str)
         args = {
             'contract': 'mixincrossss',
             'process': process,
@@ -252,7 +256,7 @@ class Test(object):
 
     def sign_event(self, tx_event):
         packed_tx_event = self.chain.pack_args('mixincrossss', 'onevent', tx_event)
-        logger.info("+++packed_tx_event: %s", packed_tx_event.hex())
+        # logger.info("+++packed_tx_event: %s", packed_tx_event.hex())
 
         packed_tx_event = packed_tx_event[:-1]
         digest = hashlib.sha256(packed_tx_event).hexdigest()
@@ -263,11 +267,33 @@ class Test(object):
             signatures.append(signature)
         tx_event['event']['signatures'] = signatures
 
+    def build_extra(self, process, address = 'mixincrossss', extra=b''):
+        def write_bytes(buf, data):
+            buf.write(int.to_bytes(len(data), 2, 'big'))
+            buf.write(data)
+
+        if isinstance(extra, str):
+            extra = extra.encode()
+        print(process)
+        process = uuid.UUID(process).bytes #test2 mixincross
+        buf = io.BytesIO()
+        buf.write(int.to_bytes(1, 2, 'big')) #Purpose
+
+        buf.write(process) #Process
+
+        write_bytes(buf, b'eos') #Platform
+        write_bytes(buf, address.encode()) #Address
+        write_bytes(buf, extra) #Extra
+        value = buf.getvalue()
+        assert len(value) < 256
+        print(value.hex())
+        return value
+
     def test_event(self):
-        client_id = 'e0148fc6-0e10-470e-8127-166e0829c839'
+        process_id_str = 'e0148fc6-0e10-470e-8127-166e0829c839'
         asset_id = uuid2uint128('6cfe566e-4aad-470b-8c9a-2fd35b49c68d')
 
-        process = uuid2uint128(client_id)
+        process = uuid2uint128(process_id_str)
         logger.info("++++++process %s", process)
         event = {
             'nonce': 1,
@@ -290,14 +316,6 @@ class Test(object):
         logger.info('++++%s', r['elapsed'])
         self.chain.produce_block()
 
-        args = {
-            'from': 'aaaaaaaaamvm',
-            'to': 'eosio',
-            'quantity': '0.10000000 MEOS',
-            'memo': 'hello'
-        }
-        self.chain.pack_args('mixinwtokens', 'transfer', args)
-        extra = ''
         event = {
             'nonce': 2,
             'process': process,
@@ -305,7 +323,7 @@ class Test(object):
             'members': ['0x' + '11' * 16],
             'threshold': 1,
             'amount': '0x' + int.to_bytes(int(1e8), 16, 'big').hex(),
-            'extra': extra,
+            'extra': '',
             'timestamp': int(time.time()*1e9),
             'signatures': []
         }
@@ -318,4 +336,43 @@ class Test(object):
 
         ret = self.chain.get_table_rows(True, 'mixincrossss', 'mixincrossss', 'createaccfee', '','', 10)
         logger.info("+++++ret %s", ret)
+        logger.info("+++++balance %s", self.get_balance('aaaaaaaaamvm'))
+
+        # def build_extra(process, amount, address = 'mixincrossss', extra=b''):
+        args = {
+            'from': 'aaaaaaaaamvm',
+            'to': 'eosio',
+            'quantity': '0.10000000 MEOS',
+            'memo': 'hello'
+        }
+        args = self.chain.pack_args('mixinwtokens', 'transfer', args)
+        extra = b'\x00' + int.to_bytes(self.chain.s2n('mixinwtokens'), 8, 'little') + \
+            int.to_bytes(self.chain.s2n('transfer'), 8, 'little') + args
+        originExtra = self.build_extra(process_id_str, 'mixincrossss', extra)
+        hash = hashlib.sha256(originExtra).digest()
+        extra = b'\x01' + hash + 'https://a.com'.encode()
+        event = {
+            'nonce': 3,
+            'process': process,
+            'asset': asset_id, #EOS
+            'members': ['0x' + '11' * 16],
+            'threshold': 1,
+            'amount': '0x' + int.to_bytes(int(1e8), 16, 'big').hex(),
+            'extra': extra.hex(),
+            'timestamp': int(time.time()*1e9),
+            'signatures': []
+        }
+
+        tx_event = {
+            'event': event
+        }
+        self.sign_event(tx_event)
+        r = self.chain.push_action('mixincrossss', 'onevent', tx_event, {MTG_PUBLISHER: 'active'})
+        args = {
+            'executor': MTG_PUBLISHER, 
+            'nonce': 3,
+            'extra': originExtra.hex()
+        }
+        r = self.chain.push_action('mixincrossss', 'execpending', args, {MTG_PUBLISHER: 'active'})
+        self.chain.produce_block()
         logger.info("+++++balance %s", self.get_balance('aaaaaaaaamvm'))

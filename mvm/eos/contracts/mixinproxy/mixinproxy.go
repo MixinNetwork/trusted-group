@@ -185,7 +185,7 @@ func (c *Contract) HandleExpiration(event *TxEvent) bool {
 	return true
 }
 
-func (c *Contract) HandleEventWithExtra(fromAccount chain.Name, event *TxEvent, extra []byte) {
+func (c *Contract) HandleEventWithExtra(fromAccount chain.Name, event *TxEvent, originExtra []byte) {
 	symbol, ok := c.GetSymbol(event.asset)
 	if !ok {
 		return
@@ -206,7 +206,7 @@ func (c *Contract) HandleEventWithExtra(fromAccount chain.Name, event *TxEvent, 
 	event.amount.Sub(&event.amount, chain.NewUint128(uint64(fee.Amount), 0))
 
 	var action *chain.Action
-	if extra == nil {
+	if originExtra == nil {
 		if len(event.extra) == 0 {
 			//transfer to self
 			action = nil
@@ -220,12 +220,12 @@ func (c *Contract) HandleEventWithExtra(fromAccount chain.Name, event *TxEvent, 
 		}
 	} else {
 		check(event.extra[0] == EVENT_PENDING, "not an extended extra type")
-		extra := event.extra[1:]
-		check(len(extra) >= 32, "bad extra")
+		originExtraHash := event.extra[1:33]
+		check(len(originExtraHash) >= 32, "bad extra")
 		checksum := chain.Checksum256{}
-		copy(checksum[:], extra)
-		chain.AssertSha256(extra, checksum) //check extra hash
-		op := DecodeOperation(extra)
+		copy(checksum[:], originExtraHash)
+		chain.AssertSha256(originExtra, checksum) //check extra hash
+		op := DecodeOperation(originExtra)
 		check(op.Extra[0] == 0, "invalid extra type")
 		action = c.parseAction(op.Extra[1:])
 		if action == nil {
