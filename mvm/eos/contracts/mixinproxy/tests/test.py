@@ -5,6 +5,7 @@ import json
 import time
 import uuid
 import hashlib
+from datetime import datetime, timedelta
 from inspect import currentframe, getframeinfo
 
 test_dir = os.path.dirname(__file__)
@@ -289,54 +290,47 @@ class Test(object):
         print(value.hex())
         return value
 
-    def test_event(self):
+    def build_event(self, asset_id, nonce, amount, extra, timestamp): 
         process_id_str = 'e0148fc6-0e10-470e-8127-166e0829c839'
-        asset_id = uuid2uint128('6cfe566e-4aad-470b-8c9a-2fd35b49c68d')
-
         process = uuid2uint128(process_id_str)
-        logger.info("++++++process %s", process)
+        asset_id = uuid2uint128(asset_id)
         event = {
-            'nonce': 1,
+            'nonce': nonce,
             'process': process,
             'asset': asset_id, #EOS
             'members': ['0x' + '11' * 16],
             'threshold': 1,
-            'amount': '0x' + int.to_bytes(int(1e8), 16, 'big').hex(),
-            'extra': b'hello'.hex(),
-            'timestamp': int(time.time()*1e9),
+            'amount': '0x' + int.to_bytes(int(amount), 16, 'big').hex(),
+            'extra': extra.hex(),
+            'timestamp': timestamp,
             'signatures': []
         }
-
         tx_event = {
             'event': event
         }
         self.sign_event(tx_event)
+        return tx_event
+
+    def current_time(self):
+        info = self.chain.api.get_info()
+        head_block_time = info['head_block_time']
+        return datetime.strptime(head_block_time, "%Y-%m-%dT%H:%M:%S.%f")
+
+    def test_event(self):
+        process_id_str = 'e0148fc6-0e10-470e-8127-166e0829c839'
+        asset_id = '6cfe566e-4aad-470b-8c9a-2fd35b49c68d'
+        tx_event = self.build_event(asset_id, 1, 1e8, b'hello', int(time.time()*1e9))
         r = self.chain.push_action('mixincrossss', 'onevent', tx_event, {MTG_PUBLISHER: 'active'})
         print_console(r)
         logger.info('++++%s', r['elapsed'])
         self.chain.produce_block()
 
-        event = {
-            'nonce': 2,
-            'process': process,
-            'asset': asset_id, #EOS
-            'members': ['0x' + '11' * 16],
-            'threshold': 1,
-            'amount': '0x' + int.to_bytes(int(1e8), 16, 'big').hex(),
-            'extra': '',
-            'timestamp': int(time.time()*1e9),
-            'signatures': []
-        }
-
-        tx_event = {
-            'event': event
-        }
-        self.sign_event(tx_event)
+        tx_event = self.build_event(asset_id, 2, 1e8, b'', int(time.time()*1e9))
         r = self.chain.push_action('mixincrossss', 'onevent', tx_event, {MTG_PUBLISHER: 'active'})
 
         ret = self.chain.get_table_rows(True, 'mixincrossss', 'mixincrossss', 'createaccfee', '','', 10)
         logger.info("+++++ret %s", ret)
-        logger.info("+++++balance %s", self.get_balance('aaaaaaaaamvm'))
+        assert self.get_balance('aaaaaaaaamvm') == 1.0
 
         # def build_extra(process, amount, address = 'mixincrossss', extra=b''):
         args = {
@@ -351,22 +345,8 @@ class Test(object):
         originExtra = self.build_extra(process_id_str, 'mixincrossss', extra)
         hash = hashlib.sha256(originExtra).digest()
         extra = b'\x01' + hash + 'https://a.com'.encode()
-        event = {
-            'nonce': 3,
-            'process': process,
-            'asset': asset_id, #EOS
-            'members': ['0x' + '11' * 16],
-            'threshold': 1,
-            'amount': '0x' + int.to_bytes(int(1e8), 16, 'big').hex(),
-            'extra': extra.hex(),
-            'timestamp': int(time.time()*1e9),
-            'signatures': []
-        }
+        tx_event = self.build_event(asset_id, 3, 1e8, extra, int(time.time()*1e9))
 
-        tx_event = {
-            'event': event
-        }
-        self.sign_event(tx_event)
         r = self.chain.push_action('mixincrossss', 'onevent', tx_event, {MTG_PUBLISHER: 'active'})
         args = {
             'executor': MTG_PUBLISHER, 
@@ -375,4 +355,20 @@ class Test(object):
         }
         r = self.chain.push_action('mixincrossss', 'execpending', args, {MTG_PUBLISHER: 'active'})
         self.chain.produce_block()
-        logger.info("+++++balance %s", self.get_balance('aaaaaaaaamvm'))
+        assert self.get_balance('aaaaaaaaamvm') == 1.9
+
+        delay_seconds = 3*60
+        start_time = self.current_time()
+
+        # next_block_time = start_time + timedelta(seconds=delay_seconds)
+        # self.chain.produce_block(next_block_time)
+        # self.chain.produce_block() #finalize the previous block
+
+        delta = start_time - datetime(1970, 1, 1)
+        timestamp = int((delta.total_seconds() - delay_seconds) * 1e9)
+        # timestamp = int(time.time()*1e9)
+        tx_event = self.build_event(asset_id, 4, 1e8, originExtra, timestamp)
+        r = self.chain.push_action('mixincrossss', 'onevent', tx_event, {MTG_PUBLISHER: 'active'})
+        self.chain.produce_block()
+        assert self.get_balance('aaaaaaaaamvm') == 1.9
+
