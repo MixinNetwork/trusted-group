@@ -102,7 +102,7 @@ class Test(object):
 
         cls.update_auth(MTG_XIN_CONTRACT, 'EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV')
         cls.update_auth('mixincrossss', 'EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV')
-        cls.update_auth('mixinwtokens', 'EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV', 'mixincrossss')
+        cls.update_auth('mixinwtokens', 'EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV', ['mixincrossss', 'mixinwtokens'])
 
         pub_key = 'EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV'
         account = 'mixincrossss'
@@ -206,9 +206,21 @@ class Test(object):
         r = cls.chain.push_action('mixincrossss', 'setaccfee', args, {'mixincrossss': 'active'})
 
     @classmethod
-    def update_auth(cls, account, pub_key, code_account = None):
-        if not code_account:
-            code_account = account
+    def update_auth(cls, account, pub_key, code_accounts = None):
+        if not code_accounts:
+            code_accounts = [account]
+        account_permissions = []
+        for account in code_accounts:
+            perm = {
+                "permission":
+                {
+                    "actor": account,
+                    "permission": "eosio.code"
+                },
+                "weight":1
+            }
+            account_permissions.append(perm)
+
         args = {
             "account": account,
             "permission": "active",
@@ -221,16 +233,7 @@ class Test(object):
                         "weight": 1
                     },
                 ],
-                "accounts": [
-                    {
-                        "permission":
-                        {
-                            "actor": code_account,
-                            "permission": "eosio.code"
-                        },
-                        "weight":1
-                    }
-                ],
+                "accounts": account_permissions,
                 "waits": []
             }
         }
@@ -469,3 +472,49 @@ class Test(object):
         r = self.chain.push_action('mixincrossss', 'execpending', args, {MTG_PUBLISHER: 'active'})
         self.chain.produce_block()
         assert self.get_balance('aaaaaaaaamvm') == 0.9
+
+    def test_transfer(self):
+        process_id_str = 'e0148fc6-0e10-470e-8127-166e0829c839'
+        asset_id = '6cfe566e-4aad-470b-8c9a-2fd35b49c68d'
+        tx_event = self.build_event(asset_id, 1, 1e8, b'hello', int(time.time()*1e9))
+        r = self.chain.push_action('mixincrossss', 'onevent', tx_event, {MTG_PUBLISHER: 'active'})
+        print_console(r)
+        logger.info('++++%s', r['elapsed'])
+        self.chain.produce_block()
+
+
+        args = {
+            'from': 'aaaaaaaaamvm',
+            'to': 'hello',
+            'quantity': '0.10000000 MEOS',
+            'memo': 'hello'
+        }
+        args = self.chain.pack_args('mixinwtokens', 'transfer', args)
+        extra = b'\x00' + int.to_bytes(self.chain.s2n('mixinwtokens'), 8, 'little') + \
+            int.to_bytes(self.chain.s2n('transfer'), 8, 'little') + args
+
+        tx_event = self.build_event(asset_id, 2, 1e8, extra, int(time.time()*1e9))
+        r = self.chain.push_action('mixincrossss', 'onevent', tx_event, {MTG_PUBLISHER: 'active'})
+
+        ret = self.chain.get_table_rows(True, 'mixincrossss', 'mixincrossss', 'createaccfee', '','', 10)
+        logger.info("+++++ret %s", ret)
+        assert self.get_balance('aaaaaaaaamvm') ==  0.9
+        assert self.get_balance('hello') == 0.1
+
+        args = {
+            'from': 'hello',
+            'to': 'aaaaaaaaamvm',
+            'quantity': '0.01900000 MEOS',
+            'memo': 'transfer to aaaaaaaaamvm'
+        }
+        r = self.chain.push_action('mixinwtokens', 'transfer', args, {'hello': 'active'})
+        # logger.info(r)
+        for trace in r['action_traces']:
+            act = trace['act']
+            account, name = act['account'], act['name']
+            data = act['data']
+            args = self.chain.unpack_args(account, name, bytes.fromhex(data))
+            logger.info("+++%s %s %s", account, name, args)
+            if name == 'txrequest':
+                assert args['amount'] == '1900000'
+                assert args['extra'] == b'transfer to aaaaaaaaamvm'.hex()
