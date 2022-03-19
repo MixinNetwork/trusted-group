@@ -52,38 +52,7 @@ func (c *Contract) OnEvent(event *TxEvent, origin_extra []byte) {
 
 	c.CheckNonce(event.nonce)
 
-	if c.HandleExpiration(event) {
-		return
-	}
-
-	if event.amount.Cmp(chain.NewUint128(chain.MAX_AMOUNT, 0)) > 0 {
-		c.ShowError("amount too large")
-		return
-	}
-
-	if len(event.members) != 1 {
-		c.ShowError("multisig event not supported currently")
-		return
-	}
-
-	clientId := event.members[0]
-	account, ok := c.GetAccount(clientId)
-	if !ok {
-		c.CreateAccount(event)
-		return
-	}
-
-	if c.HandleExpiration(event) {
-		return
-	}
-
-	if len(origin_extra) == 0 {
-		if c.StorePendingEvent(account, event) {
-			return
-		}
-	}
-
-	c.HandleEventWithExtra(account, event, origin_extra)
+	c.HandleEvent(event, origin_extra)
 }
 
 func (c *Contract) CreateAccount(event *TxEvent) (chain.Name, bool) {
@@ -159,12 +128,12 @@ func (c *Contract) OnErrorEvent(event *TxEvent, reason *string, origin_extra []b
 
 	c.StoreNonce(event.nonce)
 
-	if c.HandleExpiration(event) {
+	if event.amount.Cmp(chain.NewUint128(chain.MAX_AMOUNT, 0)) > 0 {
+		c.ShowError("amount too large")
 		return
 	}
 
-	if event.amount.Cmp(chain.NewUint128(chain.MAX_AMOUNT, 0)) > 0 {
-		c.ShowError("amount too large")
+	if c.HandleExpiration(event) {
 		return
 	}
 
@@ -196,34 +165,55 @@ func (c *Contract) Exec(executor chain.Name) {
 		errorEvent := db.GetByIterator(it)
 		db.Remove(it)
 
-		if c.HandleExpiration(&errorEvent.event) {
-			return
-		}
-		clientId := errorEvent.event.members[0]
-		account, ok := c.GetAccount(clientId)
-		if !ok {
-			c.CreateAccount(&errorEvent.event)
-			return
-		}
-		c.HandleEventWithExtra(account, &errorEvent.event, errorEvent.originExtra)
+		c.HandleEvent(&errorEvent.event, errorEvent.originExtra)
 	}
 }
 
+func (c *Contract) HandleEvent(event *TxEvent, origin_extra []byte) {
+	if event.amount.Cmp(chain.NewUint128(chain.MAX_AMOUNT, 0)) > 0 {
+		c.ShowError("amount too large")
+		return
+	}
+
+	if len(event.members) != 1 {
+		c.ShowError("multisig event not supported currently")
+		return
+	}
+
+	if len(event.members) != 1 {
+		return
+	}
+
+	if c.HandleExpiration(event) {
+		return
+	}
+
+	clientId := event.members[0]
+	account, ok := c.GetAccount(clientId)
+	if !ok {
+		c.CreateAccount(event)
+		return
+	}
+
+	if len(origin_extra) == 0 {
+		if c.StorePendingEvent(account, event) {
+			return
+		}
+	}
+
+	c.HandleEventWithExtra(account, event, origin_extra)
+}
+
 //action execpending
-func (c *Contract) ExecPendingEventByExtra(executor chain.Name, nonce uint64, extra []byte) {
+func (c *Contract) ExecPendingEventByExtra(executor chain.Name, nonce uint64, origin_extra []byte) {
 	chain.RequireAuth(executor)
 	//	db := NewTxEventDB(c.self, c.self)
 	db := NewPendingEventDB(c.self, c.self)
 	it, item := db.Get(nonce)
 	check(it.IsOk(), "pending event not found")
 	db.Remove(it)
-	if c.HandleExpiration(&item.event) {
-		return
-	}
-
-	account, ok := c.GetAccount(item.event.members[0])
-	check(ok, "account not found!")
-	c.HandleEventWithExtra(account, &item.event, extra)
+	check(len(origin_extra) > 0, "origin_extra not not be empty")
+	c.HandleEvent(&item.event, origin_extra)
 }
 
 //action dowork

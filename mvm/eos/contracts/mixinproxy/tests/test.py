@@ -365,7 +365,7 @@ class Test(object):
         args = {
             'executor': MTG_PUBLISHER, 
             'nonce': 3,
-            'extra': originExtra.hex()
+            'origin_extra': originExtra.hex()
         }
         r = self.chain.push_action('mixincrossss', 'execpending', args, {MTG_PUBLISHER: 'active'})
         self.chain.produce_block()
@@ -469,7 +469,7 @@ class Test(object):
         args = {
             'executor': MTG_PUBLISHER, 
             'nonce': 3,
-            'extra': originExtra.hex()
+            'origin_extra': originExtra.hex()
         }
         r = self.chain.push_action('mixincrossss', 'execpending', args, {MTG_PUBLISHER: 'active'})
         self.chain.produce_block()
@@ -549,7 +549,7 @@ class Test(object):
         args = {
             'executor': MTG_PUBLISHER, 
             'nonce': 3,
-            'extra': originExtra.hex()
+            'origin_extra': originExtra.hex()
         }
         assert self.get_balance('aaaaaaaaamvm') == 0.9
 
