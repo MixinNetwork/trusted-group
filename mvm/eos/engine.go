@@ -35,6 +35,11 @@ const (
 	MAX_ACTIONS   = 100
 )
 
+const (
+	NORMAL_EVENT  = 0
+	PENDING_EVENT = 1
+)
+
 var (
 	ErrorNotIrreversible = errors.New("ErrorNotIrreversible")
 )
@@ -928,8 +933,7 @@ func (e *Engine) loopPushGroupEvents(address string) {
 			}
 			if e.eventStatus[evt.Nonce].Add(TX_EXPIRATION * time.Second).Before(time.Now()) {
 				e.eventStatus[evt.Nonce] = time.Now()
-				err := e.pushEvent(address, evt, true)
-				logger.Verbosef("pushEvent(%v, %v) => (err: %v)", address, evt, err)
+				go e.pushEvent(address, evt, true)
 				sendCount += 1
 			}
 		}
@@ -1046,13 +1050,32 @@ func convertEventToTxEvent(evt *encoding.Event) (*TxEvent, error) {
 	return txEvent, nil
 }
 
+func (e *Engine) getOriginExtra(extra []byte) []byte {
+	if len(extra) < 1+32 {
+		return nil
+	}
+
+	if extra[0] != PENDING_EVENT {
+		return nil
+	}
+
+	hash := extra[1:33]
+	url := string(extra[33:])
+	originExtra, err := e.getOriginDataByUrl(url, hex.EncodeToString(hash))
+	if err != nil {
+		return nil
+	}
+	return originExtra
+}
+
 func (e *Engine) pushEvent(address string, evt *encoding.Event, errorEvent bool) error {
 	if len(evt.Signature)/65 < e.threshold {
 		panic("not enough signatures")
 	}
 	refBlockId := e.GetRefBlockId()
+	originExtra := e.getOriginExtra(evt.Extra)
 
-	tx, err := BuildEventTransaction(e.mixinContract, e.mtgPublisherContract, address, evt, refBlockId)
+	tx, err := BuildEventTransaction(e.mixinContract, e.mtgPublisherContract, address, evt, refBlockId, originExtra)
 	if err != nil {
 		return err
 	}
@@ -1079,7 +1102,7 @@ func (e *Engine) pushEvent(address string, evt *encoding.Event, errorEvent bool)
 		if len(reason) > 256 {
 			reason = reason[:256]
 		}
-		tx, err := BuildErrorEventTransaction(e.mtgPublisherContract, address, evt, refBlockId, reason)
+		tx, err := BuildErrorEventTransaction(e.mtgPublisherContract, address, evt, refBlockId, reason, originExtra)
 		if err != nil {
 			return err
 		}

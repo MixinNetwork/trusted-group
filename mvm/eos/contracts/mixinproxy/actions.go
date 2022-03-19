@@ -36,7 +36,7 @@ func (c *Contract) RemoveMixinAsset(symbol chain.Symbol) {
 }
 
 //action onevent ignore
-func (c *Contract) OnEvent(event *TxEvent) {
+func (c *Contract) OnEvent(event *TxEvent, originExtra []byte) {
 	event = &TxEvent{}
 	data := chain.ReadActionData()
 	event.Unpack(data)
@@ -73,12 +73,13 @@ func (c *Contract) OnEvent(event *TxEvent) {
 		return
 	}
 
-	if len(event.extra) > 0 && event.extra[0] == EVENT_PENDING {
-		c.StorePendingEvent(account, event)
-		return
+	if len(originExtra) == 0 {
+		if c.StorePendingEvent(account, event) {
+			return
+		}
 	}
 
-	c.HandleEventWithExtra(account, event, nil)
+	c.HandleEventWithExtra(account, event, originExtra)
 }
 
 func (c *Contract) CreateAccount(event *TxEvent) (chain.Name, bool) {
@@ -131,7 +132,7 @@ func (c *Contract) StorePendingEvent(account chain.Name, event *TxEvent) bool {
 }
 
 //action onerrorevent ignore
-func (c *Contract) OnErrorEvent(event *TxEvent, reason *string) {
+func (c *Contract) OnErrorEvent(event *TxEvent, reason *string, originExtra []byte) {
 	errorEvent := &ErrorTxEvent{}
 	data := chain.ReadActionData()
 
@@ -147,6 +148,8 @@ func (c *Contract) OnErrorEvent(event *TxEvent, reason *string) {
 
 	errorEvent.reason = dec.UnpackString()
 
+	errorEvent.originExtra = dec.UnpackBytes()
+
 	nonce := c.GetNonce()
 	assert(event.nonce >= nonce, "bad nonce!")
 
@@ -158,15 +161,6 @@ func (c *Contract) OnErrorEvent(event *TxEvent, reason *string) {
 
 	if event.amount.Cmp(chain.NewUint128(chain.MAX_AMOUNT, 0)) > 0 {
 		c.ShowError("amount too large")
-		return
-	}
-
-	account, ok := c.GetAccount(event.members[0])
-	if !ok {
-		return
-	}
-
-	if c.StorePendingEvent(account, event) {
 		return
 	}
 
@@ -207,7 +201,7 @@ func (c *Contract) Exec(executor chain.Name) {
 			c.CreateAccount(&errorEvent.event)
 			return
 		}
-		c.HandleEventWithExtra(account, &errorEvent.event, nil)
+		c.HandleEventWithExtra(account, &errorEvent.event, errorEvent.originExtra)
 	}
 }
 

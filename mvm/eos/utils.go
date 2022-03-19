@@ -93,7 +93,7 @@ func genPrivateKey(share *share.PriShare) *secp256k1.PrivateKey {
 	return key
 }
 
-func BuildEventTransaction(mixincontract string, eventPublisher string, address string, event *encoding.Event, refBlockId string) (*chain.Transaction, error) {
+func BuildEventTransaction(mixincontract string, eventPublisher string, address string, event *encoding.Event, refBlockId string, originExtra []byte) (*chain.Transaction, error) {
 	expiration := uint32(time.Now().Unix() + TX_EXPIRATION)
 	tx := chain.NewTransaction(expiration)
 
@@ -122,13 +122,14 @@ func BuildEventTransaction(mixincontract string, eventPublisher string, address 
 			chain.NewName(address),
 			chain.NewName("onevent"),
 			txEvent,
+			originExtra,
 		)
 	}
 	tx.Actions = append(tx.Actions, action)
 	return tx, nil
 }
 
-func BuildErrorEventTransaction(eventPublisher string, address string, event *encoding.Event, refBlockId string, reason string) (*chain.Transaction, error) {
+func BuildErrorEventTransaction(eventPublisher string, address string, event *encoding.Event, refBlockId string, reason string, originExtra []byte) (*chain.Transaction, error) {
 	expiration := uint32(time.Now().Unix() + TX_EXPIRATION)
 	tx := chain.NewTransaction(expiration)
 
@@ -150,6 +151,7 @@ func BuildErrorEventTransaction(eventPublisher string, address string, event *en
 		chain.NewName("onerrorevent"),
 		txEvent,
 		reason,
+		originExtra,
 	)
 	tx.Actions = append(tx.Actions, action)
 	return tx, nil
