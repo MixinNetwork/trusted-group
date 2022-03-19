@@ -36,12 +36,16 @@ func (c *Contract) RemoveMixinAsset(symbol chain.Symbol) {
 }
 
 //action onevent ignore
-func (c *Contract) OnEvent(event *TxEvent, originExtra []byte) {
+func (c *Contract) OnEvent(event *TxEvent, origin_extra []byte) {
 	event = &TxEvent{}
 	data := chain.ReadActionData()
-	event.Unpack(data)
-	dataSize := len(data) - 1 - len(event.signatures)*66
-
+	dec := chain.NewDecoder(data)
+	dec.UnpackI(event)
+	dataSize := dec.Pos() - 1 - len(event.signatures)*66
+	origin_extra = dec.UnpackBytes()
+	if len(origin_extra) == 0 {
+		origin_extra = nil
+	}
 	VerifySignatures(data[:dataSize], event.signatures)
 
 	assert(event.process == c.process, "invalid process!")
@@ -73,13 +77,13 @@ func (c *Contract) OnEvent(event *TxEvent, originExtra []byte) {
 		return
 	}
 
-	if len(originExtra) == 0 {
+	if len(origin_extra) == 0 {
 		if c.StorePendingEvent(account, event) {
 			return
 		}
 	}
 
-	c.HandleEventWithExtra(account, event, originExtra)
+	c.HandleEventWithExtra(account, event, origin_extra)
 }
 
 func (c *Contract) CreateAccount(event *TxEvent) (chain.Name, bool) {
@@ -132,7 +136,7 @@ func (c *Contract) StorePendingEvent(account chain.Name, event *TxEvent) bool {
 }
 
 //action onerrorevent ignore
-func (c *Contract) OnErrorEvent(event *TxEvent, reason *string, originExtra []byte) {
+func (c *Contract) OnErrorEvent(event *TxEvent, reason *string, origin_extra []byte) {
 	errorEvent := &ErrorTxEvent{}
 	data := chain.ReadActionData()
 

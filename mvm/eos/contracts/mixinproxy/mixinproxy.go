@@ -206,7 +206,7 @@ func (c *Contract) HandleEventWithExtra(fromAccount chain.Name, event *TxEvent, 
 	event.amount.Sub(&event.amount, chain.NewUint128(uint64(fee.Amount), 0))
 
 	var action *chain.Action
-	if originExtra == nil {
+	if len(originExtra) == 0 {
 		if len(event.extra) == 0 {
 			//transfer to self
 			action = nil
