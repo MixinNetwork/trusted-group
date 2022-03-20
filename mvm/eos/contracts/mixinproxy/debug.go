@@ -80,3 +80,19 @@ func (c *Contract) clear() {
 func (c *Contract) test() {
 	c.GetNextIndex(KEY_COUNTER_TEST, 1)
 }
+
+//action testname
+func (c *Contract) testName() {
+	// aaaaaaaaamvm
+	// name := GetAccountNameFromId((uint64)i)
+	name := GetAccountNameFromId(uint64(30))
+	chain.Check(name == chain.NewName("aaaaaaaa5mvm"), "bad value")
+
+	name = GetAccountNameFromId(uint64(31))
+	chain.Check(name == chain.NewName("aaaaaaabamvm"), "bad value")
+
+	// for i := 0; i <= 100; i++ {
+	// 	name := GetAccountNameFromId(uint64(i))
+	// 	chain.Println("++++++++:", i, name)
+	// }
+}

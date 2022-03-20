@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	alphabet = "abcdefghijklmnopqrstuvwxyz"
+	alphabet = "abcdefghijklmnopqrstuvwxyz12345"
 )
 
 //table signers ignore
@@ -99,13 +99,18 @@ func GetClientId(memo string) (*chain.Uint128, bool) {
 func GetAccountNameFromId(accountId uint64) chain.Name {
 	strName := []byte{'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'm', 'v', 'm'}
 	for i := 0; i < 9; i++ {
-		j := accountId % 26
+		j := accountId % 31
 		strName[i] = alphabet[j]
-		accountId /= 26
+		accountId /= 31
 		if accountId == 0 {
 			break
 		}
 	}
+
+	for i, j := 0, 9-1; i < j; i, j = i+1, j-1 {
+		strName[i], strName[j] = strName[j], strName[i]
+	}
+
 	name := chain.NewName(string(strName))
 	if !DEBUG {
 		check(!chain.IsAccount(name), "account name already exists")

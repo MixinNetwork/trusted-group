@@ -569,3 +569,6 @@ class Test(object):
         logger.info('%s', ret)
         assert len(ret['rows']) == 0
         assert self.get_balance('aaaaaaaaamvm') == 1.8
+
+    def test_debug(self):
+        r = self.chain.push_action('mixincrossss', 'testname', b'', {MTG_PUBLISHER: 'active'})
