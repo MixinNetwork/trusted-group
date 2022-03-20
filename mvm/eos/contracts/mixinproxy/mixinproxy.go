@@ -144,16 +144,6 @@ func (c *Contract) parseAction(extra []byte) *chain.Action {
 	}
 }
 
-func (c *Contract) CheckFee(quantity *chain.Asset) (*chain.Asset, bool) {
-	fee := c.GetTransferFee(quantity.Symbol)
-	if quantity.Amount <= fee.Amount {
-		c.ShowError("transfer amount is less than fee")
-		return nil, false
-	} else {
-	}
-	return fee, true
-}
-
 func (c *Contract) HandleExpiration(event *TxEvent) bool {
 	expiration := uint32(event.timestamp/1e9) + MTG_WORK_EXPIRATION_SECONDS
 	if expiration > chain.CurrentTimeSeconds() {
@@ -168,18 +158,21 @@ func (c *Contract) HandleExpiration(event *TxEvent) bool {
 	quantity := chain.NewAsset(int64(event.amount.Uint64()), symbol)
 
 	fee := c.GetTransferFee(symbol)
-	feeAmount := fee.Amount
-	if quantity.Amount <= fee.Amount {
-		c.AddFee(quantity)
-		c.ShowError("transfer amount is less than fee")
-		return true
-	} else {
-		c.AddFee(fee)
+
+	if fee.Amount != 0 {
+		if quantity.Amount <= fee.Amount {
+			c.AddFee(quantity)
+			c.ShowError("transfer amount is less than fee")
+			return true
+		} else {
+			c.AddFee(fee)
+		}
+
+		quantity.Amount -= fee.Amount
 	}
 
-	quantity.Amount -= fee.Amount
 	//deduct fee from event, in case of refundment
-	event.amount.Sub(&event.amount, chain.NewUint128(uint64(feeAmount), 0))
+	event.amount.Sub(&event.amount, chain.NewUint128(uint64(fee.Amount), 0))
 
 	c.Refund(event, "expired, refund")
 	return true
@@ -192,15 +185,16 @@ func (c *Contract) HandleEventWithExtra(fromAccount chain.Name, event *TxEvent, 
 	}
 	quantity := chain.NewAsset(int64(event.amount.Uint64()), symbol)
 
-	fee, ok := c.CheckFee(quantity)
-	if !ok {
-		c.AddFee(quantity)
-		return
-	}
-	c.AddFee(fee)
-	quantity.Amount -= fee.Amount
-	if quantity.Amount <= 0 {
-		return
+	fee := c.GetTransferFee(quantity.Symbol)
+	if fee.Amount != 0 {
+		if quantity.Amount <= fee.Amount {
+			c.AddFee(quantity)
+			c.ShowError("transfer amount is less than fee")
+			return
+		}
+
+		c.AddFee(fee)
+		quantity.Amount -= fee.Amount
 	}
 
 	event.amount.Sub(&event.amount, chain.NewUint128(uint64(fee.Amount), 0))
