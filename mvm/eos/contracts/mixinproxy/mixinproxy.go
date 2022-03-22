@@ -107,7 +107,7 @@ func (c *Contract) CheckNonce(eventNonce uint64) {
 			break
 		}
 		record := db.GetByIterator(it)
-		if record.nonce >= nonce {
+		if record.nonce > nonce {
 			break
 		}
 		db.Remove(it)
@@ -144,35 +144,40 @@ func (c *Contract) parseAction(extra []byte) *chain.Action {
 	}
 }
 
-func (c *Contract) HandleExpiration(event *TxEvent) bool {
-	expiration := uint32(event.timestamp/1e9) + MTG_WORK_EXPIRATION_SECONDS
-	if expiration > chain.CurrentTimeSeconds() {
-		return false
-	}
-
+func (c *Contract) checkFee(event *TxEvent) bool {
 	symbol, ok := c.GetSymbol(event.asset)
 	if !ok {
-		return true
+		return false
 	}
 
 	quantity := chain.NewAsset(int64(event.amount.Uint64()), symbol)
 
 	fee := c.GetTransferFee(symbol)
 
-	if fee.Amount != 0 {
-		if quantity.Amount <= fee.Amount {
-			c.AddFee(quantity)
-			c.ShowError("transfer amount is less than fee")
-			return true
-		} else {
-			c.AddFee(fee)
-		}
-
-		quantity.Amount -= fee.Amount
+	if fee.Amount == 0 {
+		return true
 	}
+
+	if quantity.Amount <= fee.Amount {
+		c.AddFee(quantity)
+		c.ShowError("transfer amount is less than fee")
+		return false
+	} else {
+		c.AddFee(fee)
+	}
+
+	quantity.Amount -= fee.Amount
 
 	//deduct fee from event, in case of refundment
 	event.amount.Sub(&event.amount, chain.NewUint128(uint64(fee.Amount), 0))
+	return true
+}
+
+func (c *Contract) HandleExpiration(event *TxEvent) bool {
+	expiration := uint32(event.timestamp/1e9) + MTG_WORK_EXPIRATION_SECONDS
+	if expiration > chain.CurrentTimeSeconds() {
+		return false
+	}
 
 	c.Refund(event, "expired, refund")
 	return true
@@ -184,20 +189,6 @@ func (c *Contract) HandleEventWithExtra(fromAccount chain.Name, event *TxEvent, 
 		return
 	}
 	quantity := chain.NewAsset(int64(event.amount.Uint64()), symbol)
-
-	fee := c.GetTransferFee(quantity.Symbol)
-	if fee.Amount != 0 {
-		if quantity.Amount <= fee.Amount {
-			c.AddFee(quantity)
-			c.ShowError("transfer amount is less than fee")
-			return
-		}
-
-		c.AddFee(fee)
-		quantity.Amount -= fee.Amount
-	}
-
-	event.amount.Sub(&event.amount, chain.NewUint128(uint64(fee.Amount), 0))
 
 	var action *chain.Action
 	if len(originExtra) == 0 {

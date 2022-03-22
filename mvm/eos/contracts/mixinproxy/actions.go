@@ -22,7 +22,7 @@ func (c *Contract) AddMixinAsset(asset_id chain.Uint128, symbol chain.Symbol) {
 	chain.RequireAuth(c.self)
 	db := NewMixinAssetDB(c.self, c.self)
 	it := db.Find(symbol.Code())
-	check(!it.IsOk(), "Asset already exists")
+	check(!it.IsOk(), "Asset has already been added")
 	db.Store(&MixinAsset{symbol, asset_id}, c.self)
 }
 
@@ -51,6 +51,10 @@ func (c *Contract) OnEvent(event *TxEvent, origin_extra []byte) {
 	assert(event.process == c.process, "invalid process!")
 
 	c.CheckNonce(event.nonce)
+
+	if !c.checkFee(event) {
+		return
+	}
 
 	c.HandleEvent(event, origin_extra)
 }
@@ -128,6 +132,10 @@ func (c *Contract) OnErrorEvent(event *TxEvent, reason *string, origin_extra []b
 
 	c.StoreNonce(event.nonce)
 
+	if !c.checkFee(event) {
+		return
+	}
+
 	if event.amount.Cmp(chain.NewUint128(chain.MAX_AMOUNT, 0)) > 0 {
 		c.ShowError("amount too large")
 		return
@@ -180,10 +188,6 @@ func (c *Contract) HandleEvent(event *TxEvent, origin_extra []byte) {
 		return
 	}
 
-	if len(event.members) != 1 {
-		return
-	}
-
 	if c.HandleExpiration(event) {
 		return
 	}
@@ -212,7 +216,7 @@ func (c *Contract) ExecPendingEventByExtra(executor chain.Name, nonce uint64, or
 	it, item := db.Get(nonce)
 	check(it.IsOk(), "pending event not found")
 	db.Remove(it)
-	check(len(origin_extra) > 0, "origin_extra not not be empty")
+	check(len(origin_extra) > 0, "origin_extra should not be empty")
 	c.HandleEvent(&item.event, origin_extra)
 }
 
