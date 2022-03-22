@@ -31,6 +31,7 @@ contract MixinUser is Registrable {
 
     function run(address asset, uint256 amount, bytes memory extra) external onlyRegistry() returns (bool result) {
         if (extra.length < 24) {
+            try Registry(registry).claim(asset, amount) {} catch {}
             return true;
         }
         address process = extra.toAddress(0);
@@ -207,7 +208,7 @@ contract Registry {
         (offset, evt.extra, evt.timestamp) = parseEventExtra(raw, offset);
         (offset, evt.user) = parseEventUser(raw, offset);
         (evt.asset, evt.extra) = parseEventInput(id, evt.extra);
-
+    
         offset = offset + 2;
         evt.sig = [raw.toUint256(offset), raw.toUint256(offset+32)];
         uint256[2] memory message = raw.slice(0, offset-2).concat(new bytes(2)).hashToPoint();
@@ -219,6 +220,8 @@ contract Registry {
         emit MixinEvent(evt);
         MixinAsset(evt.asset).mint(evt.user, evt.amount);
         if (evt.extra.length < 24) {
+            MixinAsset(evt.asset).burn(evt.user, evt.amount);
+            sendMixinTransaction(evt.user, evt.asset, evt.amount); 
             return true;
         }
         id = evt.extra.toUint128(0);
