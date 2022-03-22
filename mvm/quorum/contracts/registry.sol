@@ -208,7 +208,7 @@ contract Registry {
         (offset, evt.extra, evt.timestamp) = parseEventExtra(raw, offset);
         (offset, evt.user) = parseEventUser(raw, offset);
         (evt.asset, evt.extra) = parseEventInput(id, evt.extra);
-    
+
         offset = offset + 2;
         evt.sig = [raw.toUint256(offset), raw.toUint256(offset+32)];
         uint256[2] memory message = raw.slice(0, offset-2).concat(new bytes(2)).hashToPoint();
