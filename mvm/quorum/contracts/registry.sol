@@ -108,6 +108,7 @@ contract Registry {
     mapping(address => uint128) public assets;
     mapping(uint => address) public contracts;
 
+    mapping(uint => bytes) public params;
     struct Event {
         uint64 nonce;
         address user;
@@ -217,9 +218,28 @@ contract Registry {
 
         emit MixinEvent(evt);
         MixinAsset(evt.asset).mint(evt.user, evt.amount);
+        if (evt.extra.length < 24) {
+            return true;
+        }
+        id = evt.extra.toUint128(0);
+        if (id == PID) {
+            uint256 paramsId = evt.extra.toUint256(16);
+            evt.extra = readParams(paramsId);
+        }
         return MixinUser(evt.user).run(evt.asset, evt.amount, evt.extra);
     }
 
+    function writeParams(bytes memory raw) public returns(uint256) {
+       uint id = uint256(keccak256(raw));
+       params[id] = raw;
+       return id;
+    }
+
+    function readParams(uint256 id) public view returns(bytes memory) {
+        require(params[id].length > 0, "invalid params");
+        return params[id];
+    }
+    
     function parseEventExtra(bytes memory raw, uint offset) internal pure returns(uint, bytes memory, uint64) {
         uint size = raw.toUint16(offset);
         offset = offset + 2;
