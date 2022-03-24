@@ -53,11 +53,11 @@ def print_console(tx):
 
     for trace in tx['action_traces']:
         # logger.info(trace['console'])
-        print(f'{num}:action_traces:%s'%(trace['console'], ))
+        logger.info(f'{num}:action_traces:%s'%(trace['console'], ))
         if not 'inline_traces' in trace:
             continue
         for inline_trace in trace['inline_traces']:
-            print(f'{num}:inline_traces:%s'%(inline_trace['console'], ))
+            logger.info(f'{num}:inline_traces:%s'%(inline_trace['console'], ))
 
 
 class Test(object):
@@ -188,6 +188,7 @@ class Test(object):
         r = cls.chain.push_action(MTG_XIN_CONTRACT, 'addprocess', args, {MTG_XIN_CONTRACT: 'active'})
 
         r = cls.chain.push_action('mixincrossss', 'initialize', b'', {'mixincrossss': 'active'})
+        r = cls.chain.get_account('aaaaaaaaamvm')
 
         asset_id = uuid2uint128('43d61dcd-e413-450d-80b8-101d5e903357')
         args = {
@@ -284,7 +285,6 @@ class Test(object):
 
         if isinstance(extra, str):
             extra = extra.encode()
-        print(process)
         process = uuid.UUID(process).bytes #test2 mixincross
         buf = io.BytesIO()
         buf.write(int.to_bytes(1, 2, 'big')) #Purpose

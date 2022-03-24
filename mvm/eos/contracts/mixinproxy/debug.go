@@ -13,6 +13,13 @@ const (
 	KEY_COUNTER_TEST = 7
 )
 
+var (
+	MTG_XIN         = chain.NewName("mtgxinmtgxin")
+	MIXIN_WTOKENS   = chain.NewName("mixinwtokens")
+	ACCOUNT_OWNER   = chain.NewName("mtgxinmtgxin")
+	ACCOUNT_CREATER = chain.NewName("mixincrossss")
+)
+
 func ClearDB(db database.MultiIndexInterface) {
 	for {
 		it := db.Lowerbound(0)

@@ -1,6 +1,6 @@
 all : mixinproxy.wasm
 
-mixinproxy.wasm : actions.go tables.go mixinproxy.go
+mixinproxy.wasm : tables.go mixinproxy.go
 	eosio-go build -o mixinproxy.wasm
 
 test : mixinproxy.wasm
