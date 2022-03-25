@@ -527,6 +527,7 @@ class Test(object):
         }
         r = self.chain.push_action('mixinwtokens', 'transfer', args, {'hello': 'active'})
         # logger.info(r)
+        found = False
         for trace in r['action_traces']:
             act = trace['act']
             account, name = act['account'], act['name']
@@ -536,6 +537,8 @@ class Test(object):
             if name == 'txrequest':
                 assert args['amount'] == '1900000'
                 assert args['extra'] == b'transfer to aaaaaaaaamvm'.hex()
+                found = True
+        assert found
 
     def test_on_event_with_origin_extra(self):
         process_id_str = 'e0148fc6-0e10-470e-8127-166e0829c839'

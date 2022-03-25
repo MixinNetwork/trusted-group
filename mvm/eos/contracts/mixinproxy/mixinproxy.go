@@ -257,6 +257,11 @@ func (c *Contract) OnTransfer(from chain.Name, to chain.Name, quantity chain.Ass
 	check(it.IsOk(), "invalid mixin asset")
 	assetId := asset.asset_id
 	id := c.GetNextTxRequestNonce()
+
+	if len(memo) >= 128 {
+		memo = memo[:128]
+	}
+
 	notify := TxRequest{
 		nonce:     id,
 		contract:  c.self,
