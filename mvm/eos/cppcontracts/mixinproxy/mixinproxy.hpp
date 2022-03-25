@@ -71,6 +71,7 @@ public:
 
     struct tx_request {
         uint64_t nonce;
+        name contract;
         uint128_t process;
         uint128_t asset;
         std::vector<uint128_t> members;

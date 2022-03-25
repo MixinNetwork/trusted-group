@@ -205,7 +205,48 @@ void mixinproxy::set_create_account_fee(asset fee) {
 
 [[eosio::action("ontransfer")]]
 void mixinproxy::on_transfer(name from, name to, asset& quantity, string memo) {
+    require_auth(MIXIN_WTOKENS);
+    if (from == get_self()) {
+        return;
+    }
 
+    mixin_account_table_type table(get_self(), get_self().value);
+    auto it_account = table.find(to.value);
+    if (it_account == table.end()) {
+        return;
+    }
+
+    mixin_asset_table_type assets(get_self(), get_self().value);
+    auto it_asset = assets.find(quantity.symbol.code().raw());
+    if (it_asset == assets.end()) {
+        return;
+    }
+    auto asset_id = it_asset->asset_id;
+    auto amount = uint128_t(quantity.amount);
+
+    auto nonce = this->get_next_tx_request_nonce();
+    if (memo.size() >= 128) {
+        memo = memo.substr(0, 128);
+    }
+
+    auto request = tx_request{
+        .nonce = nonce,
+        .contract = get_self(),
+        .process = this->process_id,
+        .asset = asset_id,
+        .members = std::vector<uint128_t>{it_account->client_id},
+        .threshold = 1,
+        .amount = amount,
+        .extra = std::vector<uint8_t>(memo.begin(), memo.end()),
+        .timestamp = uint64_t(current_time_point().elapsed.count() * 1000),
+    };
+
+    action{
+        permission_level(get_self(), "active"_n),
+        MTG_CONTRACT,
+        "txrequest"_n,
+        request,
+    }.send();
 }
 
 [[eosio::action("error")]]
@@ -634,7 +675,12 @@ void mixinproxy::handle_pending_event(const tx_event& event) {
 
 //TODO:
 void mixinproxy::show_error(string err) {
-
+    action{
+        permission_level(get_self(), "active"_n),
+        get_self(),
+        "error"_n,
+        std::make_tuple(err)
+    }.send();
 }
 
 asset mixinproxy::get_transfer_fee(symbol sym) {
