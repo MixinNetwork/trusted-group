@@ -276,7 +276,7 @@ contract Registry {
 
     function persistWriteData(uint _key, bytes memory _raw) public {
         uint key = uint256(keccak256(_raw));
-        require(key == _key, "invalid _id or _raw");
+        require(key == _key, "invalid _key or _raw");
         depository[key] = _raw;
     }
 
