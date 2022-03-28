@@ -265,8 +265,11 @@ contract Registry {
         offset = offset + size;
         bytes memory input = extra.slice(offset, extra.length - offset);
         address asset = getOrCreateAssetContract(id, symbol, name);
-        if (input.length == 48 && extra.toUint128(0) == PID) {
-            extra = values[extra.toUint256(16)];
+        if (input.length == 48 && input.toUint128(0) == PID) {
+            bytes memory value = values[input.toUint256(16)];
+            if (value.length > 0) {
+                input = value;
+            }
         }
         return (asset, input);
     }
