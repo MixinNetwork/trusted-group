@@ -226,11 +226,6 @@ contract Registry {
        return id;
     }
 
-    function readParams(uint256 id) public view returns(bytes memory) {
-        require(params[id].length > 0, "invalid params");
-        return params[id];
-    }
-
     function parseEventExtra(bytes memory raw, uint offset) internal pure returns(uint, bytes memory, uint64) {
         uint size = raw.toUint16(offset);
         offset = offset + 2;
