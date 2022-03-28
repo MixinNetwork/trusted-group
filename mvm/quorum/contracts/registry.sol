@@ -31,7 +31,7 @@ contract MixinUser is Registrable {
 
     function run(address asset, uint256 amount, bytes memory extra) external onlyRegistry() returns (bool result) {
         if (extra.length < 24) {
-            try Registry(registry).claim(asset, amount) {} catch {}
+            Registry(registry).claim(asset, amount);
             return true;
         }
         address process = extra.toAddress(0);
@@ -108,7 +108,7 @@ contract Registry {
     mapping(address => bytes) public users;
     mapping(address => uint128) public assets;
     mapping(uint => address) public contracts;
-    mapping(uint => bytes) public params;
+    mapping(uint => bytes) public values;
 
     struct Event {
         uint64 nonce;
@@ -146,7 +146,9 @@ contract Registry {
     function claim(address asset, uint256 amount) public returns (bool) {
         require(users[msg.sender].length > 0, "invalid user");
         require(assets[asset] > 0, "invalid asset");
-        return sendMixinTransaction(msg.sender, asset, amount);
+        MixinAsset(asset).burn(msg.sender, amount);
+        sendMixinTransaction(msg.sender, asset, amount);
+        return true;
     }
 
     function burn(address user, uint256 amount) external returns (bool) {
@@ -157,16 +159,16 @@ contract Registry {
         if (!MixinUser(user).burn()) {
             return true;
         }
-        return sendMixinTransaction(user, msg.sender, amount);
+        MixinAsset(msg.sender).burn(user, amount);
+        sendMixinTransaction(user, msg.sender, amount);
+        return true;
     }
 
-    function sendMixinTransaction(address user, address asset, uint256 amount) internal returns (bool){
-        MixinAsset(asset).burn(user, amount);
+    function sendMixinTransaction(address user, address asset, uint256 amount) internal {
         bytes memory extra = new bytes(0);
         bytes memory log = buildMixinTransaction(OUTBOUND, users[user], assets[asset], amount, extra);
         emit MixinTransaction(log);
         OUTBOUND = OUTBOUND + 1;
-        return true;
     }
 
     // process || nonce || asset || amount || extra || timestamp || members || threshold || sig
@@ -220,12 +222,6 @@ contract Registry {
         return MixinUser(evt.user).run(evt.asset, evt.amount, evt.extra);
     }
 
-    function writeParams(bytes memory raw) public returns(uint256) {
-       uint id = uint256(keccak256(raw));
-       params[id] = raw;
-       return id;
-    }
-
     function parseEventExtra(bytes memory raw, uint offset) internal pure returns(uint, bytes memory, uint64) {
         uint size = raw.toUint16(offset);
         offset = offset + 2;
@@ -269,17 +265,15 @@ contract Registry {
         offset = offset + size;
         bytes memory input = extra.slice(offset, extra.length - offset);
         address asset = getOrCreateAssetContract(id, symbol, name);
-        if (input.length < 24) {
-            return (asset, input);
-        }
-        id = input.toUint128(0);
-        if (id == PID) {
-            uint256 key = input.toUint256(16);
-            if (params[key].length > 0) {
-                input = params[key];
-            }
+        if (input.length == 48 && extra.toUint128(0) == PID) {
+            extra = values[extra.toUint256(16)];
         }
         return (asset, input);
+    }
+
+    function writeValue(bytes memory raw) public {
+        uint key = uint256(keccak256(raw));
+        values[key] = raw;
     }
 
     function getOrCreateAssetContract(uint128 id, string memory symbol, string memory name) internal returns (address) {
