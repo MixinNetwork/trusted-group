@@ -274,15 +274,18 @@ contract Registry {
         if (input.length < 24) {
             return (asset, input, false);
         }
-        bool[8] memory op = uint8ToBools(input.toUint8(0));
+        uint8 op = input.toUint8(0);
         input = input.slice(1, input.length - 1);
-        if (op[0]) {
+        bool hasValue = op & 1 == 1;
+        if (hasValue) {
             bytes memory value = values[input.toUint256(0)];
              if (value.length > 0) {
                 input = value;
             }
         }
-        return (asset, input, op[1]);
+        op = op >> 1;
+        bool isDelegatecall = op & 1 == 1;
+        return (asset, input, isDelegatecall);
     }
 
     function writeValue(uint _key, bytes memory raw) public {
@@ -402,14 +405,5 @@ contract Registry {
         }
         uint16 size = 32 - offset;
         return (c.slice(offset, 32-offset), size);
-    }
-
-    function uint8ToBools(uint8 x) internal pure returns (bool[8] memory) {
-        bool[8] memory b;
-        for (uint i=0; i < 8; i++) {
-            b[i] = x & 1 == 1;
-            x = x >> 1;
-        }
-        return b;
     }
 }
