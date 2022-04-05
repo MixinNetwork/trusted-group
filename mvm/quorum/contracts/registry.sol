@@ -6,7 +6,7 @@ import {BLS} from './bls.sol';
 import {StandardToken} from './erc20.sol';
 
 contract Registrable {
-    address public immutable registry;
+    address public registry;
 
     modifier onlyRegistry() {
         require(msg.sender == registry, "not registry");
@@ -16,17 +16,19 @@ contract Registrable {
     constructor() {
         registry = msg.sender;
     }
+
+    function evolve(address next) public onlyRegistry() {
+        registry = next;
+    }
 }
 
 contract MixinUser is Registrable {
     using BytesLib for bytes;
 
     bytes public members;
-    bool public burn;
 
     constructor(bytes memory _members) {
         members = _members;
-        burn = true;
     }
 
     function run(address asset, uint256 amount, bytes memory extra) external onlyRegistry() returns (bool result) {
@@ -40,11 +42,6 @@ contract MixinUser is Registrable {
         (result, input) = process.call(input);
         try Registry(registry).claim(asset, amount) {} catch {}
         return result;
-    }
-
-    function toggle() external {
-        require(msg.sender == address(this));
-        burn = !burn;
     }
 }
 
@@ -103,10 +100,12 @@ contract Registry {
     uint256[4] public GROUP;
     uint64 public INBOUND = 0;
     uint64 public OUTBOUND = 0;
+    bool public HALTED = false;
 
     mapping(address => bytes) public users;
     mapping(address => uint128) public assets;
     mapping(uint => address) public contracts;
+    address[] public addresses;
 
     struct Event {
         uint64 nonce;
@@ -141,6 +140,37 @@ contract Registry {
         GROUP = group;
     }
 
+    function halt(bytes memory raw) public {
+        uint256[2] memory sig = [raw.toUint256(0), raw.toUint256(32)];
+        uint256[2] memory message = bytes("HALT").hashToPoint();
+        require(sig.verifySingle(GROUP, message));
+        HALTED = true;
+    }
+
+    function evolve(bytes memory raw) public {
+        require(HALTED, "invalid state");
+        Registry next = Registry(raw.toAddress(0));
+        uint256[2] memory sig = [raw.toUint256(20), raw.toUint256(52)];
+        uint256[2] memory message = raw.slice(0, 20).hashToPoint();
+        require(sig.verifySingle(GROUP, message));
+        require(next.INBOUND() == INBOUND);
+        require(next.OUTBOUND() == OUTBOUND);
+        for (uint i = 0; i < addresses.length; i++) {
+            address addr = next.addresses(i);
+            require(addr == addresses[i]);
+            bytes memory members = users[addr];
+            if (members.length > 0) {
+                uint id = uint256(keccak256(members));
+                require(next.contracts(id) == addr);
+                MixinUser(addr).evolve(address(next));
+            } else {
+                uint128 asset = assets[addr];
+                require(next.contracts(asset) == addr);
+                MixinAsset(addr).evolve(address(next));
+            }
+        }
+    }
+
     function claim(address asset, uint256 amount) public returns (bool) {
         require(users[msg.sender].length > 0, "invalid user");
         require(assets[asset] > 0, "invalid asset");
@@ -152,9 +182,6 @@ contract Registry {
     function burn(address user, uint256 amount) external returns (bool) {
         require(assets[msg.sender] > 0, "invalid asset");
         if (users[user].length == 0) {
-            return true;
-        }
-        if (!MixinUser(user).burn()) {
             return true;
         }
         MixinAsset(msg.sender).burn(user, amount);
@@ -188,6 +215,7 @@ contract Registry {
 
     // process || nonce || asset || amount || extra || timestamp || members || threshold || sig
     function mixin(bytes memory raw) public returns (bool) {
+        require(!HALTED, "invalid state");
         require(raw.length >= 141, "event data too small");
 
         Event memory evt;
@@ -280,6 +308,7 @@ contract Registry {
         require(addr == asset, "malformed asset contract address");
         assets[asset] = id;
         contracts[id] = asset;
+        addresses.push(asset);
         emit AssetCreated(asset, id);
         return asset;
     }
@@ -299,6 +328,7 @@ contract Registry {
         require(addr == user, "malformed user contract address");
         users[user] = members;
         contracts[id] = user;
+        addresses.push(user);
         emit UserCreated(user, members);
         return user;
     }
