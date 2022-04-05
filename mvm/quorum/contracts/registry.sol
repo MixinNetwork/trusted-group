@@ -96,6 +96,7 @@ contract Registry {
 
     uint256 public constant VERSION = 1;
     uint128 public immutable PID;
+    uint256 constant BALANCE = 1;
 
     uint256[4] public GROUP;
     uint64 public INBOUND = 0;
@@ -105,7 +106,9 @@ contract Registry {
     mapping(address => bytes) public users;
     mapping(address => uint128) public assets;
     mapping(uint => address) public contracts;
+    mapping(uint128 => uint256) public balances;
     address[] public addresses;
+    uint128[] public deposits;
 
     struct Event {
         uint64 nonce;
@@ -155,6 +158,7 @@ contract Registry {
         require(sig.verifySingle(GROUP, message));
         require(next.INBOUND() == INBOUND);
         require(next.OUTBOUND() == OUTBOUND);
+        require(next.PID() != PID);
         for (uint i = 0; i < addresses.length; i++) {
             address addr = next.addresses(i);
             require(addr == addresses[i]);
@@ -168,6 +172,15 @@ contract Registry {
                 require(next.contracts(asset) == addr);
                 MixinAsset(addr).evolve(address(next));
             }
+        }
+        for (uint i = 0; i < deposits.length; i++) {
+            uint128 asset = deposits[i];
+            uint256 amount = balances[asset] - BALANCE;
+            bytes memory user = new bytes(0); // TODO should be the new regsitry PID
+            bytes memory extra = new bytes(0); // TODO should be ABI of pure deposit to registry
+            bytes memory log = buildMixinTransaction(OUTBOUND, user, asset, amount, extra);
+            emit MixinTransaction(log);
+            OUTBOUND = OUTBOUND + 1;
         }
     }
 
@@ -190,9 +203,11 @@ contract Registry {
     }
 
     function sendMixinTransaction(address user, address asset, uint256 amount) internal {
+        uint256 balance = balances[assets[asset]];
         bytes memory extra = new bytes(0);
         bytes memory log = buildMixinTransaction(OUTBOUND, users[user], assets[asset], amount, extra);
         emit MixinTransaction(log);
+        balances[assets[asset]] = balance - amount;
         OUTBOUND = OUTBOUND + 1;
     }
 
@@ -242,6 +257,13 @@ contract Registry {
 
         offset = offset + 64;
         require(raw.length == offset, "malformed event encoding");
+
+        uint256 balance = balances[assets[evt.asset]];
+        if (balance == 0) {
+            deposits.push(assets[evt.asset]);
+            balance = BALANCE;
+        }
+        balances[assets[evt.asset]] = balance + evt.amount;
 
         emit MixinEvent(evt);
         MixinAsset(evt.asset).mint(evt.user, evt.amount);
