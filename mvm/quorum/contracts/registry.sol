@@ -277,7 +277,7 @@ contract Registry {
         uint8 op = input.toUint8(0);
         input = input.slice(1, input.length - 1);
         bool hasValue = op & 1 == 1;
-        if (hasValue) {
+        if (hasValue && input.length >= 32) {
             bytes memory value = values[input.toUint256(0)];
              if (value.length > 0) {
                 input = value;
