@@ -13,6 +13,13 @@ const (
 	KEY_COUNTER_TEST = 7
 )
 
+var (
+	MTG_XIN         = chain.NewName("mtgxinmtgxin")
+	MIXIN_WTOKENS   = chain.NewName("mixinwtokens")
+	ACCOUNT_OWNER   = chain.NewName("mtgxinmtgxin")
+	ACCOUNT_CREATER = chain.NewName("mixincrossss")
+)
+
 func ClearDB(db database.MultiIndexInterface) {
 	for {
 		it := db.Lowerbound(0)
@@ -79,4 +86,20 @@ func (c *Contract) clear() {
 //action test
 func (c *Contract) test() {
 	c.GetNextIndex(KEY_COUNTER_TEST, 1)
+}
+
+//action testname
+func (c *Contract) testName() {
+	// aaaaaaaaamvm
+	// name := GetAccountNameFromId((uint64)i)
+	name := GetAccountNameFromId(uint64(30))
+	chain.Check(name == chain.NewName("aaaaaaaa5mvm"), "bad value")
+
+	name = GetAccountNameFromId(uint64(31))
+	chain.Check(name == chain.NewName("aaaaaaabamvm"), "bad value")
+
+	// for i := 0; i <= 100; i++ {
+	// 	name := GetAccountNameFromId(uint64(i))
+	// 	chain.Println("++++++++:", i, name)
+	// }
 }

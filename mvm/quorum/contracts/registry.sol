@@ -6,7 +6,7 @@ import {BLS} from './bls.sol';
 import {StandardToken} from './erc20.sol';
 
 contract Registrable {
-    address public immutable registry;
+    address public registry;
 
     modifier onlyRegistry() {
         require(msg.sender == registry, "not registry");
@@ -16,17 +16,19 @@ contract Registrable {
     constructor() {
         registry = msg.sender;
     }
+
+    function evolve(address next) public onlyRegistry() {
+        registry = next;
+    }
 }
 
 contract MixinUser is Registrable {
     using BytesLib for bytes;
 
     bytes public members;
-    bool public burn;
 
     constructor(bytes memory _members) {
         members = _members;
-        burn = true;
     }
 
     function run(address asset, uint256 amount, bytes memory extra, bool isDelegatecall) external onlyRegistry() returns (bool result) {
@@ -45,11 +47,6 @@ contract MixinUser is Registrable {
         }
         try Registry(registry).claim(asset, amount) {} catch {}
         return result;
-    }
-
-    function toggle() external {
-        require(msg.sender == address(this));
-        burn = !burn;
     }
 }
 
@@ -104,15 +101,20 @@ contract Registry {
 
     uint256 public constant VERSION = 1;
     uint128 public immutable PID;
+    uint256 constant BALANCE = 1;
 
     uint256[4] public GROUP;
     uint64 public INBOUND = 0;
     uint64 public OUTBOUND = 0;
+    bool public HALTED = false;
 
     mapping(address => bytes) public users;
     mapping(address => uint128) public assets;
     mapping(uint => address) public contracts;
     mapping(uint => bytes) public values;
+    mapping(uint128 => uint256) public balances;
+    address[] public addresses;
+    uint128[] public deposits;
 
     struct Event {
         uint64 nonce;
@@ -147,6 +149,47 @@ contract Registry {
         GROUP = group;
     }
 
+    function halt(bytes memory raw) public {
+        uint256[2] memory sig = [raw.toUint256(0), raw.toUint256(32)];
+        uint256[2] memory message = bytes("HALT").hashToPoint();
+        require(sig.verifySingle(GROUP, message));
+        HALTED = true;
+    }
+
+    function evolve(bytes memory raw) public {
+        require(HALTED, "invalid state");
+        Registry next = Registry(raw.toAddress(0));
+        uint256[2] memory sig = [raw.toUint256(20), raw.toUint256(52)];
+        uint256[2] memory message = raw.slice(0, 20).hashToPoint();
+        require(sig.verifySingle(GROUP, message));
+        require(next.INBOUND() == INBOUND);
+        require(next.OUTBOUND() == OUTBOUND);
+        require(next.PID() != PID);
+        for (uint i = 0; i < addresses.length; i++) {
+            address addr = next.addresses(i);
+            require(addr == addresses[i]);
+            bytes memory members = users[addr];
+            if (members.length > 0) {
+                uint id = uint256(keccak256(members));
+                require(next.contracts(id) == addr);
+                MixinUser(addr).evolve(address(next));
+            } else {
+                uint128 asset = assets[addr];
+                require(next.contracts(asset) == addr);
+                MixinAsset(addr).evolve(address(next));
+            }
+        }
+        for (uint i = 0; i < deposits.length; i++) {
+            uint128 asset = deposits[i];
+            uint256 amount = balances[asset] - BALANCE;
+            bytes memory user = new bytes(0); // TODO should be the new regsitry PID
+            bytes memory extra = new bytes(0); // TODO should be ABI of pure deposit to registry
+            bytes memory log = buildMixinTransaction(OUTBOUND, user, asset, amount, extra);
+            emit MixinTransaction(log);
+            OUTBOUND = OUTBOUND + 1;
+        }
+    }
+
     function claim(address asset, uint256 amount) public returns (bool) {
         require(users[msg.sender].length > 0, "invalid user");
         require(assets[asset] > 0, "invalid asset");
@@ -160,18 +203,17 @@ contract Registry {
         if (users[user].length == 0) {
             return true;
         }
-        if (!MixinUser(user).burn()) {
-            return true;
-        }
         MixinAsset(msg.sender).burn(user, amount);
         sendMixinTransaction(user, msg.sender, amount);
         return true;
     }
 
     function sendMixinTransaction(address user, address asset, uint256 amount) internal {
+        uint256 balance = balances[assets[asset]];
         bytes memory extra = new bytes(0);
         bytes memory log = buildMixinTransaction(OUTBOUND, users[user], assets[asset], amount, extra);
         emit MixinTransaction(log);
+        balances[assets[asset]] = balance - amount;
         OUTBOUND = OUTBOUND + 1;
     }
 
@@ -194,6 +236,7 @@ contract Registry {
 
     // process || nonce || asset || amount || extra || timestamp || members || threshold || sig
     function mixin(bytes memory raw) public returns (bool) {
+        require(!HALTED, "invalid state");
         require(raw.length >= 141, "event data too small");
 
         Event memory evt;
@@ -222,6 +265,13 @@ contract Registry {
 
         offset = offset + 64;
         require(raw.length == offset, "malformed event encoding");
+
+        uint256 balance = balances[assets[evt.asset]];
+        if (balance == 0) {
+            deposits.push(assets[evt.asset]);
+            balance = BALANCE;
+        }
+        balances[assets[evt.asset]] = balance + evt.amount;
 
         emit MixinEvent(evt);
         MixinAsset(evt.asset).mint(evt.user, evt.amount);
@@ -308,6 +358,7 @@ contract Registry {
         require(addr == asset, "malformed asset contract address");
         assets[asset] = id;
         contracts[id] = asset;
+        addresses.push(asset);
         emit AssetCreated(asset, id);
         return asset;
     }
@@ -327,6 +378,7 @@ contract Registry {
         require(addr == user, "malformed user contract address");
         users[user] = members;
         contracts[id] = user;
+        addresses.push(user);
         emit UserCreated(user, members);
         return user;
     }

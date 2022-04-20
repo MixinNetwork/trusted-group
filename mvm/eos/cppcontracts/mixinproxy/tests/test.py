@@ -102,7 +102,6 @@ class Test(object):
 
         cls.chain.transfer('hello', 'mixincrossss', 1000.0000, 'hello')
 
-
         cls.update_auth(MTG_XIN_CONTRACT, 'EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV')
         cls.update_auth('mixincrossss', 'EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV')
         cls.update_auth('mixinwtokens', 'EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV', ['mixincrossss', 'mixinwtokens'])
@@ -186,9 +185,9 @@ class Test(object):
         args['signatures'] = signatures
 
         r = cls.chain.push_action(MTG_XIN_CONTRACT, 'addprocess', args, {MTG_XIN_CONTRACT: 'active'})
-
         r = cls.chain.push_action('mixincrossss', 'initialize', b'', {'mixincrossss': 'active'})
         r = cls.chain.get_account('aaaaaaaaamvm')
+        assert r
 
         asset_id = uuid2uint128('43d61dcd-e413-450d-80b8-101d5e903357')
         args = {
@@ -208,6 +207,12 @@ class Test(object):
             'fee': '0.10000000 MEOS',
         }
         r = cls.chain.push_action('mixincrossss', 'setaccfee', args, {'mixincrossss': 'active'})
+        args = {'fee': '0.00000000 MEOS'}
+        cls.chain.push_action('mixincrossss', 'setfee', args, {'mixincrossss': 'active'})
+
+        args = {'fee': '0.00000000 METH'}
+        cls.chain.push_action('mixincrossss', 'setfee', args, {'mixincrossss': 'active'})
+        cls.chain.produce_block()
 
     @classmethod
     def update_auth(cls, account, pub_key, code_accounts = None):
@@ -285,6 +290,7 @@ class Test(object):
 
         if isinstance(extra, str):
             extra = extra.encode()
+        logger.info(process)
         process = uuid.UUID(process).bytes #test2 mixincross
         buf = io.BytesIO()
         buf.write(int.to_bytes(1, 2, 'big')) #Purpose
@@ -338,6 +344,7 @@ class Test(object):
         asset_id = '6cfe566e-4aad-470b-8c9a-2fd35b49c68d'
         fee = self.get_transfer_fee(asset_id)
 
+        # invalid extra
         tx_event = self.build_event(asset_id, 1, 1e8, b'hello', b'', int(time.time()*1e9))
         r = self.chain.push_action('mixincrossss', 'onevent', tx_event, {MTG_PUBLISHER: 'active'})
         print_console(r)
@@ -345,7 +352,10 @@ class Test(object):
         self.chain.produce_block()
         total = self.get_total_fee(asset_id)
         assert amount_equal(total, self.get_transfer_fee(asset_id)*1)
+        ret = self.chain.get_table_rows(True, "mixincrossss", "mixincrossss", "bindaccounts", "", "", 10)
+        assert len(ret['rows']) == 1 and ret['rows'][0]['eos_account'] == 'aaaaaaaaamvm'
 
+        # emtpy extra
         tx_event = self.build_event(asset_id, 2, 1e8, b'', b'', int(time.time()*1e9))
         r = self.chain.push_action('mixincrossss', 'onevent', tx_event, {MTG_PUBLISHER: 'active'})
         logger.info("++++++ret: %s", self.get_balance('helloworld11'))
@@ -356,7 +366,7 @@ class Test(object):
         ret = self.chain.get_table_rows(True, 'mixincrossss', 'mixincrossss', 'createaccfee', '','', 10)
         logger.info("+++++ret %s", ret)
 
-        # def build_extra(process, amount, address = 'mixincrossss', extra=b''):
+        # pending extra
         args = {
             'from': 'aaaaaaaaamvm',
             'to': 'helloworld11',
@@ -385,6 +395,7 @@ class Test(object):
         self.chain.produce_block()
         assert self.get_balance('aaaaaaaaamvm') == 1.9 - fee*2
 
+        # expired event
         delay_seconds = 3*60
         start_time = self.current_time()
 
@@ -404,6 +415,13 @@ class Test(object):
         assert amount_equal(total, self.get_transfer_fee(asset_id)*4)
 
     def test_expiration(self):
+        args = {'fee': '0.00000000 MEOS'}
+        self.chain.push_action('mixincrossss', 'setfee', args, {'mixincrossss': 'active'})
+
+        args = {'fee': '0.00000000 METH'}
+        self.chain.push_action('mixincrossss', 'setfee', args, {'mixincrossss': 'active'})
+        self.chain.produce_block()
+
         process_id_str = 'e0148fc6-0e10-470e-8127-166e0829c839'
         asset_id = '6cfe566e-4aad-470b-8c9a-2fd35b49c68d'
 
@@ -535,9 +553,9 @@ class Test(object):
             args = self.chain.unpack_args(account, name, bytes.fromhex(data))
             logger.info("+++%s %s %s", account, name, args)
             if name == 'txrequest':
+                found = True
                 assert args['amount'] == '1900000'
                 assert args['extra'] == b'transfer to aaaaaaaaamvm'.hex()
-                found = True
         assert found
 
     def test_on_event_with_origin_extra(self):
@@ -589,8 +607,8 @@ class Test(object):
         assert len(ret['rows']) == 0
         assert self.get_balance('aaaaaaaaamvm') == 1.8
 
-    def test_debug(self):
-        r = self.chain.push_action('mixincrossss', 'testname', b'', {MTG_PUBLISHER: 'active'})
+    # def test_debug(self):
+    #     r = self.chain.push_action('mixincrossss', 'testname', b'', {MTG_PUBLISHER: 'active'})
 
     def get_transfer_fee(self, asset_id) -> float:
         ret = self.chain.get_table_rows(True, "mixincrossss", "mixincrossss", "transferfees", "", "", 10)
@@ -619,15 +637,12 @@ class Test(object):
         return 0.0        
 
     def test_fee(self):
-        args = {
-            'fee': '0.00010000 MEOS'
-        }
+        args = {'fee': '0.00010000 MEOS'}
         self.chain.push_action('mixincrossss', 'setfee', args, {'mixincrossss': 'active'})
 
-        args = {
-            'fee': '0.00010000 METH'
-        }
+        args = {'fee': '0.00010000 METH'}
         self.chain.push_action('mixincrossss', 'setfee', args, {'mixincrossss': 'active'})
+        self.chain.produce_block()
 
         self.test_event()
 

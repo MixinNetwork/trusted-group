@@ -1,0 +1,226 @@
+{
+    "version": "eosio::abi/1.1",
+    "structs": [
+        {
+            "name": "Counter",
+            "base": "",
+            "fields": [
+                {
+                    "name": "id",
+                    "type": "uint64"
+                },
+                {
+                    "name": "count",
+                    "type": "uint64"
+                }
+            ]
+        },
+        {
+            "name": "Process",
+            "base": "",
+            "fields": [
+                {
+                    "name": "contract",
+                    "type": "name"
+                },
+                {
+                    "name": "process",
+                    "type": "uint128"
+                }
+            ]
+        },
+        {
+            "name": "Signer",
+            "base": "",
+            "fields": [
+                {
+                    "name": "account",
+                    "type": "name"
+                },
+                {
+                    "name": "public_key",
+                    "type": "public_key"
+                }
+            ]
+        },
+        {
+            "name": "TxLog",
+            "base": "",
+            "fields": [
+                {
+                    "name": "id",
+                    "type": "uint64"
+                },
+                {
+                    "name": "nonce",
+                    "type": "uint64"
+                },
+                {
+                    "name": "contract",
+                    "type": "name"
+                },
+                {
+                    "name": "process",
+                    "type": "uint128"
+                },
+                {
+                    "name": "asset",
+                    "type": "uint128"
+                },
+                {
+                    "name": "members",
+                    "type": "uint128[]"
+                },
+                {
+                    "name": "threshold",
+                    "type": "int32"
+                },
+                {
+                    "name": "amount",
+                    "type": "uint128"
+                },
+                {
+                    "name": "extra",
+                    "type": "bytes"
+                },
+                {
+                    "name": "timestamp",
+                    "type": "uint64"
+                }
+            ]
+        },
+        {
+            "name": "addprocess",
+            "base": "",
+            "fields": [
+                {
+                    "name": "contract",
+                    "type": "name"
+                },
+                {
+                    "name": "process",
+                    "type": "uint128"
+                },
+                {
+                    "name": "signatures",
+                    "type": "signature[]"
+                }
+            ]
+        },
+        {
+            "name": "ontxlog",
+            "base": "",
+            "fields": [
+                {
+                    "name": "log",
+                    "type": "TxLog"
+                }
+            ]
+        },
+        {
+            "name": "setup",
+            "base": "",
+            "fields": [
+                {
+                    "name": "signers",
+                    "type": "Signer[]"
+                }
+            ]
+        },
+        {
+            "name": "txrequest",
+            "base": "",
+            "fields": [
+                {
+                    "name": "nonce",
+                    "type": "uint64"
+                },
+                {
+                    "name": "contract",
+                    "type": "name"
+                },
+                {
+                    "name": "process",
+                    "type": "uint128"
+                },
+                {
+                    "name": "asset",
+                    "type": "uint128"
+                },
+                {
+                    "name": "members",
+                    "type": "uint128[]"
+                },
+                {
+                    "name": "threshold",
+                    "type": "int32"
+                },
+                {
+                    "name": "amount",
+                    "type": "uint128"
+                },
+                {
+                    "name": "extra",
+                    "type": "bytes"
+                }
+            ]
+        }
+    ],
+    "types": [],
+    "actions": [
+        {
+            "name": "addprocess",
+            "type": "addprocess",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "ontxlog",
+            "type": "ontxlog",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "setup",
+            "type": "setup",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "txrequest",
+            "type": "txrequest",
+            "ricardian_contract": ""
+        }
+    ],
+    "tables": [
+        {
+            "name": "counters",
+            "type": "Counter",
+            "index_type": "i64",
+            "key_names": [],
+            "key_types": []
+        },
+        {
+            "name": "logs",
+            "type": "TxLog",
+            "index_type": "i64",
+            "key_names": [],
+            "key_types": []
+        },
+        {
+            "name": "processes",
+            "type": "Process",
+            "index_type": "i64",
+            "key_names": [],
+            "key_types": []
+        },
+        {
+            "name": "signers",
+            "type": "Signer",
+            "index_type": "i64",
+            "key_names": [],
+            "key_types": []
+        }
+    ],
+    "ricardian_clauses": [],
+    "variants": [],
+    "abi_extensions": [],
+    "error_messages": []
+}
