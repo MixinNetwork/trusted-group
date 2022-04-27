@@ -31,7 +31,7 @@ contract MixinUser is Registrable {
         members = _members;
     }
 
-    function run(address asset, uint256 amount, bytes memory extra, bool isDelegatecall) external onlyRegistry() returns (bool result) {
+    function run(address asset, uint256 amount, bytes memory extra, bool isDelegateCall) external onlyRegistry() returns (bool result) {
         if (extra.length < 24) {
             Registry(registry).claim(asset, amount);
             return true;
@@ -40,7 +40,7 @@ contract MixinUser is Registrable {
         MixinAsset(asset).approve(process, 0);
         MixinAsset(asset).approve(process, amount);
         bytes memory input = extra.slice(20, extra.length - 20);
-        if (isDelegatecall) {
+        if (isDelegateCall) {
             (result, input) = process.delegatecall(input);
         } else {
             (result, input) = process.call(input);
@@ -255,8 +255,8 @@ contract Registry {
         (offset, evt.extra, evt.timestamp) = parseEventExtra(raw, offset);
         (offset, evt.user) = parseEventUser(raw, offset);
 
-        bool isDelegatecall;
-        (evt.asset, evt.extra, isDelegatecall) = parseEventInput(id, evt.extra);
+        bool isDelegateCall;
+        (evt.asset, evt.extra, isDelegateCall) = parseEventInput(id, evt.extra);
 
         offset = offset + 2;
         evt.sig = [raw.toUint256(offset), raw.toUint256(offset+32)];
@@ -275,7 +275,7 @@ contract Registry {
 
         emit MixinEvent(evt);
         MixinAsset(evt.asset).mint(evt.user, evt.amount);
-        return MixinUser(evt.user).run(evt.asset, evt.amount, evt.extra, isDelegatecall);
+        return MixinUser(evt.user).run(evt.asset, evt.amount, evt.extra, isDelegateCall);
     }
 
     function parseEventExtra(bytes memory raw, uint offset) internal pure returns(uint, bytes memory, uint64) {
@@ -334,8 +334,8 @@ contract Registry {
             }
         }
         op = op >> 1;
-        bool isDelegatecall = op & 1 == 1;
-        return (asset, input, isDelegatecall);
+        bool isDelegateCall = op & 1 == 1;
+        return (asset, input, isDelegateCall);
     }
 
     function writeValue(uint _key, bytes memory raw) public {
