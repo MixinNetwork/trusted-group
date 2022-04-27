@@ -333,8 +333,7 @@ contract Registry {
                 input = value;
             }
         }
-        op = op >> 1;
-        bool isDelegateCall = op & 1 == 1;
+        bool isDelegateCall = op & 2 == 2;
         return (asset, input, isDelegateCall);
     }
 
