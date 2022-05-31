@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 	"strings"
 	"sync"
 
@@ -21,13 +22,11 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-const (
-	ProcessRegistrationAssetId = "965e5c6e-434c-3fa9-b780-c50f43cd955c"
-)
-
 type Configuration struct {
-	Poly  string `toml:"poly"`
-	Share string `toml:"share"`
+	Poly             string `toml:"poly"`
+	Share            string `toml:"share"`
+	ProcessFeeAsset  string `toml:"process-fee-asset"`
+	ProcessFeeAmount string `toml:"process-fee-amount"`
 }
 
 type Machine struct {
@@ -36,6 +35,8 @@ type Machine struct {
 	group      *mtg.Group
 	share      *share.PriShare
 	poly       *share.PubPoly
+	feeAssetId string
+	feeAmount  decimal.Decimal
 	messenger  messenger.Messenger
 	engines    map[string]Engine
 	processes  map[string]*Process
@@ -47,6 +48,10 @@ func Boot(conf *Configuration, group *mtg.Group, store Store, m messenger.Messen
 	pb, err := hex.DecodeString(conf.Poly)
 	if err != nil {
 		return nil, err
+	}
+	feeAmount, _ := decimal.NewFromString(conf.ProcessFeeAmount)
+	if feeAmount.Sign() <= 0 {
+		return nil, fmt.Errorf("invalid process fee amount %s", conf.ProcessFeeAmount)
 	}
 	commitments := unmarshalCommitments(pb)
 	suite := en256.NewSuiteG2()
@@ -68,6 +73,8 @@ func Boot(conf *Configuration, group *mtg.Group, store Store, m messenger.Messen
 		group:      group,
 		share:      share,
 		poly:       poly,
+		feeAssetId: conf.ProcessFeeAsset,
+		feeAmount:  feeAmount,
 		messenger:  m,
 		engines:    make(map[string]Engine),
 		processes:  make(map[string]*Process),
@@ -104,11 +111,11 @@ func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address 
 		logger.Verbosef("AddProcess(%s, %s, %s) => sender %s", pid, platform, address, out.Sender)
 		return false
 	}
-	if out.AssetID != ProcessRegistrationAssetId {
+	if out.AssetID != m.feeAssetId {
 		logger.Verbosef("AddProcess(%s, %s, %s) => asset %s", pid, platform, address, out.AssetID)
 		return false
 	}
-	if out.Amount.Cmp(decimal.NewFromInt(1)) < 0 {
+	if out.Amount.Cmp(m.feeAmount) < 0 {
 		logger.Verbosef("AddProcess(%s, %s, %s) => amount %s", pid, platform, address, out.Amount)
 		return false
 	}

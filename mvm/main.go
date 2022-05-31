@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/MixinNetwork/trusted-group/mvm/machine"
 	"github.com/urfave/cli/v2"
 )
 
@@ -103,7 +102,6 @@ func main() {
 					},
 					&cli.StringFlag{
 						Name:  "asset",
-						Value: machine.ProcessRegistrationAssetId,
 						Usage: "Asset ID",
 					},
 					&cli.StringFlag{

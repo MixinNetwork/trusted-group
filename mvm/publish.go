@@ -12,7 +12,6 @@ import (
 
 	"github.com/MixinNetwork/trusted-group/mvm/config"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
-	"github.com/MixinNetwork/trusted-group/mvm/machine"
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/shopspring/decimal"
 	"github.com/urfave/cli/v2"
@@ -75,9 +74,10 @@ func publishAppCmd(c *cli.Context) error {
 		Address:  c.String("address"),
 		Extra:    []byte(c.String("extra")),
 	}
+	feeAmount, _ := decimal.NewFromString(conf.Machine.ProcessFeeAsset)
 	input := &mixin.TransferInput{
-		AssetID: machine.ProcessRegistrationAssetId,
-		Amount:  decimal.NewFromFloat(1),
+		AssetID: conf.Machine.ProcessFeeAsset,
+		Amount:  feeAmount,
 	}
 	input.OpponentMultisig.Receivers = conf.MTG.Genesis.Members
 	input.OpponentMultisig.Threshold = uint8(conf.MTG.Genesis.Threshold)
