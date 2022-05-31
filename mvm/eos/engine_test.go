@@ -34,7 +34,7 @@ func TestBuildEventTx(t *testing.T) {
 		Nonce:     0,
 		Signature: []byte("signature"),
 	}
-	tx, err := BuildEventTransaction("mixin", "publisher", "hello", event, "0d38a4099ad044cf4fa7874752a55806f9f50b43953ffc760bc82c1f1fce65c8")
+	tx, err := BuildEventTransaction("mixin", "publisher", "hello", event, "0d38a4099ad044cf4fa7874752a55806f9f50b43953ffc760bc82c1f1fce65c8", nil)
 	if err != nil {
 		panic(err)
 	}
@@ -108,7 +108,7 @@ func TestTx(t *testing.T) {
 
 	var action *chain.Action
 	action = chain.NewAction(
-		chain.PermissionLevel{Actor: chain.NewName("helloworld11"), Permission: chain.NewName("active")},
+		&chain.PermissionLevel{Actor: chain.NewName("helloworld11"), Permission: chain.NewName("active")},
 		chain.NewName("helloworld11"),
 		chain.NewName("hello"),
 	)
@@ -141,7 +141,7 @@ func TestMultisig(t *testing.T) {
 
 	mixincontract := "mtgxinmtgxin"
 	action := chain.NewAction(
-		chain.PermissionLevel{Actor: chain.NewName(mixincontract), Permission: chain.NewName("active")},
+		&chain.PermissionLevel{Actor: chain.NewName(mixincontract), Permission: chain.NewName("active")},
 		chain.NewName(mixincontract),
 		chain.NewName("addprocess"),
 		chain.NewName("helloworld11"),
@@ -203,7 +203,7 @@ func TestMultisigWithBuildEventTx(t *testing.T) {
 		Nonce:     0,
 		Signature: []byte("signature"),
 	}
-	tx, err := BuildEventTransaction("mtgxinmtgxin", "mtgpublisher", "helloworld12", event, "0d38a4099ad044cf4fa7874752a55806f9f50b43953ffc760bc82c1f1fce65c8")
+	tx, err := BuildEventTransaction("mtgxinmtgxin", "mtgpublisher", "helloworld12", event, "0d38a4099ad044cf4fa7874752a55806f9f50b43953ffc760bc82c1f1fce65c8", nil)
 	t.Logf("++++tx.Pack() %x\n", tx.Pack())
 
 	chainId, err := chain.NewBytes32FromHex("8a34ec7df1b8cd06ff4a8abbaa7cc50300823350cadc59ab296cb00d104d2b8f")
