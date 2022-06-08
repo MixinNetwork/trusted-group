@@ -31,15 +31,24 @@ contract MixinUser is Registrable {
         members = _members;
     }
 
+    // extra = operate code || process || function name
+    // operate code: 0 for call, 1 for delegate call
+    // https://docs.soliditylang.org/en/v0.8.14/introduction-to-smart-contracts.html#delegatecall-callcode-and-libraries
     function run(address asset, uint256 amount, bytes memory extra) external onlyRegistry() returns (bool result) {
-        if (extra.length < 24) {
+        if (extra.length < 26) {
+            Registry(registry).claim(asset, amount);
             return true;
         }
-        address process = extra.toAddress(0);
+        uint8 op = extra.toUint8(0);
+        address process = extra.toAddress(2);
         MixinAsset(asset).approve(process, 0);
         MixinAsset(asset).approve(process, amount);
-        bytes memory input = extra.slice(20, extra.length - 20);
-        (result, input) = process.call(input);
+        bytes memory input = extra.slice(22, extra.length - 22);
+        if (op & 1 == 1) {
+            (result, input) = process.delegatecall(input);
+        } else {
+            (result, input) = process.call(input);
+        }
         try Registry(registry).claim(asset, amount) {} catch {}
         return result;
     }
@@ -106,6 +115,7 @@ contract Registry {
     mapping(address => bytes) public users;
     mapping(address => uint128) public assets;
     mapping(uint => address) public contracts;
+    mapping(uint => bytes) public values;
     mapping(uint128 => uint256) public balances;
     address[] public addresses;
     uint128[] public deposits;
@@ -313,7 +323,16 @@ contract Registry {
         offset = offset + size;
         bytes memory input = extra.slice(offset, extra.length - offset);
         address asset = getOrCreateAssetContract(id, symbol, name);
+        if (input.length == 48 && input.toUint128(0) == PID) {
+          input = values[input.toUint256(16)];
+        }
         return (asset, input);
+    }
+
+    function writeValue(uint _key, bytes memory raw) public {
+        uint key = uint256(keccak256(raw));
+        require(key == _key, "invalid key or raw");
+        values[key] = raw;
     }
 
     function getOrCreateAssetContract(uint128 id, string memory symbol, string memory name) internal returns (address) {
