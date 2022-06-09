@@ -116,7 +116,7 @@ func (c *Contract) TxRequest(nonce uint64,
 	}
 
 	chain.NewAction(
-		chain.PermissionLevel{c.self, chain.ActiveName},
+		&chain.PermissionLevel{c.self, chain.ActiveName},
 		c.self,
 		chain.NewName("ontxlog"),
 		&log,
