@@ -35,15 +35,15 @@ contract MixinUser is Registrable {
     // operate code: 0 for call, 1 for delegate call
     // https://docs.soliditylang.org/en/v0.8.14/introduction-to-smart-contracts.html#delegatecall-callcode-and-libraries
     function run(address asset, uint256 amount, bytes memory extra) external onlyRegistry() returns (bool result) {
-        if (extra.length < 26) {
+        if (extra.length < 25) {
             Registry(registry).claim(asset, amount);
             return true;
         }
         uint8 op = extra.toUint8(0);
-        address process = extra.toAddress(2);
+        address process = extra.toAddress(1);
         MixinAsset(asset).approve(process, 0);
         MixinAsset(asset).approve(process, amount);
-        bytes memory input = extra.slice(22, extra.length - 22);
+        bytes memory input = extra.slice(21, extra.length - 21);
         if (op & 1 == 1) {
             (result, input) = process.delegatecall(input);
         } else {
