@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >=0.8.0 <0.9.0;
 
+import './EternalStorage.sol';
 import {BytesLib} from './bytes.sol';
 import {BLS} from './bls.sol';
 import {StandardToken} from './erc20.sol';
@@ -115,7 +116,6 @@ contract Registry {
     mapping(address => bytes) public users;
     mapping(address => uint128) public assets;
     mapping(uint => address) public contracts;
-    mapping(uint => bytes) public values;
     mapping(uint128 => uint256) public balances;
     address[] public addresses;
     uint128[] public deposits;
@@ -323,16 +323,14 @@ contract Registry {
         offset = offset + size;
         bytes memory input = extra.slice(offset, extra.length - offset);
         address asset = getOrCreateAssetContract(id, symbol, name);
-        if (input.length == 48 && input.toUint128(0) == PID) {
-          input = values[input.toUint256(16)];
+        if (input.length == 68 && input.toUint128(0) == PID) {
+            input = EternalStorage(input.toAddress(16)).getBytesValue(input.toBytes32(36));
         }
         return (asset, input);
     }
 
-    function writeValue(uint _key, bytes memory raw) public {
-        uint key = uint256(keccak256(raw));
-        require(key == _key, "invalid key or raw");
-        values[key] = raw;
+    function writeValue(address _storageContract, bytes32 _key, bytes memory raw) public {
+        EternalStorage(_storageContract).setBytesValue(_key, raw);
     }
 
     function getOrCreateAssetContract(uint128 id, string memory symbol, string memory name) internal returns (address) {
