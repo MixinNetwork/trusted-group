@@ -23,7 +23,6 @@ contract EternalStorage {
 
     function setStringValue(bytes32 record, string calldata value) public
     {
-        require(keccak256(abi.encodePacked(value)) == record, "invalid record or value");
         StringStorage[record] = value;
     }
 
@@ -46,7 +45,6 @@ contract EternalStorage {
 
     function setBytesValue(bytes32 record, bytes calldata value) public
     {
-        require(keccak256(value) == record, "invalid record or value");
         BytesStorage[record] = value;
     }
 
