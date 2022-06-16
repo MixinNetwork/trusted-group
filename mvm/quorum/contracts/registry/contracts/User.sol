@@ -8,23 +8,43 @@ import {IERC20} from './Asset.sol';
 contract User is Registrable {
     using Bytes for bytes;
 
+    event ProccessCalled(bytes input, bool result, bytes output);
+
     bytes public members;
 
     constructor(bytes memory _members) {
         members = _members;
     }
 
-    function run(address asset, uint256 amount, bytes memory extra) external onlyRegistry() returns (bool result) {
-        if (extra.length < 24) {
+    function run(address asset, uint256 amount, bytes memory extra) external onlyRegistry() returns (bool) {
+        if (extra.length < 28) {
             IRegistry(registry).claim(asset, amount);
             return true;
         }
-        address process = extra.toAddress(0);
-        IERC20(asset).approve(process, 0);
-        IERC20(asset).approve(process, amount);
-        bytes memory input = extra.slice(20, extra.length - 20);
-        (result, input) = process.call(input);
+        uint16 count = extra.toUint16(0);
+        if (count < 1 || count > 16) {
+            IRegistry(registry).claim(asset, amount);
+            return true;
+        }
+
+        for (uint offset = 2; count >= 0; count--) {
+            address process = extra.toAddress(offset);
+            IERC20(asset).approve(process, 0);
+            IERC20(asset).approve(process, amount);
+            offset = offset + 20;
+
+            uint size = extra.toUint16(offset);
+            offset = offset + 2;
+            bytes memory input = extra.slice(offset, size);
+            (bool result, bytes memory output) = process.call(input);
+
+            emit ProccessCalled(input, result, output);
+            if (!result) {
+                break;
+            }
+            offset = offset + size;
+        }
         try IRegistry(registry).claim(asset, amount) {} catch {}
-        return result;
+        return true;
     }
 }
