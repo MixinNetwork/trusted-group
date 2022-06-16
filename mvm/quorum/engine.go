@@ -22,7 +22,7 @@ const (
 	EventMethod = "0x5cae8005"
 
 	GasLimit = 8000000
-	GasPrice = 10000000000
+	GasPrice = 1000000000
 )
 
 type Configuration struct {
@@ -220,10 +220,10 @@ func (e *Engine) loopHandleContracts() {
 			if err != nil {
 				break
 			}
-			if balance.Cmp(decimal.NewFromInt(10)) > 0 {
+			if balance.Cmp(decimal.NewFromFloat(1)) > 0 {
 				continue
 			}
-			id, raw := e.signContractNotifierDepositTransaction(pub(notifier), e.key, decimal.NewFromInt(100), nonce)
+			id, raw := e.signContractNotifierDepositTransaction(pub(notifier), e.key, decimal.NewFromFloat(10), nonce)
 			res, err := e.rpc.SendRawTransaction(raw)
 			logger.Verbosef("loopHandleContracts => SendRawTransaction(%s, %s) => %s, %v", id, raw, res, err)
 			nonce = nonce + 1
