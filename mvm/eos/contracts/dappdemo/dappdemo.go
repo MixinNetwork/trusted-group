@@ -51,10 +51,12 @@ type Contract struct {
 	self          chain.Name
 	firstReceiver chain.Name
 	action        chain.Name
+	process       chain.Uint128
 }
 
 func NewContract(receiver, firstReceiver, action chain.Name) *Contract {
-	c := &Contract{receiver, firstReceiver, action}
+	processId := GetProcessId(receiver)
+	c := &Contract{receiver, firstReceiver, action, processId}
 	return c
 }
 
@@ -66,8 +68,6 @@ func (c *Contract) OnEvent(event *TxEvent) {
 	dataSize := len(data) - 1 - len(event.signatures)*66
 
 	VerifySignatures(data[:dataSize], event.signatures)
-
-	VerifyProcess(c.self, event.process)
 
 	assert(event.process == c.process, "Invalid process id")
 
@@ -105,14 +105,15 @@ func (c *Contract) Exec(executor chain.Name) {
 			extra:     event.extra,
 		}
 
-		check(event.amount.Cmp(chain.NewUint128(chain.MAX_AMOUNT, 0)) < 0, "Invalid amount")
+		maxAmount := chain.NewUint128(chain.MAX_AMOUNT, 0)
+		check(event.amount.Cmp(&maxAmount) < 0, "Invalid amount")
 
 		amount := event.amount.Uint64() / uint64(txRequestCount)
 		chain.Println("+++++++set amount:", amount)
 		notify.amount.SetUint64(amount)
 
 		chain.NewAction(
-			chain.PermissionLevel{c.self, chain.ActiveName},
+			&chain.PermissionLevel{c.self, chain.ActiveName},
 			MTG_XIN,
 			chain.NewName("txrequest"),
 			&notify,

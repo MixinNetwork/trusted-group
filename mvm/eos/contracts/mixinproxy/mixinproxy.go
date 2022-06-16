@@ -18,6 +18,10 @@ const (
 	MAX_SUPPLY                  = 100000000000000
 )
 
+var (
+	MAX_AMOUNT = chain.NewUint128(chain.MAX_AMOUNT, 0)
+)
+
 //asset id:
 //c6d0c728-2624-429b-8e0d-d9d19b6592fa (bitcoin)
 //31d2ea9c-95eb-3355-b65b-ba096853bc18 (Pando USD)
@@ -129,7 +133,7 @@ func (c *Contract) OnErrorEvent(event *TxEvent, reason *string, origin_extra []b
 		return
 	}
 
-	if event.amount.Cmp(chain.NewUint128(chain.MAX_AMOUNT, 0)) > 0 {
+	if event.amount.Cmp(&MAX_AMOUNT) > 0 {
 		c.ShowError("amount too large")
 		return
 	}
@@ -269,7 +273,7 @@ func (c *Contract) OnTransfer(from chain.Name, to chain.Name, quantity chain.Ass
 		asset:     assetId,
 		members:   []chain.Uint128{record.client_id},
 		threshold: 1,
-		amount:    *amount,
+		amount:    amount,
 		extra:     []byte(memo),
 	}
 	chain.NewAction(
@@ -285,7 +289,7 @@ func (c *Contract) Error(err string) {
 }
 
 func (c *Contract) HandleEvent(event *TxEvent, origin_extra []byte) {
-	if event.amount.Cmp(chain.NewUint128(chain.MAX_AMOUNT, 0)) > 0 {
+	if event.amount.Cmp(&MAX_AMOUNT) > 0 {
 		c.ShowError("amount too large")
 		return
 	}
@@ -355,8 +359,7 @@ func (c *Contract) StorePendingEvent(account chain.Name, event *TxEvent) bool {
 			return true
 		}
 		db := NewPendingEventDB(c.self, c.self)
-		hash := chain.Uint256{}
-		copy(hash[:], event.extra[1:33])
+		hash := chain.NewUint256FromBytes(event.extra[1:33])
 		pendingEvent := PendingEvent{event: *event, account: account, hash: hash}
 		db.Store(&pendingEvent, c.self)
 		return true
@@ -482,7 +485,8 @@ func (c *Contract) checkFee(event *TxEvent) bool {
 	quantity.Amount -= fee.Amount
 
 	//deduct fee from event, in case of refundment
-	event.amount.Sub(&event.amount, chain.NewUint128(uint64(fee.Amount), 0))
+	feeAmount := chain.NewUint128(uint64(fee.Amount), 0)
+	event.amount.Sub(&event.amount, &feeAmount)
 	return true
 }
 
@@ -641,7 +645,7 @@ func (c *Contract) TransferOut(member *chain.Uint128, amount chain.Asset, memo s
 		asset:     assetId,
 		members:   []chain.Uint128{*member},
 		threshold: 1,
-		amount:    *_amount,
+		amount:    _amount,
 		extra:     []byte(memo),
 	}
 

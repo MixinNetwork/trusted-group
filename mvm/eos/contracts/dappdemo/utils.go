@@ -68,6 +68,13 @@ type Process struct {
 	process  chain.Uint128
 }
 
+func GetProcessId(contract chain.Name) chain.Uint128 {
+	db := NewProcessDB(MTG_XIN, MTG_XIN)
+	it, record := db.Get(contract.N)
+	assert(it.IsOk(), "process not found!")
+	return record.process
+}
+
 func VerifyProcess(contract chain.Name, process chain.Uint128) {
 	db := NewProcessDB(MTG_XIN, MTG_XIN)
 	it, record := db.Get(contract.N)

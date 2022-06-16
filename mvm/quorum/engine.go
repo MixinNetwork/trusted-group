@@ -22,7 +22,10 @@ const (
 	EventMethod = "0x5cae8005"
 
 	GasLimit = 8000000
-	GasPrice = 10000000000
+	GasPrice = 1000000000
+
+	NotifierMinimumBalance = 0.1
+	NotifierMaximumBalance = 1
 )
 
 type Configuration struct {
@@ -164,10 +167,11 @@ func (e *Engine) loopSendGroupEvents(address string) {
 	for e.IsPublisher() {
 		balance, err := e.rpc.GetAddressBalance(pub(notifier))
 		if err != nil {
+			logger.Verbosef("loopSendGroupEvents(%s) => GetAddressBalance(%s) => %v", address, pub(notifier), err)
 			time.Sleep(5 * time.Second)
 			continue
 		}
-		if balance.Cmp(decimal.NewFromInt(1)) < 0 {
+		if balance.Cmp(decimal.NewFromFloat(NotifierMinimumBalance/2)) < 0 {
 			time.Sleep(5 * time.Second)
 			continue
 		}
@@ -220,10 +224,10 @@ func (e *Engine) loopHandleContracts() {
 			if err != nil {
 				break
 			}
-			if balance.Cmp(decimal.NewFromInt(10)) > 0 {
+			if balance.Cmp(decimal.NewFromFloat(NotifierMinimumBalance)) > 0 {
 				continue
 			}
-			id, raw := e.signContractNotifierDepositTransaction(pub(notifier), e.key, decimal.NewFromInt(100), nonce)
+			id, raw := e.signContractNotifierDepositTransaction(pub(notifier), e.key, decimal.NewFromFloat(NotifierMaximumBalance), nonce)
 			res, err := e.rpc.SendRawTransaction(raw)
 			logger.Verbosef("loopHandleContracts => SendRawTransaction(%s, %s) => %s, %v", id, raw, res, err)
 			nonce = nonce + 1
