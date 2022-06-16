@@ -8,7 +8,7 @@ import {IERC20} from './Asset.sol';
 contract User is Registrable {
     using Bytes for bytes;
 
-    event ProccessCalled(bytes input, bool result, bytes output);
+    event ProcessCalled(bytes input, bool result, bytes output);
 
     bytes public members;
 
@@ -28,21 +28,31 @@ contract User is Registrable {
         }
 
         for (uint offset = 2; count >= 0; count--) {
+            if (offset + 20 > extra.length) {
+                break;
+            }
             address process = extra.toAddress(offset);
+            offset = offset + 20;
             IERC20(asset).approve(process, 0);
             IERC20(asset).approve(process, amount);
-            offset = offset + 20;
 
+            if (offset + 2 > extra.length) {
+                break;
+            }
             uint size = extra.toUint16(offset);
             offset = offset + 2;
+
+            if (offst + size > extra.length) {
+                break;
+            }
             bytes memory input = extra.slice(offset, size);
             (bool result, bytes memory output) = process.call(input);
+            offset = offset + size;
 
-            emit ProccessCalled(input, result, output);
+            emit ProcessCalled(input, result, output);
             if (!result) {
                 break;
             }
-            offset = offset + size;
         }
         try IRegistry(registry).claim(asset, amount) {} catch {}
         return true;
