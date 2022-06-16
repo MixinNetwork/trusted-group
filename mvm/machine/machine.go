@@ -180,6 +180,9 @@ func (m *Machine) WriteGroupEvent(ctx context.Context, pid string, out *mtg.Outp
 		}
 		extra = append(meta, extra...)
 	}
+	if len(extra) > encoding.EventExtraMaxSize {
+		return
+	}
 
 	done, err := m.store.CheckPendingGroupEventIdentifier(out.UTXOID)
 	if err != nil {

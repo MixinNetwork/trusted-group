@@ -42,7 +42,7 @@ contract User is Registrable {
             uint size = extra.toUint16(offset);
             offset = offset + 2;
 
-            if (offst + size > extra.length) {
+            if (offset + size > extra.length) {
                 break;
             }
             bytes memory input = extra.slice(offset, size);

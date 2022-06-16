@@ -7,6 +7,10 @@ import (
 	"github.com/gofrs/uuid"
 )
 
+const (
+	EventExtraMaxSize = 128
+)
+
 //
 // MTG => VM
 // process || nonce || asset || amount || extra || timestamp || members || threshold || sig
@@ -125,7 +129,7 @@ func writeUUID(enc *common.Encoder, id string) {
 }
 
 func writeBytes(enc *common.Encoder, b []byte) {
-	if len(b) > 128 {
+	if len(b) > EventExtraMaxSize {
 		panic(b)
 	}
 	enc.WriteInt(len(b))
