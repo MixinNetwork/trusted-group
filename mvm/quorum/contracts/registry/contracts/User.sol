@@ -16,6 +16,7 @@ contract User is Registrable {
 
     function run(address asset, uint256 amount, bytes memory extra) external onlyRegistry() returns (bool result) {
         if (extra.length < 24) {
+            IRegistry(registry).claim(asset, amount);
             return true;
         }
         address process = extra.toAddress(0);

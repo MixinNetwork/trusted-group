@@ -1,1 +1,0 @@
-eosio-cpp dappdemo.cpp

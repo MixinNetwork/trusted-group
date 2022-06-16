@@ -8,7 +8,6 @@ import (
 
 	"github.com/MixinNetwork/nfo/mtg"
 	"github.com/MixinNetwork/tip/messenger"
-	"github.com/MixinNetwork/trusted-group/mvm/eos"
 	"github.com/MixinNetwork/trusted-group/mvm/machine"
 	"github.com/MixinNetwork/trusted-group/mvm/quorum"
 	"github.com/pelletier/go-toml"
@@ -18,7 +17,6 @@ type Configuration struct {
 	MTG       *mtg.Configuration            `toml:"mtg"`
 	Machine   *machine.Configuration        `toml:"machine"`
 	Quorum    *quorum.Configuration         `toml:"quorum"`
-	EOS       *eos.Configuration            `toml:"eos"`
 	Messenger *messenger.MixinConfiguration `toml:"messenger"`
 }
 

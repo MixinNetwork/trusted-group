@@ -7,3 +7,9 @@ the problem is the BLS library configuration should be on itself, in hardhat.con
           "BLS": "0xFC0105258bf41022AEFbBc8e5671ed97C161CfcC"
         }
       },
+
+
+
+npx hardhat test
+
+npx hardhat run scripts/deploy.js --network mvm

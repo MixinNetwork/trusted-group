@@ -12,7 +12,6 @@ import (
 	"github.com/MixinNetwork/nfo/mtg"
 	"github.com/MixinNetwork/tip/messenger"
 	"github.com/MixinNetwork/trusted-group/mvm/config"
-	"github.com/MixinNetwork/trusted-group/mvm/eos"
 	"github.com/MixinNetwork/trusted-group/mvm/machine"
 	"github.com/MixinNetwork/trusted-group/mvm/quorum"
 	"github.com/MixinNetwork/trusted-group/mvm/rpc"
@@ -95,14 +94,6 @@ func bootCmd(c *cli.Context) error {
 			return err
 		}
 		im.AddEngine(machine.ProcessPlatformQuorum, en)
-	}
-
-	if conf.EOS != nil {
-		enEOS, err := eos.Boot(conf.EOS, group.GetThreshold())
-		if err != nil {
-			return err
-		}
-		im.AddEngine(machine.ProcessPlatformEOS, enEOS)
 	}
 
 	go im.Loop(ctx)
