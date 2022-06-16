@@ -209,8 +209,49 @@ describe("Registry contract", function () {
   });
 
   describe("Test iterate function", function () {
-    it("Should have the same PID", async function () {
-      expect(await registry.PID()).to.equal(PID);
+    it("Should fail with invalid state", async function () {
+      let {pubkey, secret} = mcl.newKeyPair();
+      let pubkey_ser = mcl.g2ToUnifiedHex(pubkey);
+      let [sig1, m1] = mcl.sign(pubkey_ser, SIGNER);
+      let [sig2, m2] = mcl.sign(mcl.g2ToUnifiedHex(GROUP), secret);
+      let input = pubkey_ser + mcl.g1ToUnifiedHex(sig1).substr(2);
+      input = input + mcl.g1ToUnifiedHex(sig2).substr(2);
+      await expect(registry.iterate(input)).to.be.revertedWith("invalid state");
+    });
+
+    it("Should fail with invalid signature", async function () {
+      let [signature, _] = mcl.sign("0x48414c540000000000000000", SIGNER);
+      let hraw = mcl.g1ToUnifiedHex(signature);
+      await registry.halt(hraw);
+
+      let {pubkey, secret} = mcl.newKeyPair();
+      let pubkey_ser = mcl.g2ToUnifiedHex(pubkey);
+      let [sig1, m1] = mcl.sign(pubkey_ser, SIGNER);
+      let [sig2, m2] = mcl.sign(mcl.g2ToUnifiedHex(GROUP), secret);
+      let input = pubkey_ser + mcl.g1ToUnifiedHex(sig1).substr(2);
+      input = input + mcl.g1ToUnifiedHex(sig2).substr(2);
+      await expect(registry.iterate(input)).to.be.revertedWith("invalid signature");
+    });
+
+    it("Should iterate to the new group", async function () {
+      let [signature, _] = mcl.sign("0x48414c540000000000000000", SIGNER);
+      let hraw = mcl.g1ToUnifiedHex(signature);
+      await registry.halt(hraw);
+
+      let {pubkey, secret} = mcl.newKeyPair();
+      let pubkey_ser = mcl.g2ToUnifiedHex(pubkey);
+      let [sig1, m1] = mcl.sign(pubkey_ser, SIGNER);
+      let [sig2, m2] = mcl.sign(pubkey_ser, secret);
+      let input = pubkey_ser + mcl.g1ToUnifiedHex(sig1).substr(2);
+      input = input + mcl.g1ToUnifiedHex(sig2).substr(2);
+      let tx = await registry.iterate(input);
+      expect(tx.from).equal(await addr1.getAddress());
+
+      for (let i = 0; i < 4; i++) {
+        let sge = await registry.GROUP(i);
+        let tge = mcl.g2ToBN(pubkey)[i];
+        expect(sge.toString()).to.equal(tge.toString());
+      }
     });
   });
 
