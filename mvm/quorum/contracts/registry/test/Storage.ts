@@ -36,10 +36,10 @@ describe("Storage contract", function () {
     // To deploy our contract, we just have to call Token.deploy() and await
     // for it to be deployed(), which happens once its transaction has been
     // mined.
-    storage = await Storage.connect(addr2).deploy();
+    storage = await Storage.connect(addr1).deploy();
   });
 
-  describe("Transactions", function () {
+  describe("Test write and read values", function () {
     it("Should write value", async function () {
       const raw = "0x1234567890";
       const key = ethers.utils.keccak256(raw);

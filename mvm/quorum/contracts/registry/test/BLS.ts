@@ -21,7 +21,7 @@ describe("BLS library", function () {
     await mcl.init();
     const message = randomHex(12);
     const { pubkey, secret } = mcl.newKeyPair();
-    const { signature, M } = mcl.sign(message, secret);
+    const [ signature, M ] = mcl.sign(message, secret);
     let message_ser = mcl.g1ToHex(M);
     let pubkey_ser = mcl.g2ToHex(pubkey);
     let sig_ser = mcl.g1ToHex(signature);

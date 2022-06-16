@@ -177,7 +177,7 @@ export function sign(message: string, secret: mclFR) {
     const M = hashToPoint(message);
     const signature = mcl.mul(M, secret);
     signature.normalize();
-    return { signature, M };
+    return [ signature, M ];
 }
 
 export function aggreagate(acc: mclG1 | mclG2, other: mclG1 | mclG2) {

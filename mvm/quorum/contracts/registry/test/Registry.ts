@@ -39,7 +39,7 @@ describe("Registry contract", function () {
     [addr1, addr2, ...addrs] = await ethers.getSigners();
     let Registry = await ethers.getContractFactory("Registry", {
       //libraries: {
-        //BLS: sbls.address,
+      //BLS: sbls.address,
       //},
     });
     // To deploy our contract, we just have to call Token.deploy() and await
@@ -53,7 +53,7 @@ describe("Registry contract", function () {
     SIGNER = secret;
   });
 
-  describe("Mixin", function () {
+  describe("Test mixin function", function () {
     it("Should have the same PID", async function () {
       expect(await registry.PID()).to.equal(PID);
     });
@@ -95,7 +95,7 @@ describe("Registry contract", function () {
         '000301e240000e00034254430007426974636f696e' + // amount + extra
         '16f90cc73f2b75f0' + // timestamp
         '0001fcb874914fa04c2fb387262b63cbc1120001'; // members
-      const { signature, M } = mcl.sign(raw, SIGNER);
+      const [signature, _] = mcl.sign(raw, SIGNER);
       let sig_ser = mcl.g1ToUnifiedHex(signature);
       raw = raw + '0040' + sig_ser.substr(2);
       await expect(registry.mixin(raw)).to.be.revertedWith("invalid signature");
@@ -109,7 +109,7 @@ describe("Registry contract", function () {
         '16f90cc73f2b75f0' + // timestamp
         '0001fcb874914fa04c2fb387262b63cbc1120001' + // members
         '0000';
-      const { signature, M } = mcl.sign(raw, SIGNER);
+      const [signature, _] = mcl.sign(raw, SIGNER);
       let sig_ser = mcl.g1ToUnifiedHex(signature);
       raw = raw + sig_ser.substr(2);
       let tx = await registry.mixin(raw);
@@ -117,4 +117,101 @@ describe("Registry contract", function () {
       expect(await registry.INBOUND()).to.equal(1);
     });
   });
+
+  describe("Test halt function", function () {
+    it("Should fail with invalid signature", async function () {
+      let raw = '0x48414c54';
+      const [signature, _] = mcl.sign(raw, SIGNER);
+      let hraw = mcl.g1ToUnifiedHex(signature);
+      await expect(registry.halt(hraw)).to.be.revertedWith("invalid signature");
+    });
+
+    it("Should halt successfully", async function () {
+      let raw = "0x48414c540000000000000000";
+      const [signature, _] = mcl.sign(raw, SIGNER);
+      let hraw = mcl.g1ToUnifiedHex(signature);
+      let tx = await registry.halt(hraw);
+      expect(tx.from).equal(await addr1.getAddress());
+    });
+
+    it("Should fail with invalid state", async function () {
+      let raw = "0x48414c540000000000000000";
+      let [signature, _] = mcl.sign(raw, SIGNER);
+      let hraw = mcl.g1ToUnifiedHex(signature);
+      await registry.halt(hraw);
+
+      raw = '0xb45dcee023d74ad1b51ec681a257c13e' + // PID
+        '0000000000000000' + // NONCE
+        'c6d0c7282624429b8e0dd9d19b6592fa' + // asset
+        '000301e240000e00034254430007426974636f696e' + // amount + extra
+        '16f90cc73f2b75f0' + // timestamp
+        '0001fcb874914fa04c2fb387262b63cbc1120001' + // members
+        '0000';
+      [signature, _] = mcl.sign(raw, SIGNER);
+      let sig_ser = mcl.g1ToUnifiedHex(signature);
+      let input = raw + sig_ser.substr(2);
+      await expect(registry.mixin(input)).to.be.revertedWith("invalid state");
+    });
+
+    it("Should not halt without correct NONCE", async function () {
+      let raw = '0xb45dcee023d74ad1b51ec681a257c13e' + // PID
+        '0000000000000000' + // NONCE
+        'c6d0c7282624429b8e0dd9d19b6592fa' + // asset
+        '000301e240000e00034254430007426974636f696e' + // amount + extra
+        '16f90cc73f2b75f0' + // timestamp
+        '0001fcb874914fa04c2fb387262b63cbc1120001' + // members
+        '0000';
+      let [signature, _] = mcl.sign(raw, SIGNER);
+      let sig_ser = mcl.g1ToUnifiedHex(signature);
+      let input = raw + sig_ser.substr(2);
+      let tx = await registry.mixin(input);
+      expect(tx.from).equal(await addr1.getAddress());
+      expect(await registry.INBOUND()).to.equal(1);
+
+      [signature, _] = mcl.sign("0x48414c540000000000000000", SIGNER);
+      let hraw = mcl.g1ToUnifiedHex(signature);
+      await expect(registry.halt(hraw)).to.be.revertedWith("invalid signature");
+
+      [signature, _] = mcl.sign("0x48414c540000000000000001", SIGNER);
+      hraw = mcl.g1ToUnifiedHex(signature);
+      tx = await registry.halt(hraw);
+      expect(tx.from).equal(await addr1.getAddress());
+    });
+
+    it("Should succeed after halt toggle", async function () {
+      let [signature, _] = mcl.sign("0x48414c540000000000000000", SIGNER);
+      let hraw = mcl.g1ToUnifiedHex(signature);
+      await registry.halt(hraw);
+
+      let raw = '0xb45dcee023d74ad1b51ec681a257c13e' + // PID
+        '0000000000000000' + // NONCE
+        'c6d0c7282624429b8e0dd9d19b6592fa' + // asset
+        '000301e240000e00034254430007426974636f696e' + // amount + extra
+        '16f90cc73f2b75f0' + // timestamp
+        '0001fcb874914fa04c2fb387262b63cbc1120001' + // members
+        '0000';
+      [signature, _] = mcl.sign(raw, SIGNER);
+      let sig_ser = mcl.g1ToUnifiedHex(signature);
+      let input = raw + sig_ser.substr(2);
+      await expect(registry.mixin(input)).to.be.revertedWith("invalid state");
+
+      [signature, _] = mcl.sign("0x48414c540000000000000000", SIGNER);
+      hraw = mcl.g1ToUnifiedHex(signature);
+      await registry.halt(hraw);
+
+      [signature, _] = mcl.sign(raw, SIGNER);
+      sig_ser = mcl.g1ToUnifiedHex(signature);
+      input = raw + sig_ser.substr(2);
+      let tx = await registry.mixin(input);
+      expect(tx.from).equal(await addr1.getAddress());
+      expect(await registry.INBOUND()).to.equal(1);
+    });
+  });
+
+  describe("Test iterate function", function () {
+    it("Should have the same PID", async function () {
+      expect(await registry.PID()).to.equal(PID);
+    });
+  });
+
 });
