@@ -1,11 +1,12 @@
 // We import Chai to use its asserting functions here.
 import { ethers } from "hardhat";
 import { expect, assert } from "chai";
-import BN from "bn.js";
-import { randomHex } from "./bls/utils";
-const mcl = require("./bls/mcl");
+import { Signer } from 'ethers';
 import { Registry } from "../typechain-types";
 import { TestBLS } from "../typechain-types/test";
+import { randomHex } from "./bls/utils";
+import BN from "bn.js";
+const mcl = require('./bls/mcl');
 
 // `describe` is a Mocha function that allows you to organize your tests. It's
 // not actually needed, but having your tests organized makes debugging them
@@ -25,18 +26,16 @@ describe("Registry contract", function () {
   // `before` and `beforeEach` callbacks.
 
   let registry: Registry;
-  let sbls: TestBLS;
-  let addr1;
+  let PID = '0xb45dcee023d74ad1b51ec681a257c13e';
+  let GROUP: any;
+  let SIGNER: any;
+  let addr1: Signer;
   let addr2;
   let addrs;
 
   // `beforeEach` will run before each test, re-deploying the contract every
   // time. It receives a callback, which can be async.
   beforeEach(async function () {
-    // Get the ContractFactory and Signers here.
-    let BLS = await ethers.getContractFactory("TestBLS");
-    sbls = await BLS.deploy();
-
     [addr1, addr2, ...addrs] = await ethers.getSigners();
     let Registry = await ethers.getContractFactory("Registry", {
       //libraries: {
@@ -46,12 +45,76 @@ describe("Registry contract", function () {
     // To deploy our contract, we just have to call Token.deploy() and await
     // for it to be deployed(), which happens once its transaction has been
     // mined.
-    registry = await Registry.connect(addr1).deploy("0x1b0b73f760f5a1fc2d3b14b18a1fb5f7d8e93366ac283423c7b6413dd869bf1300a4398f2222cca7c31cd56b4557249bf9f3c538b30b06e3a9a4c830a9b48feb25fc87924ed7906607d59b6e9555230e73b46378252923ac719a328c7235cb03030e7999862a645112eefee572b4f930a8c66b4141d0f8d76558364ed539c03e", "0xb45dcee023d74ad1b51ec681a257c13e");
+    await mcl.init();
+    let {pubkey, secret} = mcl.newKeyPair();
+    let pubkey_ser = mcl.g2ToUnifiedHex(pubkey);
+    registry = await Registry.connect(addr1).deploy(pubkey_ser, PID);
+    GROUP = pubkey;
+    SIGNER = secret;
   });
 
-  describe("Deployment", function () {
-    it("Should has the same address", async function () {
-      expect(registry.address).to.equal("0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0");
+  describe("Mixin", function () {
+    it("Should have the same PID", async function () {
+      expect(await registry.PID()).to.equal(PID);
+    });
+
+    it("Should have the same GROUP", async function () {
+      for (let i = 0; i < 4; i++) {
+        let sge = await registry.GROUP(i);
+        let tge = mcl.g2ToBN(GROUP)[i];
+        expect(sge.toString()).to.equal(tge.toString());
+      }
+    });
+
+    it("Should fail with error NONCE", async function () {
+      let raw = '0xb45dcee023d74ad1b51ec681a257c13e' + // PID
+        '0000000000000006' + // NONCE
+        'c6d0c7282624429b8e0dd9d19b6592fa' + // asset
+        '000301e240000e00034254430007426974636f696e' + // amount + extra
+        '16f90cc73f2b75f0' + // timestamp
+        '0001fcb874914fa04c2fb387262b63cbc1120001' + // members
+        '0040246f86caf3a5d195c471e82cc73fe10606c97d2f6a79b19920bdadc9699eb10222cae85bb19a4ff719540213b51379acf1e5baad1917a27a90be28239fec1616';
+      await expect(registry.mixin(raw)).to.be.revertedWith("invalid nonce");
+    });
+
+    it("Should fail with error signature", async function () {
+      let raw = '0xb45dcee023d74ad1b51ec681a257c13e' + // PID
+        '0000000000000000' + // NONCE
+        'c6d0c7282624429b8e0dd9d19b6592fa' + // asset
+        '000301e240000e00034254430007426974636f696e' + // amount + extra
+        '16f90cc73f2b75f0' + // timestamp
+        '0001fcb874914fa04c2fb387262b63cbc1120001' + // members
+        '0040246f86caf3a5d195c471e82cc73fe10606c97d2f6a79b19920bdadc9699eb10222cae85bb19a4ff719540213b51379acf1e5baad1917a27a90be28239fec1616';
+      await expect(registry.mixin(raw)).to.be.revertedWith("invalid signature");
+    });
+
+    it("Should fail with error signature", async function () {
+      let raw = '0xb45dcee023d74ad1b51ec681a257c13e' + // PID
+        '0000000000000000' + // NONCE
+        'c6d0c7282624429b8e0dd9d19b6592fa' + // asset
+        '000301e240000e00034254430007426974636f696e' + // amount + extra
+        '16f90cc73f2b75f0' + // timestamp
+        '0001fcb874914fa04c2fb387262b63cbc1120001'; // members
+      const { signature, M } = mcl.sign(raw, SIGNER);
+      let sig_ser = mcl.g1ToUnifiedHex(signature);
+      raw = raw + '0040' + sig_ser.substr(2);
+      await expect(registry.mixin(raw)).to.be.revertedWith("invalid signature");
+    });
+
+    it("Should succeed", async function () {
+      let raw = '0xb45dcee023d74ad1b51ec681a257c13e' + // PID
+        '0000000000000000' + // NONCE
+        'c6d0c7282624429b8e0dd9d19b6592fa' + // asset
+        '000301e240000e00034254430007426974636f696e' + // amount + extra
+        '16f90cc73f2b75f0' + // timestamp
+        '0001fcb874914fa04c2fb387262b63cbc1120001' + // members
+        '0000';
+      const { signature, M } = mcl.sign(raw, SIGNER);
+      let sig_ser = mcl.g1ToUnifiedHex(signature);
+      raw = raw + sig_ser.substr(2);
+      let tx = await registry.mixin(raw);
+      expect(tx.from).equal(await addr1.getAddress());
+      expect(await registry.INBOUND()).to.equal(1);
     });
   });
 });

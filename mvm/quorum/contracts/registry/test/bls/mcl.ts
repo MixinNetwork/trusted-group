@@ -108,6 +108,13 @@ export function g1ToHex(p: mclG1) {
     return [x, y];
 }
 
+export function g1ToUnifiedHex(p: mclG1) {
+    p.normalize();
+    const x = mclToHex(p.getX(), false);
+    const y = mclToHex(p.getY(), false);
+    return '0x' + x + y;
+}
+
 export function g2ToCompressed(p: mclG2) {
     p.normalize();
     const x = mclToHex(p.getX(), false);
@@ -146,6 +153,17 @@ export function g2ToHex(p: mclG2) {
         "0x" + y.slice(64),
         "0x" + y.slice(0, 64)
     ];
+}
+
+export function g2ToUnifiedHex(p: mclG2) {
+    p.normalize();
+    const x = mclToHex(p.getX(), false);
+    const y = mclToHex(p.getY(), false);
+    return "0x"
+    + x.slice(64)
+    + x.slice(0, 64)
+    + y.slice(64)
+    + y.slice(0, 64);
 }
 
 export function newKeyPair() {
