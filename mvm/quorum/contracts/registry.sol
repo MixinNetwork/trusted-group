@@ -330,6 +330,8 @@ contract Registry {
     }
 
     function writeValue(address _storageContract, bytes32 _key, bytes memory raw) public {
+        uint key = uint256(keccak256(raw));
+        require(key == _key, "invalid key or raw");
         EternalStorage(_storageContract).setBytesValue(_key, raw);
     }
 
