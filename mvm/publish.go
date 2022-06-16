@@ -74,7 +74,7 @@ func publishAppCmd(c *cli.Context) error {
 		Address:  c.String("address"),
 		Extra:    []byte(c.String("extra")),
 	}
-	feeAmount, _ := decimal.NewFromString(conf.Machine.ProcessFeeAsset)
+	feeAmount, _ := decimal.NewFromString(conf.Machine.ProcessFeeAmount)
 	input := &mixin.TransferInput{
 		AssetID: conf.Machine.ProcessFeeAsset,
 		Amount:  feeAmount,
