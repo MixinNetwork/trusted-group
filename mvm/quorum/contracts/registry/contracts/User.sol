@@ -32,8 +32,9 @@ contract User is Registrable {
         }
 
         for (uint256 offset = 2; count >= 0 && offset < extra.length; count--) {
+            bool primary = offset == 2;
             bytes memory data = extra.slice(offset, extra.length - offset);
-            (uint256 size, bool success) = handle(data, asset, amount);
+            (uint256 size, bool success) = handle(data, asset, amount, primary);
             if (!success) {
                 break;
             }
@@ -46,7 +47,8 @@ contract User is Registrable {
     function handle(
         bytes memory extra,
         address asset,
-        uint256 amount
+        uint256 amount,
+        bool primary
     ) internal returns (uint256, bool) {
         uint256 offset = 0;
         if (offset + 20 > extra.length) {
@@ -54,8 +56,10 @@ contract User is Registrable {
         }
         address process = extra.toAddress(offset);
         offset = offset + 20;
-        IERC20(asset).approve(process, 0);
-        IERC20(asset).approve(process, amount);
+        if (primary) {
+            IERC20(asset).approve(process, 0);
+            IERC20(asset).approve(process, amount);
+        }
 
         if (offset + 2 > extra.length) {
             return (offset, false);
