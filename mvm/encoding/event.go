@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	EventExtraMaxSize = 128
+	EventExtraMaxSize = 256
 )
 
 //
