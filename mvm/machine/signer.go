@@ -79,6 +79,10 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 			logger.Verbosef("DecodeEvent(%x) => %s", b, err)
 			continue
 		}
+		if len(evt.Extra) > encoding.EventExtraMaxSize {
+			logger.Verbosef("DecodeEvent(%x) => %d", b, len(evt.Extra))
+			continue
+		}
 		process := m.getProcess(evt.Process)
 		if process == nil {
 			logger.Verbosef("getProcess(%s) => %v", evt.Process, evt)

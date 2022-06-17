@@ -35,5 +35,4 @@ type Engine interface {
 	EstimateCost(events []*encoding.Event) (common.Integer, error)
 	EnsureSendGroupEvents(address string, events []*encoding.Event) error
 	ReceiveGroupEvents(address string, offset uint64, limit int) ([]*encoding.Event, error)
-	SignEvent(address string, event *encoding.Event) []byte
 }

@@ -2,7 +2,6 @@ package quorum
 
 import (
 	"encoding/hex"
-	"fmt"
 	"time"
 
 	"github.com/MixinNetwork/mixin/common"
@@ -66,10 +65,6 @@ func (e *Engine) Hash(b []byte) []byte {
 	return crypto.Keccak256(b)
 }
 
-func (e *Engine) SignEvent(address string, event *encoding.Event) []byte {
-	return nil
-}
-
 func (e *Engine) VerifyAddress(address string, _ []byte) error {
 	err := ethereum.VerifyAddress(address)
 	if err != nil {
@@ -91,7 +86,7 @@ func (e *Engine) SetupNotifier(address string) error {
 	if err != nil {
 		panic(err)
 	} else if nonce > 0 {
-		return fmt.Errorf("notifier used %d", nonce)
+		logger.Verbosef("Engine.SetupNotifier(%s) => nonce %d", address, nonce)
 	}
 	old := e.storeReadContractNotifier(address)
 	if old == notifier {
