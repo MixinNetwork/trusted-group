@@ -1,40 +1,33 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >=0.8.0 <0.9.0;
 
+import {Integer} from "./libs/Integer.sol";
 import {Bytes} from "./libs/Bytes.sol";
 import {BLS} from "./libs/BLS.sol";
 import {Storage} from "./Storage.sol";
 import {IRegistry, Registrable} from "./Registrable.sol";
+import {Factory} from "./Factory.sol";
 import {Asset} from "./Asset.sol";
 import {User} from "./User.sol";
 
-contract Registry is IRegistry {
+contract Registry is IRegistry, Factory {
     using Bytes for bytes;
     using BLS for uint256[2];
     using BLS for bytes;
 
-    event UserCreated(address indexed at, bytes members);
-    event AssetCreated(address indexed at, uint256 id);
     event Halted(bool state);
     event Iterated(uint256[4] from, uint256[4] to);
     event MixinTransaction(bytes raw);
     event MixinEvent(Event evt);
 
-    uint256 public constant VERSION = 1;
     uint128 public immutable PID;
-    uint256 constant BALANCE = 1;
 
     uint256[4] public GROUP;
     uint64 public INBOUND = 0;
     uint64 public OUTBOUND = 0;
     bool public HALTED = false;
 
-    mapping(address => bytes) public users;
-    mapping(address => uint128) public assets;
-    mapping(uint256 => address) public contracts;
     mapping(uint128 => uint256) public balances;
-    address[] public addresses;
-    uint128[] public deposits;
 
     struct Event {
         uint64 nonce;
@@ -77,7 +70,9 @@ contract Registry is IRegistry {
     }
 
     function halt(bytes memory raw) public {
-        bytes memory input = bytes("HALT").concat(uint64ToFixedBytes(INBOUND));
+        bytes memory input = bytes("HALT").concat(
+            Integer.uint64ToFixedBytes(INBOUND)
+        );
         uint256[2] memory sig = [raw.toUint256(0), raw.toUint256(32)];
         uint256[2] memory message = input.hashToPoint();
         require(sig.verifySingle(GROUP, message), "invalid signature");
@@ -131,15 +126,15 @@ contract Registry is IRegistry {
         bytes memory extra
     ) internal view returns (bytes memory) {
         require(extra.length < 128, "extra too large");
-        bytes memory raw = uint128ToFixedBytes(PID);
-        raw = raw.concat(uint64ToFixedBytes(nonce));
-        raw = raw.concat(uint128ToFixedBytes(asset));
-        (bytes memory ab, uint16 al) = uint256ToVarBytes(amount);
-        raw = raw.concat(uint16ToFixedBytes(al));
+        bytes memory raw = Integer.uint128ToFixedBytes(PID);
+        raw = raw.concat(Integer.uint64ToFixedBytes(nonce));
+        raw = raw.concat(Integer.uint128ToFixedBytes(asset));
+        (bytes memory ab, uint16 al) = Integer.uint256ToVarBytes(amount);
+        raw = raw.concat(Integer.uint16ToFixedBytes(al));
         raw = raw.concat(ab);
-        raw = raw.concat(uint16ToFixedBytes(uint16(extra.length)));
+        raw = raw.concat(Integer.uint16ToFixedBytes(uint16(extra.length)));
         raw = raw.concat(extra);
-        raw = raw.concat(uint64ToFixedBytes(uint64(block.timestamp)));
+        raw = raw.concat(Integer.uint64ToFixedBytes(uint64(block.timestamp)));
         raw = raw.concat(receiver);
         raw = raw.concat(new bytes(2));
         return raw;
@@ -179,10 +174,6 @@ contract Registry is IRegistry {
         require(raw.length == offset, "malformed event encoding");
 
         uint256 balance = balances[assets[evt.asset]];
-        if (balance == 0) {
-            deposits.push(assets[evt.asset]);
-            balance = BALANCE;
-        }
         balances[assets[evt.asset]] = balance + evt.amount;
 
         emit MixinEvent(evt);
@@ -261,154 +252,5 @@ contract Registry is IRegistry {
         }
         address asset = getOrCreateAssetContract(id, symbol, name);
         return (asset, input);
-    }
-
-    function getOrCreateAssetContract(
-        uint128 id,
-        string memory symbol,
-        string memory name
-    ) internal returns (address) {
-        address old = contracts[id];
-        if (old != address(0)) {
-            return old;
-        }
-        bytes memory code = getAssetContractCode(id, symbol, name);
-        address asset = getContractAddress(code);
-        if (assets[asset] > 0) {
-            return asset;
-        }
-        address addr = deploy(code, VERSION);
-        require(addr == asset, "malformed asset contract address");
-        assets[asset] = id;
-        contracts[id] = asset;
-        addresses.push(asset);
-        emit AssetCreated(asset, id);
-        return asset;
-    }
-
-    function getOrCreateUserContract(bytes memory members)
-        internal
-        returns (address)
-    {
-        uint256 id = uint256(keccak256(members));
-        address old = contracts[id];
-        if (old != address(0)) {
-            return old;
-        }
-        bytes memory code = getUserContractCode(members);
-        address user = getContractAddress(code);
-        if (users[user].length > 0) {
-            return user;
-        }
-        address addr = deploy(code, VERSION);
-        require(addr == user, "malformed user contract address");
-        users[user] = members;
-        contracts[id] = user;
-        addresses.push(user);
-        emit UserCreated(user, members);
-        return user;
-    }
-
-    function getUserContractCode(bytes memory members)
-        internal
-        pure
-        returns (bytes memory)
-    {
-        bytes memory code = type(User).creationCode;
-        bytes memory args = abi.encode(members);
-        return abi.encodePacked(code, args);
-    }
-
-    function getAssetContractCode(
-        uint256 id,
-        string memory symbol,
-        string memory name
-    ) internal pure returns (bytes memory) {
-        bytes memory code = type(Asset).creationCode;
-        bytes memory args = abi.encode(id, name, symbol);
-        return abi.encodePacked(code, args);
-    }
-
-    function getContractAddress(bytes memory code)
-        internal
-        view
-        returns (address)
-    {
-        code = abi.encodePacked(
-            bytes1(0xff),
-            address(this),
-            VERSION,
-            keccak256(code)
-        );
-        return address(uint160(uint256(keccak256(code))));
-    }
-
-    function deploy(bytes memory bytecode, uint256 _salt)
-        internal
-        returns (address)
-    {
-        address addr;
-        assembly {
-            addr := create2(
-                callvalue(),
-                add(bytecode, 0x20),
-                mload(bytecode),
-                _salt
-            )
-
-            if iszero(extcodesize(addr)) {
-                revert(0, 0)
-            }
-        }
-        return addr;
-    }
-
-    function uint16ToFixedBytes(uint16 x) internal pure returns (bytes memory) {
-        bytes memory c = new bytes(2);
-        bytes2 b = bytes2(x);
-        for (uint256 i = 0; i < 2; i++) {
-            c[i] = b[i];
-        }
-        return c;
-    }
-
-    function uint64ToFixedBytes(uint64 x) internal pure returns (bytes memory) {
-        bytes memory c = new bytes(8);
-        bytes8 b = bytes8(x);
-        for (uint256 i = 0; i < 8; i++) {
-            c[i] = b[i];
-        }
-        return c;
-    }
-
-    function uint128ToFixedBytes(uint128 x)
-        internal
-        pure
-        returns (bytes memory)
-    {
-        bytes memory c = new bytes(16);
-        bytes16 b = bytes16(x);
-        for (uint256 i = 0; i < 16; i++) {
-            c[i] = b[i];
-        }
-        return c;
-    }
-
-    function uint256ToVarBytes(uint256 x)
-        internal
-        pure
-        returns (bytes memory, uint16)
-    {
-        bytes memory c = new bytes(32);
-        bytes32 b = bytes32(x);
-        uint16 offset = 0;
-        for (uint16 i = 0; i < 32; i++) {
-            c[i] = b[i];
-            if (c[i] > 0 && offset == 0) {
-                offset = i;
-            }
-        }
-        uint16 size = 32 - offset;
-        return (c.slice(offset, 32 - offset), size);
     }
 }
