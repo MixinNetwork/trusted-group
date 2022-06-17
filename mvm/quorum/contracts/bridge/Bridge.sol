@@ -19,7 +19,8 @@ contract Bridge {
     mapping(address => address) public bridges;
 
     event Vault(address indexed from, uint256 amount);
-    event Crossed(
+    event Bound(address indexed from, address indexed to);
+    event Through(
         address indexed asset,
         address indexed from,
         address indexed to,
@@ -44,7 +45,7 @@ contract Bridge {
         require(receiver != address(0), "no binding");
 
         IERC20(XIN).transfer(receiver, amount);
-        emit Crossed(XIN, msg.sender, receiver, amount);
+        emit Through(XIN, msg.sender, receiver, amount);
     }
 
     function vault(address asset, uint256 amount) public {
@@ -56,24 +57,24 @@ contract Bridge {
     function bind(address receiver) public {
         require(receiver != address(0), "invalid address");
         bridges[msg.sender] = receiver;
-        bridges[receiver] = msg.sender;
+        emit Bound(msg.sender, receiver);
     }
 
-    function cross(address asset, uint256 amount) public {
+    function pass(address asset, uint256 amount) public {
         address receiver = bridges[msg.sender];
         require(receiver != address(0), "no binding");
         require(amount > 0, "too small");
 
         if (asset == XIN) {
-            crossXIN(receiver, amount);
+            passXIN(receiver, amount);
         } else {
             IERC20(asset).transferFrom(msg.sender, receiver, amount);
         }
 
-        emit Crossed(XIN, msg.sender, receiver, amount);
+        emit Through(XIN, msg.sender, receiver, amount);
     }
 
-    function crossXIN(address receiver, uint256 amount) internal {
+    function passXIN(address receiver, uint256 amount) internal {
         IERC20(XIN).transferFrom(msg.sender, address(this), amount);
         payable(receiver).transfer(amount * BASE);
     }
