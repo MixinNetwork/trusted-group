@@ -18,6 +18,7 @@ contract Bridge {
     address public immutable OWNER;
     mapping(address => address) public bridges;
 
+    event Vault(address indexed from, uint256 amount);
     event Crossed(
         address indexed asset,
         address indexed from,
@@ -31,17 +32,25 @@ contract Bridge {
     }
 
     receive() external payable {
+        uint256 amount = msg.value / BASE;
+        require(amount > 0, "too small");
+
         if (msg.sender == OWNER) {
+            emit Vault(msg.sender, amount);
             return;
         }
 
         address receiver = bridges[msg.sender];
-        uint256 amount = msg.value / BASE;
         require(receiver != address(0), "no binding");
-        require(amount > 0, "too small");
 
         IERC20(XIN).transfer(receiver, amount);
         emit Crossed(XIN, msg.sender, receiver, amount);
+    }
+
+    function vault(address asset, uint256 amount) public {
+        require(asset == XIN, "only XIN");
+        IERC20(asset).transferFrom(msg.sender, address(this), amount);
+        emit Vault(msg.sender, amount);
     }
 
     function bind(address receiver) public {
@@ -50,13 +59,13 @@ contract Bridge {
         bridges[receiver] = msg.sender;
     }
 
-    function deposit(address asset, uint256 amount) public {
+    function cross(address asset, uint256 amount) public {
         address receiver = bridges[msg.sender];
         require(receiver != address(0), "no binding");
         require(amount > 0, "too small");
 
         if (asset == XIN) {
-            depositXIN(receiver, amount);
+            crossXIN(receiver, amount);
         } else {
             IERC20(asset).transferFrom(msg.sender, receiver, amount);
         }
@@ -64,7 +73,7 @@ contract Bridge {
         emit Crossed(XIN, msg.sender, receiver, amount);
     }
 
-    function depositXIN(address receiver, uint256 amount) internal {
+    function crossXIN(address receiver, uint256 amount) internal {
         IERC20(XIN).transferFrom(msg.sender, address(this), amount);
         payable(receiver).transfer(amount * BASE);
     }
