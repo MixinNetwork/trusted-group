@@ -13,11 +13,11 @@ contract Registry is IRegistry {
     using BLS for uint256[2];
     using BLS for bytes;
 
-    event UserCreated(address at, bytes members);
-    event AssetCreated(address at, uint256 id);
+    event UserCreated(address indexed at, bytes members);
+    event AssetCreated(address indexed at, uint256 id);
     event Halted(bool state);
     event Iterated(uint256[4] from, uint256[4] to);
-    event MixinTransaction(bytes);
+    event MixinTransaction(bytes raw);
     event MixinEvent(Event evt);
 
     uint256 public constant VERSION = 1;

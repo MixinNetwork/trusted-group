@@ -33,7 +33,7 @@ contract User is Registrable {
 
         for (uint256 offset = 2; count >= 0 && offset < extra.length; count--) {
             bytes memory data = extra.slice(offset, extra.length - offset);
-            (uint size, bool success) = handle(data, asset, amount);
+            (uint256 size, bool success) = handle(data, asset, amount);
             if (!success) {
                 break;
             }
@@ -47,7 +47,7 @@ contract User is Registrable {
         bytes memory extra,
         address asset,
         uint256 amount
-    ) internal returns (uint, bool) {
+    ) internal returns (uint256, bool) {
         uint256 offset = 0;
         if (offset + 20 > extra.length) {
             return (offset, false);
