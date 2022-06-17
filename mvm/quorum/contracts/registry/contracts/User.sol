@@ -31,8 +31,9 @@ contract User is Registrable {
             return true;
         }
 
-        for (uint256 offset = 2; count >= 0; count--) {
-            (uint size, bool success) = handle(extra + offset, asset, amount);
+        for (uint256 offset = 2; count >= 0 && offset < extra.length; count--) {
+            bytes memory data = extra.slice(offset, extra.length - offset);
+            (uint size, bool success) = handle(data, asset, amount);
             if (!success) {
                 break;
             }
@@ -49,7 +50,7 @@ contract User is Registrable {
     ) internal returns (uint, bool) {
         uint256 offset = 0;
         if (offset + 20 > extra.length) {
-            return offset, false;
+            return (offset, false);
         }
         address process = extra.toAddress(offset);
         offset = offset + 20;
@@ -57,19 +58,19 @@ contract User is Registrable {
         IERC20(asset).approve(process, amount);
 
         if (offset + 2 > extra.length) {
-            return offset, false;
+            return (offset, false);
         }
         uint256 size = extra.toUint16(offset);
         offset = offset + 2;
 
         if (offset + size > extra.length) {
-            return offset, false;
+            return (offset, false);
         }
         bytes memory input = extra.slice(offset, size);
         (bool result, bytes memory output) = process.call(input);
         offset = offset + size;
 
         emit ProcessCalled(input, result, output);
-        return offset, result;
+        return (offset, result);
     }
 }
