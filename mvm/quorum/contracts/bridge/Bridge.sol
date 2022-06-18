@@ -2,7 +2,11 @@
 pragma solidity >=0.8.0 <0.9.0;
 
 interface IERC20 {
-    function transfer(address to, uint256 value) external returns (bool);
+    function transferWithExtra(
+        address to,
+        uint256 value,
+        bytes memory extra
+    ) external returns (bool);
 
     function transferFrom(
         address from,
@@ -32,20 +36,21 @@ contract Bridge {
         OWNER = msg.sender;
     }
 
-    receive() external payable {
+    fallback(bytes calldata input) external payable returns (bytes memory) {
         uint256 amount = msg.value / BASE;
         require(amount > 0, "too small");
 
         if (msg.sender == OWNER) {
             emit Vault(msg.sender, amount);
-            return;
+            return new bytes(0);
         }
 
         address receiver = bridges[msg.sender];
         require(receiver != address(0), "no binding");
 
-        IERC20(XIN).transfer(receiver, amount);
+        IERC20(XIN).transferWithExtra(receiver, amount, input);
         emit Through(XIN, msg.sender, receiver, amount);
+        return new bytes(0);
     }
 
     function vault(address asset, uint256 amount) public {

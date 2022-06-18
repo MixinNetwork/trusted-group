@@ -146,14 +146,22 @@ contract Asset is Registrable, StandardToken {
         symbol = _symbol;
     }
 
+    function transferWithExtra(
+        address to,
+        uint256 value,
+        bytes memory extra
+    ) public returns (bool) {
+        _transfer(msg.sender, to, value);
+        IRegistry(registry).burn(to, value, extra);
+        return true;
+    }
+
     function transfer(address to, uint256 value)
         public
         override
         returns (bool)
     {
-        _transfer(msg.sender, to, value);
-        IRegistry(registry).burn(to, value);
-        return true;
+        return transferWithExtra(to, value, new bytes(0));
     }
 
     function transferFrom(
@@ -162,7 +170,7 @@ contract Asset is Registrable, StandardToken {
         uint256 value
     ) public override returns (bool) {
         _transferFrom(from, to, value);
-        IRegistry(registry).burn(to, value);
+        IRegistry(registry).burn(to, value, new bytes(0));
         return true;
     }
 

@@ -84,27 +84,31 @@ contract Registry is IRegistry, Factory {
         require(users[msg.sender].length > 0, "invalid user");
         require(assets[asset] > 0, "invalid asset");
         Asset(asset).burn(msg.sender, amount);
-        sendMixinTransaction(msg.sender, asset, amount);
+        sendMixinTransaction(msg.sender, asset, amount, new bytes(0));
         return true;
     }
 
-    function burn(address user, uint256 amount) external returns (bool) {
+    function burn(
+        address user,
+        uint256 amount,
+        bytes memory extra
+    ) external returns (bool) {
         require(assets[msg.sender] > 0, "invalid asset");
         if (users[user].length == 0) {
             return true;
         }
         Asset(msg.sender).burn(user, amount);
-        sendMixinTransaction(user, msg.sender, amount);
+        sendMixinTransaction(user, msg.sender, amount, extra);
         return true;
     }
 
     function sendMixinTransaction(
         address user,
         address asset,
-        uint256 amount
+        uint256 amount,
+        bytes memory extra
     ) internal {
         uint256 balance = balances[assets[asset]];
-        bytes memory extra = new bytes(0);
         bytes memory log = buildMixinTransaction(
             OUTBOUND,
             users[user],
