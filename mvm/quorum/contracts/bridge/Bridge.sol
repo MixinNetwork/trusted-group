@@ -36,25 +36,33 @@ contract Bridge {
         OWNER = msg.sender;
     }
 
+    receive() external payable {
+        release(new bytes(0));
+    }
+
     fallback(bytes calldata input) external payable returns (bytes memory) {
-        uint256 amount = msg.value / BASE;
-        require(amount > 0, "too small");
-
-        if (msg.sender == OWNER) {
-            emit Vault(msg.sender, amount);
-            return new bytes(0);
-        }
-
-        address receiver = bridges[msg.sender];
-        require(receiver != address(0), "no binding");
-
-        IERC20(XIN).transferWithExtra(receiver, amount, input);
-        emit Through(XIN, msg.sender, receiver, amount);
+        release(input);
         return new bytes(0);
     }
 
+    function release(bytes memory input) internal {
+        uint256 amount = msg.value / BASE;
+        require(amount > 0, "value too small");
+
+        if (msg.sender == OWNER) {
+            emit Vault(msg.sender, amount);
+            return;
+        }
+
+        address receiver = bridges[msg.sender];
+        require(receiver != address(0), "no address bound");
+
+        IERC20(XIN).transferWithExtra(receiver, amount, input);
+        emit Through(XIN, msg.sender, receiver, amount);
+    }
+
     function vault(address asset, uint256 amount) public {
-        require(asset == XIN, "only XIN");
+        require(asset == XIN, "only XIN accepted");
         IERC20(asset).transferFrom(msg.sender, address(this), amount);
         emit Vault(msg.sender, amount);
     }
@@ -67,7 +75,7 @@ contract Bridge {
 
     function pass(address asset, uint256 amount) public {
         address receiver = bridges[msg.sender];
-        require(receiver != address(0), "no binding");
+        require(receiver != address(0), "no address bound");
         require(amount > 0, "too small");
 
         if (asset == XIN) {
@@ -76,7 +84,7 @@ contract Bridge {
             IERC20(asset).transferFrom(msg.sender, receiver, amount);
         }
 
-        emit Through(XIN, msg.sender, receiver, amount);
+        emit Through(asset, msg.sender, receiver, amount);
     }
 
     function passXIN(address receiver, uint256 amount) internal {
