@@ -128,8 +128,14 @@ contract Registry is IRegistry, Factory {
         uint128 asset,
         uint256 amount,
         bytes memory extra
-    ) internal view returns (bytes memory) {
-        require(extra.length < 128, "extra too large");
+    ) internal returns (bytes memory) {
+        if (extra.length >= 68 && extra.toUint128(0) == PID) {
+            Storage stg = Storage(extra.toAddress(16));
+            bytes memory data = extra.slice(68, extra.length - 68);
+            stg.write(extra.toUint256(36), data);
+            extra = extra.slice(0, 68);
+        }
+
         bytes memory raw = Integer.uint128ToFixedBytes(PID);
         raw = raw.concat(Integer.uint64ToFixedBytes(nonce));
         raw = raw.concat(Integer.uint128ToFixedBytes(asset));
