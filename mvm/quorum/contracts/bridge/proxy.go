@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/MixinNetwork/trusted-group/mvm/quorum/contracts/bridge/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -17,9 +18,11 @@ import (
 
 type Proxy struct {
 	*mixin.Client
-	key    *mixin.Keystore
-	proc   *StorageContract
-	signer *bind.TransactOpts
+	key      *mixin.Keystore
+	storage  *abi.StorageContract
+	bridge   *abi.BridgeContract
+	registry *abi.RegistryContract
+	signer   *bind.TransactOpts
 }
 
 func NewProxy(ctx context.Context, kst *mixin.Keystore, conn *ethclient.Client) *Proxy {
@@ -27,7 +30,15 @@ func NewProxy(ctx context.Context, kst *mixin.Keystore, conn *ethclient.Client) 
 	if err != nil {
 		panic(err)
 	}
-	proc, err := NewStorageContract(common.HexToAddress(MVMStorageContract), conn)
+	ps, err := abi.NewStorageContract(common.HexToAddress(MVMStorageContract), conn)
+	if err != nil {
+		panic(err)
+	}
+	pb, err := abi.NewBridgeContract(common.HexToAddress(MVMBridgeContract), conn)
+	if err != nil {
+		panic(err)
+	}
+	pr, err := abi.NewRegistryContract(common.HexToAddress(MVMRegistryContract), conn)
 	if err != nil {
 		panic(err)
 	}
@@ -41,7 +52,7 @@ func NewProxy(ctx context.Context, kst *mixin.Keystore, conn *ethclient.Client) 
 	if err != nil {
 		panic(err)
 	}
-	proxy := &Proxy{client, kst, proc, signer}
+	proxy := &Proxy{client, kst, ps, pb, pr, signer}
 	_, err = proxy.UserMe(ctx)
 	if err != nil {
 		panic(err)

@@ -40,37 +40,29 @@ func (u *User) buildExtra(p *Proxy, addr, asset string, amt decimal.Decimal) []b
 	contract := strings.ToLower(MVMBridgeContract[2:])
 	addr = "000000000000000000000000" + strings.ToLower(addr[2:])
 	first := fmt.Sprintf("%04x", len(bind+addr)/2)
-	extra := "0002" + contract + first + bind + addr
 	amount := convertToMVMHex(amt)
 	second := fmt.Sprintf("%04x", len(pass+addr+amount)/2)
+	if u.checkBind(p) {
+		extra := "0001" + contract + second + pass
+		extra = extra + convertToMVMAddress(asset) + amount
+		b, _ := hex.DecodeString(extra)
+		if len(b) != 92 {
+			panic(extra)
+		}
+		return b
+	}
+
+	extra := "0002" + contract + first + bind + addr
 	extra = extra + contract + second + pass
 	extra = extra + convertToMVMAddress(asset) + amount
 	b, _ := hex.DecodeString(extra)
 	if len(b) != 150 {
 		panic(extra)
 	}
-	k := new(big.Int).SetBytes(crypto.Keccak256(b))
-	o, err := p.proc.Read(nil, k)
-	if err != nil {
-		panic(err)
-	}
-	if bytes.Compare(o, b) != 0 {
-		return p.buildHash(k, b)
-	}
-	extra = "0001" + contract + second + pass
-	extra = extra + convertToMVMAddress(asset) + amount
-	b, _ = hex.DecodeString(extra)
-	if len(b) != 92 {
-		panic(extra)
-	}
-	return b
+	return p.buildHash(b)
 }
 
-func (p *Proxy) buildHash(k *big.Int, b []byte) []byte {
-	_, err := p.proc.Write(p.signer, k, b)
-	if err != nil {
-		panic(err)
-	}
+func (p *Proxy) buildHash(b []byte) []byte {
 	pid, err := uuid.FromString(MVMRegistryId)
 	if err != nil {
 		panic(err)
@@ -83,6 +75,7 @@ func (p *Proxy) buildHash(k *big.Int, b []byte) []byte {
 	}
 	extra = append(extra, cb...)
 
+	k := new(big.Int).SetBytes(crypto.Keccak256(b))
 	kbuf := make([]byte, 32)
 	k.FillBytes(kbuf)
 	extra = append(extra, kbuf...)
@@ -90,7 +83,42 @@ func (p *Proxy) buildHash(k *big.Int, b []byte) []byte {
 	if len(extra) != 68 {
 		panic(hex.EncodeToString(extra))
 	}
+
+	o, err := p.storage.Read(nil, k)
+	if err != nil {
+		panic(err)
+	}
+	if bytes.Compare(o, b) == 0 {
+		return extra
+	}
+	_, err = p.storage.Write(p.signer, k, b)
+	if err != nil {
+		panic(err)
+	}
 	return extra
+}
+
+func (u *User) checkBind(p *Proxy) bool {
+	uid, err := uuid.FromString(u.UserID)
+	if err != nil {
+		panic(err)
+	}
+	kb := []byte{0x0, 0x1}
+	kb = append(kb, uid.Bytes()...)
+	kb = append(kb, 0x0, 0x1)
+	k := new(big.Int).SetBytes(crypto.Keccak256(kb))
+	ua, err := p.registry.Contracts(nil, k)
+	if err != nil {
+		panic(err)
+	}
+	if ua.String() == "0x0000000000000000000000000000000000000000" {
+		return false
+	}
+	ba, err := p.bridge.Bridges(nil, ua)
+	if err != nil {
+		panic(err)
+	}
+	return ba.String() != "0x0000000000000000000000000000000000000000"
 }
 
 func convertToMVMHex(amount decimal.Decimal) string {
