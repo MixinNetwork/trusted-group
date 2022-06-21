@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/trusted-group/mvm/quorum/contracts/bridge/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -81,6 +82,7 @@ func (p *Proxy) loopSnapshots(ctx context.Context, store *Storage) {
 	if err != nil {
 		panic(err)
 	}
+	logger.Verbosef("Proxy.loopSnapshots(%s) => %d %v", ckpt, len(snapshots), err)
 
 	for _, s := range snapshots {
 		ckpt = s.CreatedAt
@@ -90,6 +92,7 @@ func (p *Proxy) loopSnapshots(ctx context.Context, store *Storage) {
 		if s.Amount.Cmp(decimal.NewFromFloat(0.00000001)) < 0 {
 			continue
 		}
+		logger.Verbosef("Proxy.loopSnapshots(%s) => %d %v => %v", ckpt, len(snapshots), err, *s)
 		err = store.writeSnapshot(s)
 		if err != nil {
 			panic(err)

@@ -7,6 +7,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/domains/ethereum"
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/fox-one/mixin-sdk-go"
 )
 
@@ -36,6 +37,9 @@ func (p *Proxy) createUser(ctx context.Context, store *Storage, addr string) (*U
 		pin = pin + pin
 	}
 	user.PIN = pin[:6]
+	if user.HasPin {
+		return user, nil
+	}
 
 	uc, err := mixin.NewFromKeystore(ks)
 	if err != nil {
@@ -55,6 +59,7 @@ func (u *User) handle(s *mixin.Snapshot, act *Action) error {
 }
 
 func (u *User) pass(ctx context.Context, p *Proxy, s *mixin.Snapshot) error {
+	logger.Verbosef("User.pass(%v)", *s)
 	return u.bindAndPass(ctx, p, s.SnapshotID, u.FullName, s.AssetID, s.Amount)
 }
 
