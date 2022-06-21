@@ -25,5 +25,5 @@ func (p *Proxy) decodeAction(u *User, data string) (*Action, error) {
 	// check data format according to the registry
 	// if storage => do the storage contract query => p.Read(nil, big.Int)
 	// else return null => because we only allow storage interface
-	panic(0)
+	return nil, nil
 }

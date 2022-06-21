@@ -7,6 +7,7 @@ require (
 	github.com/MixinNetwork/nfo v0.1.1
 	github.com/MixinNetwork/tip v0.0.0-20220228221951-d9543cfc8f38
 	github.com/dgraph-io/badger/v3 v3.2103.2
+	github.com/dimfeld/httptreemux v5.0.1+incompatible
 	github.com/drand/kyber v1.1.7
 	github.com/ethereum/go-ethereum v1.10.19
 	github.com/fox-one/mixin-sdk-go v1.5.7
@@ -14,6 +15,7 @@ require (
 	github.com/mdp/qrterminal v1.0.1
 	github.com/pelletier/go-toml v1.9.4
 	github.com/shopspring/decimal v1.3.1
+	github.com/unrolled/render v1.4.1
 	github.com/urfave/cli/v2 v2.3.0
 )
 
@@ -34,6 +36,7 @@ require (
 	github.com/dgraph-io/ristretto v0.1.0 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/fox-one/msgpack v1.0.0 // indirect
+	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/go-ole/go-ole v1.2.1 // indirect
 	github.com/go-resty/resty/v2 v2.7.0 // indirect
 	github.com/go-stack/stack v1.8.0 // indirect

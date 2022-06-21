@@ -1,8 +1,14 @@
 package main
 
-import "github.com/ethereum/go-ethereum/ethclient"
+import (
+	"context"
+
+	"github.com/ethereum/go-ethereum/ethclient"
+)
 
 func main() {
+	ctx := context.Background()
+
 	conn, err := ethclient.Dial(GethRPC)
 	if err != nil {
 		panic(err)
@@ -15,6 +21,8 @@ func main() {
 	}
 	defer store.Close()
 
-	proxy := NewProxy(ProxyKeyStore, conn)
-	proxy.Run(store)
+	proxy := NewProxy(ctx, ProxyKeyStore, conn)
+	go proxy.Run(ctx, store)
+
+	StartHTTP(proxy, store)
 }

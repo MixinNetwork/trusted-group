@@ -10,18 +10,19 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/fox-one/mixin-sdk-go"
+	"github.com/shopspring/decimal"
 )
 
 // abigen --abi storage.json --pkg main --type StorageContract --out abi.go
 
 type Proxy struct {
 	*mixin.Client
-	*mixin.Keystore
-	*StorageContract
+	key    *mixin.Keystore
+	proc   *StorageContract
 	signer *bind.TransactOpts
 }
 
-func NewProxy(kst *mixin.Keystore, conn *ethclient.Client) *Proxy {
+func NewProxy(ctx context.Context, kst *mixin.Keystore, conn *ethclient.Client) *Proxy {
 	client, err := mixin.NewFromKeystore(kst)
 	if err != nil {
 		panic(err)
@@ -40,16 +41,27 @@ func NewProxy(kst *mixin.Keystore, conn *ethclient.Client) *Proxy {
 	if err != nil {
 		panic(err)
 	}
-	return &Proxy{client, kst, proc, signer}
+	proxy := &Proxy{client, kst, proc, signer}
+	_, err = proxy.UserMe(ctx)
+	if err != nil {
+		panic(err)
+	}
+	return proxy
 }
 
-func (p *Proxy) Run(store *Storage) {
-	go p.processSnapshots(store)
-	p.loopSnapshots(store)
+func (p *Proxy) Run(ctx context.Context, store *Storage) {
+	go func() {
+		for {
+			p.processSnapshots(ctx, store)
+		}
+	}()
+
+	for {
+		p.loopSnapshots(ctx, store)
+	}
 }
 
-func (p *Proxy) loopSnapshots(store *Storage) {
-	ctx := context.Background()
+func (p *Proxy) loopSnapshots(ctx context.Context, store *Storage) {
 	ckpt, err := store.readSnapshotsCheckpoint(ctx)
 	if err != nil {
 		panic(err)
@@ -62,6 +74,9 @@ func (p *Proxy) loopSnapshots(store *Storage) {
 	for _, s := range snapshots {
 		ckpt = s.CreatedAt
 		if s.UserID == "" {
+			continue
+		}
+		if s.Amount.Cmp(decimal.NewFromFloat(0.00000001)) < 0 {
 			continue
 		}
 		err = store.writeSnapshot(s)
@@ -79,7 +94,7 @@ func (p *Proxy) loopSnapshots(store *Storage) {
 	}
 }
 
-func (p *Proxy) processSnapshots(store *Storage) {
+func (p *Proxy) processSnapshots(ctx context.Context, store *Storage) {
 	snapshots, err := store.listSnapshots(100)
 	if err != nil {
 		panic(err)
@@ -93,7 +108,7 @@ func (p *Proxy) processSnapshots(store *Storage) {
 		if user == nil {
 			continue
 		}
-		err = p.processSnapshotForUser(s, user)
+		err = p.processSnapshotForUser(ctx, s, user)
 		if err != nil {
 			panic(err)
 		}
@@ -108,7 +123,7 @@ func (p *Proxy) processSnapshots(store *Storage) {
 	}
 }
 
-func (p *Proxy) processSnapshotForUser(s *mixin.Snapshot, user *User) error {
+func (p *Proxy) processSnapshotForUser(ctx context.Context, s *mixin.Snapshot, user *User) error {
 	act, err := p.decodeAction(user, s.Memo)
 	if err != nil {
 		return err
@@ -116,5 +131,5 @@ func (p *Proxy) processSnapshotForUser(s *mixin.Snapshot, user *User) error {
 	if act != nil {
 		return user.handle(s, act)
 	}
-	return user.pass(p, s)
+	return user.pass(ctx, p, s)
 }

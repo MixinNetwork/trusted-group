@@ -39,7 +39,7 @@ func (s *Storage) readSnapshotsCheckpoint(ctx context.Context) (time.Time, error
 	key := []byte(storePrefixSnapshotCheckpoint)
 	item, err := txn.Get(key)
 	if err == badger.ErrKeyNotFound {
-		return time.Time{}, nil
+		return time.Now(), nil
 	} else if err != nil {
 		return time.Time{}, err
 	}
@@ -47,15 +47,14 @@ func (s *Storage) readSnapshotsCheckpoint(ctx context.Context) (time.Time, error
 	if err != nil {
 		return time.Time{}, err
 	}
-	var t time.Time
-	err = common.MsgpackUnmarshal(val, &t)
-	return t, err
+	ckpt := binary.BigEndian.Uint64(val)
+	return time.Unix(0, int64(ckpt)), nil
 }
 
 func (s *Storage) writeSnapshotsCheckpoint(ctx context.Context, ckpt time.Time) error {
 	return s.Update(func(txn *badger.Txn) error {
 		key := []byte(storePrefixSnapshotCheckpoint)
-		val := common.MsgpackMarshalPanic(ckpt)
+		val := timeToBytes(ckpt)
 		return txn.Set(key, val)
 	})
 }

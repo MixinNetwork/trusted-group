@@ -16,11 +16,9 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-func (p *Proxy) bindAndPass(snapshotId, addr, asset string, amount decimal.Decimal) error {
-	ctx := context.Background()
-
+func (u *User) bindAndPass(ctx context.Context, p *Proxy, snapshotId, addr, asset string, amount decimal.Decimal) error {
 	trace := mixin.UniqueConversationID(snapshotId, "BIND||PASS")
-	extra := p.buildExtra(addr, asset, amount)
+	extra := u.buildExtra(p, addr, asset, amount)
 	op := &encoding.Operation{
 		Purpose: encoding.OperationPurposeGroupEvent,
 		Process: MVMRegistryId,
@@ -34,11 +32,10 @@ func (p *Proxy) bindAndPass(snapshotId, addr, asset string, amount decimal.Decim
 	input.OpponentMultisig.Receivers = MVMMembers
 	input.OpponentMultisig.Threshold = uint8(MVMThreshold)
 	input.Memo = base64.RawURLEncoding.EncodeToString(op.Encode())
-	_, err := p.Transaction(ctx, &input, ProxyPIN)
-	return err
+	return u.send(ctx, &input)
 }
 
-func (p *Proxy) buildExtra(addr, asset string, amt decimal.Decimal) []byte {
+func (u *User) buildExtra(p *Proxy, addr, asset string, amt decimal.Decimal) []byte {
 	bind, pass := "81bac14f", "0ed1db9f"
 	contract := strings.ToLower(MVMBridgeContract[2:])
 	addr = "000000000000000000000000" + strings.ToLower(addr[2:])
@@ -46,20 +43,22 @@ func (p *Proxy) buildExtra(addr, asset string, amt decimal.Decimal) []byte {
 	extra := "0002" + contract + first + bind + addr
 	amount := convertToMVMHex(amt)
 	second := fmt.Sprintf("%04x", len(pass+addr+amount)/2)
-	extra = extra + contract + second + pass + addr + amount
+	extra = extra + contract + second + pass
+	extra = extra + convertToMVMAddress(asset) + amount
 	b, _ := hex.DecodeString(extra)
-	if len(b) != 148 {
+	if len(b) != 150 {
 		panic(extra)
 	}
 	k := new(big.Int).SetBytes(crypto.Keccak256(b))
-	o, err := p.Read(nil, k)
+	o, err := p.proc.Read(nil, k)
 	if err != nil {
 		panic(err)
 	}
 	if bytes.Compare(o, b) != 0 {
 		return p.buildHash(k, b)
 	}
-	extra = "0001" + contract + first + bind + addr
+	extra = "0001" + contract + second + pass
+	extra = extra + convertToMVMAddress(asset) + amount
 	b, _ = hex.DecodeString(extra)
 	if len(b) != 92 {
 		panic(extra)
@@ -68,7 +67,7 @@ func (p *Proxy) buildExtra(addr, asset string, amt decimal.Decimal) []byte {
 }
 
 func (p *Proxy) buildHash(k *big.Int, b []byte) []byte {
-	_, err := p.Write(p.signer, k, b)
+	_, err := p.proc.Write(p.signer, k, b)
 	if err != nil {
 		panic(err)
 	}
@@ -88,7 +87,7 @@ func (p *Proxy) buildHash(k *big.Int, b []byte) []byte {
 	k.FillBytes(kbuf)
 	extra = append(extra, kbuf...)
 
-	if len(extra) != 92 {
+	if len(extra) != 68 {
 		panic(hex.EncodeToString(extra))
 	}
 	return extra
@@ -99,4 +98,12 @@ func convertToMVMHex(amount decimal.Decimal) string {
 	amount = amount.Mul(decimal.NewFromInt(100000000))
 	amount.BigInt().FillBytes(buf)
 	return hex.EncodeToString(buf)
+}
+
+func convertToMVMAddress(asset string) string {
+	aid, err := uuid.FromString(asset)
+	if err != nil {
+		panic(err)
+	}
+	return "000000000000000000000000" + "00000000" + hex.EncodeToString(aid.Bytes())
 }

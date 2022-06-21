@@ -12,8 +12,8 @@ import (
 
 type User struct {
 	*mixin.User
-	*mixin.Keystore
-	PIN string `json:"-"`
+	Key *mixin.Keystore `json:"key"`
+	PIN string          `json:"-"`
 }
 
 // TODO should verify the signature from MetaMask of the addr
@@ -54,6 +54,15 @@ func (u *User) handle(s *mixin.Snapshot, act *Action) error {
 	panic(0)
 }
 
-func (u *User) pass(p *Proxy, s *mixin.Snapshot) error {
-	return p.bindAndPass(s.SnapshotID, u.FullName, s.AssetID, s.Amount)
+func (u *User) pass(ctx context.Context, p *Proxy, s *mixin.Snapshot) error {
+	return u.bindAndPass(ctx, p, s.SnapshotID, u.FullName, s.AssetID, s.Amount)
+}
+
+func (u *User) send(ctx context.Context, in *mixin.TransferInput) error {
+	uc, err := mixin.NewFromKeystore(u.Key)
+	if err != nil {
+		return err
+	}
+	_, err = uc.Transaction(ctx, in, u.PIN)
+	return err
 }
