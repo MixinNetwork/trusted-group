@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/gofrs/uuid"
@@ -98,7 +99,7 @@ func (p *Proxy) buildHash(b []byte) []byte {
 	return extra
 }
 
-func (u *User) checkBind(p *Proxy) bool {
+func (u *User) getContract(p *Proxy) (common.Address, error) {
 	uid, err := uuid.FromString(u.UserID)
 	if err != nil {
 		panic(err)
@@ -108,6 +109,14 @@ func (u *User) checkBind(p *Proxy) bool {
 	kb = append(kb, 0x0, 0x1)
 	k := new(big.Int).SetBytes(crypto.Keccak256(kb))
 	ua, err := p.registry.Contracts(nil, k)
+	if err != nil {
+		panic(err)
+	}
+	return ua, nil
+}
+
+func (u *User) checkBind(p *Proxy) bool {
+	ua, err := u.getContract(p)
 	if err != nil {
 		panic(err)
 	}

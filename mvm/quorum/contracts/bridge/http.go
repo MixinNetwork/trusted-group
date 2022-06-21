@@ -26,7 +26,7 @@ func StartHTTP(p *Proxy, s *Storage) error {
 }
 
 func readUser(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	user, err := store.readUser(params["id"])
+	user, err := proxy.readUser(store, params["id"])
 	if err != nil {
 		render.New().JSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err})
 	} else if user == nil {

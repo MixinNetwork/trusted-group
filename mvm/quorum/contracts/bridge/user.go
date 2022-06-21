@@ -13,8 +13,9 @@ import (
 
 type User struct {
 	*mixin.User
-	Key *mixin.Keystore `json:"key"`
-	PIN string          `json:"-"`
+	Key      *mixin.Keystore `json:"key"`
+	PIN      string          `json:"-"`
+	Contract string          `json:"contract"`
 }
 
 // TODO should verify the signature from MetaMask of the addr
@@ -29,7 +30,7 @@ func (p *Proxy) createUser(ctx context.Context, store *Storage, addr, sig string
 	if err != nil {
 		return nil, err
 	}
-	user := &User{u, ks, ""}
+	user := &User{u, ks, "", ""}
 
 	seed = crypto.NewHash(seed[:])
 	pin := new(big.Int).SetBytes(seed[:]).String()
@@ -50,6 +51,23 @@ func (p *Proxy) createUser(ctx context.Context, store *Storage, addr, sig string
 		return nil, err
 	}
 
+	err = store.writeUser(user)
+	return user, err
+}
+
+func (p *Proxy) readUser(store *Storage, id string) (*User, error) {
+	user, err := store.readUser(id)
+	if err != nil || user == nil {
+		return nil, err
+	}
+	if user.Contract != "" {
+		return user, nil
+	}
+	ua, err := user.getContract(p)
+	if err != nil {
+		return nil, err
+	}
+	user.Contract = ua.String()
 	err = store.writeUser(user)
 	return user, err
 }
@@ -89,6 +107,7 @@ func (u *User) send(ctx context.Context, in *mixin.TransferInput) error {
 	return err
 }
 
+// TODO this wont' work as no fee
 func (u *User) withdraw(ctx context.Context, s *mixin.Snapshot, act *Action) error {
 	uc, err := mixin.NewFromKeystore(u.Key)
 	if err != nil {
