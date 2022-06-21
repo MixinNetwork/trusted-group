@@ -126,6 +126,11 @@ func (p *Process) buildGroupTransaction(ctx context.Context, group *mtg.Group, e
 	if p.Identifier != evt.Process {
 		panic(evt)
 	}
+	if len(evt.Extra) > 96 {
+		logger.Verbosef("Process(%s, %d) => buildGroupTransaction(%s, %v, %d, %s) => %x omited",
+			p.Identifier, evt.Nonce, evt.Asset, evt.Members, evt.Threshold, evt.Amount, evt.Extra)
+		evt.Extra = nil
+	}
 	traceId := mixin.UniqueConversationID(group.GenesisId(), fmt.Sprintf("%s:EVENT#%d", p.Identifier, evt.Nonce))
 	logger.Verbosef("Process(%s, %d) => buildGroupTransaction(%s, %v, %d, %s) => %s",
 		p.Identifier, evt.Nonce, evt.Asset, evt.Members, evt.Threshold, evt.Amount, traceId)
