@@ -22,19 +22,7 @@ func StartHTTP(p *Proxy, s *Storage) error {
 	router := httptreemux.New()
 	router.POST("/extra", encodeExtra)
 	router.POST("/users", createUser)
-	router.GET("/users/:id", readUser)
 	return http.ListenAndServe(":3000", router)
-}
-
-func readUser(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	user, err := proxy.readUser(store, params["id"])
-	if err != nil {
-		render.New().JSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err})
-	} else if user == nil {
-		render.New().JSON(w, http.StatusNotFound, map[string]interface{}{})
-	} else {
-		render.New().JSON(w, http.StatusOK, map[string]interface{}{"user": user})
-	}
 }
 
 func createUser(w http.ResponseWriter, r *http.Request, params map[string]string) {

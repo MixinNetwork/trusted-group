@@ -38,21 +38,23 @@ func (p *Proxy) createUser(ctx context.Context, store *Storage, addr, sig string
 		pin = pin + pin
 	}
 	user.PIN = pin[:6]
-	if user.HasPin {
-		return user, nil
-	}
 
-	uc, err := mixin.NewFromKeystore(ks)
-	if err != nil {
-		return nil, err
-	}
-	err = uc.ModifyPin(ctx, "", user.PIN)
-	if err != nil {
-		return nil, err
+	if !user.HasPin {
+		uc, err := mixin.NewFromKeystore(ks)
+		if err != nil {
+			return nil, err
+		}
+		err = uc.ModifyPin(ctx, "", user.PIN)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	err = store.writeUser(user)
-	return user, err
+	if err != nil {
+		return nil, err
+	}
+	return p.readUser(store, user.UserID)
 }
 
 func (p *Proxy) readUser(store *Storage, id string) (*User, error) {
