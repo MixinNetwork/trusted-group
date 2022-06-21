@@ -109,12 +109,12 @@ func (p *Proxy) processSnapshots(store *Storage) {
 }
 
 func (p *Proxy) processSnapshotForUser(s *mixin.Snapshot, user *User) error {
-	act, err := p.decodeAction(user.PublicKey, s.Memo)
+	act, err := p.decodeAction(user, s.Memo)
 	if err != nil {
 		return err
 	}
 	if act != nil {
 		return user.handle(s, act)
 	}
-	return user.pass(s)
+	return user.pass(p, s)
 }

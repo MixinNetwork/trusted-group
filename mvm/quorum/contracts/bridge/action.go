@@ -20,7 +20,7 @@ func decryptData() {
 	// they access most stuffs from the client side with the private key
 }
 
-func (p *Proxy) decodeAction(pub, data string) (*Action, error) {
+func (p *Proxy) decodeAction(u *User, data string) (*Action, error) {
 	// decrypt data at first
 	// check data format according to the registry
 	// if storage => do the storage contract query => p.Read(nil, big.Int)

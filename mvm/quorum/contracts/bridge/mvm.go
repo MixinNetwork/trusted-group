@@ -18,13 +18,9 @@ import (
 
 func (p *Proxy) bindAndPass(snapshotId, addr, asset string, amount decimal.Decimal) error {
 	ctx := context.Background()
-	num := amount.Mul(decimal.NewFromInt(100000000)).IntPart()
-	if num < 1 {
-		return nil
-	}
 
 	trace := mixin.UniqueConversationID(snapshotId, "BIND||PASS")
-	extra := p.buildExtra(addr, asset, num)
+	extra := p.buildExtra(addr, asset, amount)
 	op := &encoding.Operation{
 		Purpose: encoding.OperationPurposeGroupEvent,
 		Process: MVMRegistryId,
@@ -42,13 +38,13 @@ func (p *Proxy) bindAndPass(snapshotId, addr, asset string, amount decimal.Decim
 	return err
 }
 
-func (p *Proxy) buildExtra(addr, asset string, num int64) []byte {
+func (p *Proxy) buildExtra(addr, asset string, amt decimal.Decimal) []byte {
 	bind, pass := "81bac14f", "0ed1db9f"
 	contract := strings.ToLower(MVMBridgeContract[2:])
 	addr = "000000000000000000000000" + strings.ToLower(addr[2:])
 	first := fmt.Sprintf("%04x", len(bind+addr)/2)
 	extra := "0002" + contract + first + bind + addr
-	amount := fmt.Sprintf("%064x", num)
+	amount := convertToMVMHex(amt)
 	second := fmt.Sprintf("%04x", len(pass+addr+amount)/2)
 	extra = extra + contract + second + pass + addr + amount
 	b, _ := hex.DecodeString(extra)
@@ -96,4 +92,11 @@ func (p *Proxy) buildHash(k *big.Int, b []byte) []byte {
 		panic(hex.EncodeToString(extra))
 	}
 	return extra
+}
+
+func convertToMVMHex(amount decimal.Decimal) string {
+	buf := make([]byte, 32)
+	amount = amount.Mul(decimal.NewFromInt(100000000))
+	amount.BigInt().FillBytes(buf)
+	return hex.EncodeToString(buf)
 }
