@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/fox-one/mixin-sdk-go"
 )
@@ -15,6 +18,7 @@ type Proxy struct {
 	*mixin.Client
 	*mixin.Keystore
 	*StorageContract
+	signer *bind.TransactOpts
 }
 
 func NewProxy(kst *mixin.Keystore, conn *ethclient.Client) *Proxy {
@@ -26,7 +30,17 @@ func NewProxy(kst *mixin.Keystore, conn *ethclient.Client) *Proxy {
 	if err != nil {
 		panic(err)
 	}
-	return &Proxy{client, kst, proc}
+
+	chainId := new(big.Int).SetInt64(GethChainId)
+	priv, err := crypto.HexToECDSA(GethPrivateKey)
+	if err != nil {
+		panic(err)
+	}
+	signer, err := bind.NewKeyedTransactorWithChainID(priv, chainId)
+	if err != nil {
+		panic(err)
+	}
+	return &Proxy{client, kst, proc, signer}
 }
 
 func (p *Proxy) Run(store *Storage) {
