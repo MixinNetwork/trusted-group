@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/MixinNetwork/trusted-group/mvm/quorum/contracts/bridge/abi"
+	"github.com/MixinNetwork/trusted-group/mvm/quorum/bridge/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
