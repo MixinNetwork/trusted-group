@@ -2,7 +2,7 @@
 pragma solidity >=0.8.0 <0.9.0;
 
 interface Factory {
-    mapping(uint256 => address) public contracts;
+    function contracts(uint256 id) external view returns (address);
 }
 
 interface IERC20 {
