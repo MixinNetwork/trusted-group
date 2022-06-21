@@ -1,0 +1,40 @@
+package main
+
+import "github.com/fox-one/mixin-sdk-go"
+
+const (
+	DataPath = "/tmp/badger"
+
+	GethRPC        = "https://geth.mvm.dev"
+	GethPrivateKey = ""
+	GethChainId    = 73927
+
+	MVMRegistryId       = "c1eff8f5-b129-395d-8537-b54a5a525f85"
+	MVMRegistryContract = "0x0DC9523Ba00725222aaC8b78b26f5CE3481238cf"
+	MVMStorageContract  = "0xCAB165ef0510c59e679006B472eAE1664c7BB426"
+	MVMBridgeContract   = "0xBD8F733279117A60C7202F7b8fFf4046dA906106"
+
+	ProxyPIN = ""
+
+	ProxyUserSecret = ""
+)
+
+var (
+	ProxyKeyStore = &mixin.Keystore{
+		ClientID:   "",
+		SessionID:  "",
+		PrivateKey: "",
+		PinToken:   "",
+	}
+
+	MVMMembers = []string{
+		"d5a3a450-5619-47af-a3b1-aad08e6e10dd",
+		"9d4a18aa-9b0a-40ed-ba57-ce8fbbbc6deb",
+		"2f82a56a-7fae-4bdd-bc4d-aad5005c5041",
+		"f7f33be1-399a-4d29-b50c-44e5f01cbb1b",
+		"23a070df-6b87-4b66-bdd4-f009702770c9",
+		"2385639c-eac1-4a38-a7f6-597b3f0f5b59",
+		"ab357ad7-8828-4173-b3bb-0600c518eab2",
+	}
+	MVMThreshold = len(MVMMembers)*2/3 + 1
+)
