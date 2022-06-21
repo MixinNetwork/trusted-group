@@ -20,6 +20,7 @@ var (
 func StartHTTP(p *Proxy, s *Storage) error {
 	proxy, store = p, s
 	router := httptreemux.New()
+	router.POST("/extra", encodeExtra)
 	router.POST("/users", createUser)
 	router.GET("/users/:id", readUser)
 	return http.ListenAndServe(":3000", router)
@@ -52,4 +53,19 @@ func createUser(w http.ResponseWriter, r *http.Request, params map[string]string
 		return
 	}
 	render.New().JSON(w, http.StatusOK, map[string]interface{}{"user": user})
+}
+
+func encodeExtra(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	var body Action
+	err := json.NewDecoder(r.Body).Decode(&body)
+	if err != nil {
+		render.New().JSON(w, http.StatusBadRequest, map[string]interface{}{"error": err})
+		return
+	}
+	extra, err := encodeActionAsExtra(&body)
+	if err != nil {
+		render.New().JSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err})
+		return
+	}
+	render.New().JSON(w, http.StatusOK, map[string]interface{}{"extra": extra})
 }

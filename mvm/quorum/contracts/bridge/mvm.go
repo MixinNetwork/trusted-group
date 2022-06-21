@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"strings"
@@ -97,6 +98,25 @@ func (p *Proxy) buildHash(b []byte) []byte {
 		panic(err)
 	}
 	return extra
+}
+
+func encodeActionAsExtra(a *Action) (string, error) {
+	b, err := json.Marshal(a)
+	if err != nil {
+		return "", err
+	}
+
+	hr := uuid.FromStringOrNil(MVMRegistryId).Bytes()
+	ha, err := hex.DecodeString(MVMStorageContract[2:])
+	if err != nil {
+		panic(err)
+	}
+	hk := crypto.Keccak256(b)
+
+	extra := append(hr, ha...)
+	extra = append(extra, hk...)
+	extra = append(extra, b...)
+	return hex.EncodeToString(extra), nil
 }
 
 func (u *User) getContract(p *Proxy) (common.Address, error) {
