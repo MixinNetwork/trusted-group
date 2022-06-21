@@ -18,7 +18,7 @@ type User struct {
 }
 
 // TODO should verify the signature from MetaMask of the addr
-func (p *Proxy) createUser(ctx context.Context, store *Storage, addr string) (*User, error) {
+func (p *Proxy) createUser(ctx context.Context, store *Storage, addr, sig string) (*User, error) {
 	err := ethereum.VerifyAddress(addr)
 	if err != nil {
 		return nil, err
@@ -54,8 +54,25 @@ func (p *Proxy) createUser(ctx context.Context, store *Storage, addr string) (*U
 	return user, err
 }
 
-func (u *User) handle(s *mixin.Snapshot, act *Action) error {
-	panic(0)
+func (u *User) handle(ctx context.Context, s *mixin.Snapshot, act *Action) error {
+	if act.Destination != "" {
+		return u.withdraw(ctx, s, act)
+	}
+
+	traceId := mixin.UniqueConversationID(s.SnapshotID, "HANDLE||TRANSFER")
+	input := &mixin.TransferInput{
+		AssetID: s.AssetID,
+		Amount:  s.Amount,
+		TraceID: traceId,
+		Memo:    act.Extra,
+	}
+	if len(act.Receivers) == 1 {
+		input.OpponentID = act.Receivers[0]
+	} else {
+		input.OpponentMultisig.Receivers = act.Receivers
+		input.OpponentMultisig.Threshold = uint8(act.Threshold)
+	}
+	return u.send(ctx, input)
 }
 
 func (u *User) pass(ctx context.Context, p *Proxy, s *mixin.Snapshot) error {
@@ -69,5 +86,32 @@ func (u *User) send(ctx context.Context, in *mixin.TransferInput) error {
 		return err
 	}
 	_, err = uc.Transaction(ctx, in, u.PIN)
+	return err
+}
+
+func (u *User) withdraw(ctx context.Context, s *mixin.Snapshot, act *Action) error {
+	uc, err := mixin.NewFromKeystore(u.Key)
+	if err != nil {
+		return err
+	}
+	ain := mixin.CreateAddressInput{
+		AssetID:     s.AssetID,
+		Destination: act.Destination,
+		Tag:         act.Tag,
+		Label:       s.SnapshotID,
+	}
+	addr, err := uc.CreateAddress(ctx, ain, u.PIN)
+	if err != nil {
+		return err
+	}
+
+	traceId := mixin.UniqueConversationID(s.SnapshotID, "HANDLE||WITHDRAWAL")
+	win := mixin.WithdrawInput{
+		AddressID: addr.AddressID,
+		Amount:    s.Amount,
+		TraceID:   traceId,
+		Memo:      act.Extra,
+	}
+	_, err = uc.Withdraw(ctx, win, u.PIN)
 	return err
 }

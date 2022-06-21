@@ -3,10 +3,6 @@ pragma solidity >=0.8.0 <0.9.0;
 
 import {IRegistry, Registrable} from "./Registrable.sol";
 
-/**
- * @title ERC20 interface
- * @dev see https://github.com/ethereum/EIPs/issues/20
- */
 interface IERC20 {
     function balanceOf(address who) external view returns (uint256);
 
@@ -33,22 +29,10 @@ interface IERC20 {
     );
 }
 
-/**
- * @title Standard ERC20 token
- *
- * @dev Implementation of the basic standard token.
- * @dev https://github.com/ethereum/EIPs/issues/20
- * @dev Based on code by FirstBlood: https://github.com/Firstbloodio/token/blob/master/smart_contract/FirstBloodToken.sol
- */
 abstract contract StandardToken is IERC20 {
     mapping(address => uint256) balances;
     mapping(address => mapping(address => uint256)) allowed;
 
-    /**
-     * @dev Gets the balance of the specified address.
-     * @param _owner The address to query the the balance of.
-     * @return balance representing the amount owned by the passed address.
-     */
     function balanceOf(address _owner)
         public
         view
@@ -58,11 +42,6 @@ abstract contract StandardToken is IERC20 {
         return balances[_owner];
     }
 
-    /**
-     * @dev transfer token for a specified address
-     * @param _to The address to transfer to.
-     * @param _value The amount to be transferred.
-     */
     function _transfer(
         address _from,
         address _to,
@@ -73,12 +52,6 @@ abstract contract StandardToken is IERC20 {
         emit Transfer(_from, _to, _value);
     }
 
-    /**
-     * @dev Transfer tokens from one address to another
-     * @param _from address The address which you want to send tokens from
-     * @param _to address The address which you want to transfer to
-     * @param _value uint256 the amount of tokens to be transferred
-     */
     function _transferFrom(
         address _from,
         address _to,
@@ -89,11 +62,6 @@ abstract contract StandardToken is IERC20 {
         _transfer(_from, _to, _value);
     }
 
-    /**
-     * @dev Approve the passed address to spend the specified amount of tokens on behalf of msg.sender.
-     * @param _spender The address which will spend the funds.
-     * @param _value The amount of tokens to be spent.
-     */
     function approve(address _spender, uint256 _value)
         public
         override
@@ -112,12 +80,6 @@ abstract contract StandardToken is IERC20 {
         return true;
     }
 
-    /**
-     * @dev Function to check the amount of tokens that an owner allowed to a spender.
-     * @param _owner address The address which owns the funds.
-     * @param _spender address The address which will spend the funds.
-     * @return remaining uint256 specifying the amount of tokens still available for the spender.
-     */
     function allowance(address _owner, address _spender)
         public
         view

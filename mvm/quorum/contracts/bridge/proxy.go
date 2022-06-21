@@ -142,8 +142,8 @@ func (p *Proxy) processSnapshotForUser(ctx context.Context, s *mixin.Snapshot, u
 	if err != nil {
 		return err
 	}
-	if act != nil {
-		return user.handle(s, act)
+	if act != nil && user.handle(ctx, s, act) == nil {
+		return nil
 	}
 	return user.pass(ctx, p, s)
 }

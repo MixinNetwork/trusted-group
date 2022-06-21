@@ -46,7 +46,7 @@ func createUser(w http.ResponseWriter, r *http.Request, params map[string]string
 		render.New().JSON(w, http.StatusBadRequest, map[string]interface{}{"error": err})
 		return
 	}
-	user, err := proxy.createUser(r.Context(), store, body.PublicKey)
+	user, err := proxy.createUser(r.Context(), store, body.PublicKey, body.Signature)
 	if err != nil {
 		render.New().JSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err})
 		return
