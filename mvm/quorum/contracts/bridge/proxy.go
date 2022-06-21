@@ -138,7 +138,7 @@ func (p *Proxy) processSnapshots(ctx context.Context, store *Storage) {
 }
 
 func (p *Proxy) processSnapshotForUser(ctx context.Context, s *mixin.Snapshot, user *User) error {
-	act, err := p.decodeAction(user, s.Memo)
+	act, err := p.decodeAction(user, s)
 	if err != nil {
 		return err
 	}
