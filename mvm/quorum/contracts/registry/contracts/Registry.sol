@@ -18,7 +18,14 @@ contract Registry is IRegistry, Factory {
     event Halted(bool state);
     event Iterated(uint256[4] from, uint256[4] to);
     event MixinTransaction(bytes raw);
-    event MixinEvent(Event evt);
+    event MixinEvent(
+        uint64 indexed nonce,
+        address indexed user,
+        address indexed asset,
+        uint256 amount,
+        bytes extra,
+        uint64 timestamp
+    );
 
     uint128 public immutable PID;
 
@@ -186,7 +193,14 @@ contract Registry is IRegistry, Factory {
         uint256 balance = balances[assets[evt.asset]];
         balances[assets[evt.asset]] = balance + evt.amount;
 
-        emit MixinEvent(evt);
+        emit MixinEvent(
+            evt.nonce,
+            evt.user,
+            evt.asset,
+            evt.amount,
+            evt.extra,
+            evt.timestamp
+        );
         Asset(evt.asset).mint(evt.user, evt.amount);
         return User(evt.user).run(evt.asset, evt.amount, evt.extra);
     }
