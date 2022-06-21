@@ -8,7 +8,12 @@ import {IERC20} from "./Asset.sol";
 contract User is Registrable {
     using Bytes for bytes;
 
-    event ProcessCalled(bytes input, bool result, bytes output);
+    event ProcessCalled(
+        address indexed process,
+        bytes input,
+        bool result,
+        bytes output
+    );
 
     bytes public members;
 
@@ -74,7 +79,7 @@ contract User is Registrable {
         (bool result, bytes memory output) = process.call(input);
         offset = offset + size;
 
-        emit ProcessCalled(input, result, output);
+        emit ProcessCalled(process, input, result, output);
         return (offset, result);
     }
 }
