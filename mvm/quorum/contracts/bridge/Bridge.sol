@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity >=0.8.0 <0.9.0;
 
+interface Factory {
+    mapping(uint256 => address) public contracts;
+}
+
 interface IERC20 {
     function transferWithExtra(
         address to,
@@ -18,6 +22,7 @@ interface IERC20 {
 contract Bridge {
     uint256 public constant BASE = 10000000000;
 
+    address public immutable FACTORY;
     address public immutable XIN;
     address public immutable OWNER;
     mapping(address => address) public bridges;
@@ -31,7 +36,8 @@ contract Bridge {
         uint256 amount
     );
 
-    constructor(address xin) {
+    constructor(address factory, address xin) {
+        FACTORY = factory;
         XIN = xin;
         OWNER = msg.sender;
     }
@@ -40,7 +46,7 @@ contract Bridge {
         release(new bytes(0));
     }
 
-    fallback(bytes calldata input) external payable returns (bytes memory) {
+    fallback(bytes calldata input) external payable  returns (bytes memory) {
         release(input);
         return new bytes(0);
     }
@@ -62,6 +68,7 @@ contract Bridge {
     }
 
     function vault(address asset, uint256 amount) public {
+        asset = canonical(asset);
         require(asset == XIN, "only XIN accepted");
         IERC20(asset).transferFrom(msg.sender, address(this), amount);
         emit Vault(msg.sender, amount);
@@ -78,6 +85,7 @@ contract Bridge {
         require(receiver != address(0), "no address bound");
         require(amount > 0, "too small");
 
+        asset = canonical(asset);
         if (asset == XIN) {
             passXIN(receiver, amount);
         } else {
@@ -90,5 +98,14 @@ contract Bridge {
     function passXIN(address receiver, uint256 amount) internal {
         IERC20(XIN).transferFrom(msg.sender, address(this), amount);
         payable(receiver).transfer(amount * BASE);
+    }
+
+    function canonical(address asset) internal view returns (address) {
+        uint256 id = uint256(uint160(asset));
+        address another = Factory(FACTORY).contracts(id);
+        if (another != address(0)) {
+            return another;
+        }
+        return asset;
     }
 }
