@@ -24,7 +24,8 @@ func StartHTTP(p *Proxy, s *Storage) error {
 	router.GET("/", index)
 	router.POST("/extra", encodeExtra)
 	router.POST("/users", createUser)
-	return http.ListenAndServe(fmt.Sprintf(":%d", HTTPPort), router)
+	handler := handleCORS(router)
+	return http.ListenAndServe(fmt.Sprintf(":%d", HTTPPort), handler)
 }
 
 // TODO make a bridge web interface
@@ -69,4 +70,24 @@ func encodeExtra(w http.ResponseWriter, r *http.Request, params map[string]strin
 		return
 	}
 	render.New().JSON(w, http.StatusOK, map[string]interface{}{"extra": extra})
+}
+
+// TODO may consider a whitelist in the case of Ethereum scams
+func handleCORS(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			handler.ServeHTTP(w, r)
+			return
+		}
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Add("Access-Control-Allow-Headers", "Content-Type,X-Request-ID")
+		w.Header().Set("Access-Control-Allow-Methods", "OPTIONS,GET,POST,DELETE")
+		w.Header().Set("Access-Control-Max-Age", "600")
+		if r.Method == "OPTIONS" {
+			render.New().JSON(w, http.StatusOK, map[string]interface{}{})
+		} else {
+			handler.ServeHTTP(w, r)
+		}
+	})
 }
