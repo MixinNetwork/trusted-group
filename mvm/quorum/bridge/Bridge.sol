@@ -46,11 +46,6 @@ contract Bridge {
         release(new bytes(0));
     }
 
-    fallback(bytes calldata input) external payable  returns (bytes memory) {
-        release(input);
-        return new bytes(0);
-    }
-
     function release(bytes memory input) internal {
         uint256 amount = msg.value / BASE;
         require(amount > 0, "value too small");
