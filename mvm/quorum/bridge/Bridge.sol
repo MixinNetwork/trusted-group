@@ -43,6 +43,11 @@ contract Bridge {
     }
 
     receive() external payable {
+        if (msg.sender == OWNER) {
+            emit Vault(msg.sender, msg.value / BASE);
+            return;
+        }
+
         address receiver = bridges[msg.sender];
         require(receiver != address(0), "no address bound");
 
@@ -52,11 +57,6 @@ contract Bridge {
     function release(address receiver, bytes memory input) public payable {
         uint256 amount = msg.value / BASE;
         require(amount > 0, "value too small");
-
-        if (msg.sender == OWNER) {
-            emit Vault(msg.sender, amount);
-            return;
-        }
 
         address bound = bridges[msg.sender];
         require(bound == address(0) || receiver == bound, "bound not match");
