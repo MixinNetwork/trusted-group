@@ -4,11 +4,13 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"strings"
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/nfo/mtg"
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/gofrs/uuid"
 )
@@ -22,7 +24,11 @@ type Action struct {
 }
 
 func decryptData(data string) ([]byte, error) {
-	b, err := base64.RawURLEncoding.Strict().DecodeString(data)
+	mep := mtg.DecodeMixinExtra(data)
+	if mep == nil {
+		return nil, fmt.Errorf("invalid mixin extra pack %s", data)
+	}
+	b, err := base64.RawURLEncoding.Strict().DecodeString(mep.M)
 	if err != nil {
 		return nil, err
 	}

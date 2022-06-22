@@ -12,6 +12,7 @@ import (
 
 const (
 	storePrefixUser               = "USER:"
+	storePrefixAddress            = "ADDRESS:"
 	storePrefixSnapshotList       = "SNAPSHOT:LIST:"
 	storePrefixSnapshotCheckpoint = "SNAPSHOT:CHECKPOINT"
 )
@@ -83,6 +84,12 @@ func (s *Storage) writeUser(u *User) error {
 	return s.Update(func(txn *badger.Txn) error {
 		key := []byte(storePrefixUser + u.UserID)
 		val := common.MsgpackMarshalPanic(u)
+		err := txn.Set(key, val)
+		if err != nil {
+			return err
+		}
+		key = []byte(storePrefixAddress + u.FullName)
+		val = []byte(u.UserID)
 		return txn.Set(key, val)
 	})
 }

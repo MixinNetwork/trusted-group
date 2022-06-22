@@ -75,6 +75,7 @@ func (p *Proxy) readUser(store *Storage, id string) (*User, error) {
 }
 
 func (u *User) handle(ctx context.Context, s *mixin.Snapshot, act *Action) error {
+	logger.Verbosef("User.handle(%v, %v)", *s, *act)
 	if act.Destination != "" {
 		return u.withdraw(ctx, s, act)
 	}
@@ -103,9 +104,14 @@ func (u *User) pass(ctx context.Context, p *Proxy, s *mixin.Snapshot) error {
 func (u *User) send(ctx context.Context, in *mixin.TransferInput) error {
 	uc, err := mixin.NewFromKeystore(u.Key)
 	if err != nil {
-		return err
+		panic(err)
 	}
-	_, err = uc.Transaction(ctx, in, u.PIN)
+	if len(in.OpponentMultisig.Receivers) > 0 {
+		_, err = uc.Transaction(ctx, in, u.PIN)
+	} else {
+		_, err = uc.Transfer(ctx, in, u.PIN)
+	}
+	logger.Verbosef("User.send(%v) => %v", *in, err)
 	return err
 }
 
