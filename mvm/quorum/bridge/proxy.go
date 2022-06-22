@@ -69,20 +69,24 @@ func (p *Proxy) Run(ctx context.Context, store *Storage) {
 	}()
 
 	for {
-		p.loopSnapshots(ctx, store)
+		err := p.loopSnapshots(ctx, store)
+		if err != nil {
+			logger.Verbosef("Proxy.loopSnapshots() => %v", err)
+			time.Sleep(3 * time.Second)
+		}
 	}
 }
 
-func (p *Proxy) loopSnapshots(ctx context.Context, store *Storage) {
+func (p *Proxy) loopSnapshots(ctx context.Context, store *Storage) error {
 	ckpt, err := store.readSnapshotsCheckpoint(ctx)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	snapshots, err := p.ReadNetworkSnapshots(ctx, "", ckpt, "ASC", 500)
-	if err != nil {
-		panic(err)
-	}
 	logger.Verbosef("Proxy.loopSnapshots(%s) => %d %v", ckpt, len(snapshots), err)
+	if err != nil {
+		return err
+	}
 
 	for _, s := range snapshots {
 		ckpt = s.CreatedAt
@@ -95,17 +99,18 @@ func (p *Proxy) loopSnapshots(ctx context.Context, store *Storage) {
 		logger.Verbosef("Proxy.loopSnapshots(%s) => %d %v => %v", ckpt, len(snapshots), err, *s)
 		err = store.writeSnapshot(s)
 		if err != nil {
-			panic(err)
+			return err
 		}
 	}
 
 	err = store.writeSnapshotsCheckpoint(ctx, ckpt)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	if len(snapshots) < 500 {
-		time.Sleep(time.Second * 5)
+		time.Sleep(time.Second * 2)
 	}
+	return nil
 }
 
 func (p *Proxy) processSnapshots(ctx context.Context, store *Storage) {
@@ -133,7 +138,7 @@ func (p *Proxy) processSnapshots(ctx context.Context, store *Storage) {
 		panic(err)
 	}
 	if len(snapshots) < 100 {
-		time.Sleep(3 * time.Second)
+		time.Sleep(1 * time.Second)
 	}
 }
 

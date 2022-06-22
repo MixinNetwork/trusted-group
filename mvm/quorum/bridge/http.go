@@ -2,7 +2,7 @@ package main
 
 // FIXME do rate limit based on IP
 // POST /users
-// GET /users/:id
+// POST /extra
 
 import (
 	"encoding/json"
@@ -29,7 +29,13 @@ func StartHTTP(p *Proxy, s *Storage) error {
 
 // TODO make a bridge web interface
 func index(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	render.New().JSON(w, http.StatusOK, map[string]interface{}{})
+	render.New().JSON(w, http.StatusOK, map[string]interface{}{
+		"code":     "https://github.com/MixinNetwork/trusted-group/tree/master/mvm/quorum/bridge",
+		"process":  MVMRegistryId,
+		"registry": "https://scan.mvm.dev/address/" + MVMRegistryContract,
+		"bridge":   "https://scan.mvm.dev/address/" + MVMBridgeContract,
+		"storage":  "https://scan.mvm.dev/address/" + MVMStorageContract,
+	})
 }
 
 func createUser(w http.ResponseWriter, r *http.Request, params map[string]string) {
