@@ -21,9 +21,15 @@ var (
 func StartHTTP(p *Proxy, s *Storage) error {
 	proxy, store = p, s
 	router := httptreemux.New()
+	router.GET("/", index)
 	router.POST("/extra", encodeExtra)
 	router.POST("/users", createUser)
 	return http.ListenAndServe(fmt.Sprintf(":%d", HTTPPort), router)
+}
+
+// TODO make a bridge web interface
+func index(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	render.New().JSON(w, http.StatusOK, map[string]interface{}{})
 }
 
 func createUser(w http.ResponseWriter, r *http.Request, params map[string]string) {
