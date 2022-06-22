@@ -60,10 +60,32 @@ func (s *Storage) writeSnapshotsCheckpoint(ctx context.Context, ckpt time.Time) 
 	})
 }
 
-func (s *Storage) readUser(id string) (*User, error) {
+func (s *Storage) readUserByAddress(addr string) (*User, error) {
 	txn := s.NewTransaction(false)
 	defer txn.Discard()
 
+	key := []byte(storePrefixAddress + addr)
+	item, err := txn.Get(key)
+	if err == badger.ErrKeyNotFound {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+	val, err := item.ValueCopy(nil)
+	if err != nil {
+		return nil, err
+	}
+	return s.readUser(txn, string(val))
+}
+
+func (s *Storage) readUserById(id string) (*User, error) {
+	txn := s.NewTransaction(false)
+	defer txn.Discard()
+
+	return s.readUser(txn, id)
+}
+
+func (s *Storage) readUser(txn *badger.Txn, id string) (*User, error) {
 	key := []byte(storePrefixUser + id)
 	item, err := txn.Get(key)
 	if err == badger.ErrKeyNotFound {

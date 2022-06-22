@@ -24,6 +24,15 @@ func (p *Proxy) createUser(ctx context.Context, store *Storage, addr, sig string
 	if err != nil {
 		return nil, err
 	}
+
+	old, err := store.readUserByAddress(addr)
+	if err != nil {
+		return nil, err
+	}
+	if old != nil && old.Contract != "" {
+		return old, nil
+	}
+
 	seed := crypto.NewHash([]byte(ProxyUserSecret + addr))
 	signer := ed25519.NewKeyFromSeed(seed[:])
 	u, ks, err := p.CreateUser(ctx, signer, addr)
@@ -54,11 +63,11 @@ func (p *Proxy) createUser(ctx context.Context, store *Storage, addr, sig string
 	if err != nil {
 		return nil, err
 	}
-	return p.readUser(store, user.UserID)
+	return p.readUserWithContract(store, user.UserID)
 }
 
-func (p *Proxy) readUser(store *Storage, id string) (*User, error) {
-	user, err := store.readUser(id)
+func (p *Proxy) readUserWithContract(store *Storage, id string) (*User, error) {
+	user, err := store.readUserById(id)
 	if err != nil || user == nil {
 		return nil, err
 	}
@@ -68,6 +77,9 @@ func (p *Proxy) readUser(store *Storage, id string) (*User, error) {
 	ua, err := user.getContract(p)
 	if err != nil {
 		return nil, err
+	}
+	if ua.String() == "0x0000000000000000000000000000000000000000" {
+		return user, nil
 	}
 	user.Contract = ua.String()
 	err = store.writeUser(user)

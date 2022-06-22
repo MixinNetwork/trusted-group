@@ -115,7 +115,7 @@ func (p *Proxy) processSnapshots(ctx context.Context, store *Storage) {
 	}
 
 	for _, s := range snapshots {
-		user, err := store.readUser(s.UserID)
+		user, err := store.readUserById(s.UserID)
 		if err != nil {
 			panic(err)
 		}
