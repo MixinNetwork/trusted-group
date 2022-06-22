@@ -43,10 +43,13 @@ contract Bridge {
     }
 
     receive() external payable {
-        release(new bytes(0));
+        address receiver = bridges[msg.sender];
+        require(receiver != address(0), "no address bound");
+
+        release(receiver, new bytes(0));
     }
 
-    function release(bytes memory input) public payable {
+    function release(address receiver, bytes memory input) public payable {
         uint256 amount = msg.value / BASE;
         require(amount > 0, "value too small");
 
@@ -55,8 +58,8 @@ contract Bridge {
             return;
         }
 
-        address receiver = bridges[msg.sender];
-        require(receiver != address(0), "no address bound");
+        address bound = bridges[msg.sender];
+        require(bound == address(0) || receiver == bound, "bound not match");
 
         IERC20(XIN).transferWithExtra(receiver, amount, input);
         emit Through(XIN, msg.sender, receiver, amount);
