@@ -6,6 +6,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/dimfeld/httptreemux"
@@ -22,7 +23,7 @@ func StartHTTP(p *Proxy, s *Storage) error {
 	router := httptreemux.New()
 	router.POST("/extra", encodeExtra)
 	router.POST("/users", createUser)
-	return http.ListenAndServe(":3000", router)
+	return http.ListenAndServe(fmt.Sprintf(":%d", HTTPPort), router)
 }
 
 func createUser(w http.ResponseWriter, r *http.Request, params map[string]string) {

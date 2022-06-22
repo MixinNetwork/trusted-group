@@ -4,6 +4,7 @@ import "github.com/fox-one/mixin-sdk-go"
 
 const (
 	DataPath = "/tmp/badger"
+	HTTPPort = 3000
 
 	GethRPC        = "https://geth.mvm.dev"
 	GethPrivateKey = ""
