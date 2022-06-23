@@ -50,12 +50,23 @@ func createUser(w http.ResponseWriter, r *http.Request, params map[string]string
 		render.New().JSON(w, http.StatusBadRequest, map[string]interface{}{"error": err})
 		return
 	}
-	user, err := proxy.createUser(r.Context(), store, body.PublicKey, body.Signature)
+	u, err := proxy.createUser(r.Context(), store, body.PublicKey, body.Signature)
 	if err != nil {
 		render.New().JSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err})
 		return
 	}
-	render.New().JSON(w, http.StatusOK, map[string]interface{}{"user": user})
+	render.New().JSON(w, http.StatusOK, map[string]interface{}{"user": map[string]interface{}{
+		"user_id":    u.UserID,
+		"session_id": u.SessionID,
+		"full_name":  u.FullName,
+		"created_at": u.CreatedAt,
+		"key": map[string]interface{}{
+			"client_id":   u.Key.ClientID,
+			"session_id":  u.Key.SessionID,
+			"private_key": u.Key.PrivateKey,
+		},
+		"contract": u.Contract,
+	}})
 }
 
 func encodeExtra(w http.ResponseWriter, r *http.Request, params map[string]string) {
