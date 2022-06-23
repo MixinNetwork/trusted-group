@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/gofrs/uuid"
 )
@@ -25,6 +26,7 @@ type Withdrawal struct {
 }
 
 func (u *User) submit(ctx context.Context, store *Storage, s *mixin.Snapshot, act *Action) error {
+	logger.Verbosef("User.submit(%v, %v)", *s, *act)
 	if len(act.Extra) != 38 {
 		return fmt.Errorf("invalid withdrawal trace data %s", act.Extra)
 	}
@@ -89,6 +91,7 @@ func (u *User) submit(ctx context.Context, store *Storage, s *mixin.Snapshot, ac
 }
 
 func (u *User) withdraw(ctx context.Context, s *mixin.Snapshot, destination, tag string) error {
+	logger.Verbosef("User.withdraw(%v, %s, %s)", *s, destination, tag)
 	uc, err := mixin.NewFromKeystore(u.Key)
 	if err != nil {
 		return err

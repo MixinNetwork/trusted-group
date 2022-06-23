@@ -280,7 +280,7 @@ func (s *Storage) readWithdrawal(txn *badger.Txn, id string) (*Withdrawal, error
 		return nil, err
 	}
 	var w Withdrawal
-	err = common.MsgpackUnmarshal(val, &w)
+	err = common.DecompressMsgpackUnmarshal(val, &w)
 	return &w, err
 }
 
