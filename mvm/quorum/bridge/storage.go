@@ -12,6 +12,7 @@ import (
 
 const (
 	storePrefixUser               = "USER:"
+	storePrefixAsset              = "ASSET:"
 	storePrefixAddress            = "ADDRESS:"
 	storePrefixSnapshotList       = "SNAPSHOT:LIST:"
 	storePrefixSnapshotCheckpoint = "SNAPSHOT:CHECKPOINT"
@@ -32,6 +33,34 @@ func OpenStorage(path string) (*Storage, error) {
 
 func (s *Storage) close() error {
 	return s.Close()
+}
+
+func (s *Storage) writeAsset(a *mixin.Asset) error {
+	return s.Update(func(txn *badger.Txn) error {
+		key := []byte(storePrefixAsset + a.AssetID)
+		val := common.MsgpackMarshalPanic(a)
+		return txn.Set(key, val)
+	})
+}
+
+func (s *Storage) readAsset(id string) (*mixin.Asset, error) {
+	txn := s.NewTransaction(false)
+	defer txn.Discard()
+
+	key := []byte(storePrefixAsset + id)
+	item, err := txn.Get(key)
+	if err == badger.ErrKeyNotFound {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+	val, err := item.ValueCopy(nil)
+	if err != nil {
+		return nil, err
+	}
+	var a mixin.Asset
+	err = common.MsgpackUnmarshal(val, &a)
+	return &a, err
 }
 
 func (s *Storage) readSnapshotsCheckpoint(ctx context.Context) (time.Time, error) {

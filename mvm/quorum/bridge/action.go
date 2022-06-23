@@ -64,7 +64,11 @@ func (p *Proxy) decodeAction(u *User, s *mixin.Snapshot) (*Action, error) {
 	logger.Verbosef("Proxy.decodeAction(%v, %v) => %v %v", u, s, act, err)
 
 	if act.Destination != "" {
-		chainId := crypto.NewHash([]byte(s.ChainID))
+		asset, err := store.readAsset(s.AssetID)
+		if err != nil {
+			panic(err)
+		}
+		chainId := crypto.NewHash([]byte(asset.ChainID))
 		if verifyDestination(chainId, act.Destination) != nil {
 			return nil, nil
 		}

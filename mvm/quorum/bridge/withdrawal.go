@@ -38,7 +38,12 @@ func (u *User) submit(ctx context.Context, store *Storage, s *mixin.Snapshot, ac
 	if parts[1] != "A" && parts[1] != "B" {
 		return fmt.Errorf("invalid withdrawal trace data %s", act.Extra)
 	}
-	if parts[1] == "B" && s.AssetID != s.ChainID {
+
+	asset, err := store.readAsset(s.AssetID)
+	if err != nil {
+		panic(err)
+	}
+	if parts[1] == "B" && s.AssetID != asset.ChainID {
 		return fmt.Errorf("invalid withdrawal fee %v", *act)
 	}
 

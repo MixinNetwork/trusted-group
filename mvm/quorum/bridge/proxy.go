@@ -133,6 +133,10 @@ func (p *Proxy) processSnapshots(ctx context.Context, store *Storage) {
 		if user == nil {
 			continue
 		}
+		err = p.fetchAsset(ctx, s.AssetID)
+		if err != nil {
+			panic(err)
+		}
 		err = p.processSnapshotForUser(ctx, store, s, user)
 		if err != nil {
 			panic(err)
@@ -157,4 +161,16 @@ func (p *Proxy) processSnapshotForUser(ctx context.Context, store *Storage, s *m
 		return nil
 	}
 	return user.pass(ctx, p, s)
+}
+
+func (p *Proxy) fetchAsset(ctx context.Context, id string) error {
+	asset, err := store.readAsset(id)
+	if err != nil || asset != nil {
+		return err
+	}
+	asset, err = p.ReadAsset(ctx, id)
+	if err != nil {
+		return err
+	}
+	return store.writeAsset(asset)
 }
