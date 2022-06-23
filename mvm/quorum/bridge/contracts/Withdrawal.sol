@@ -32,16 +32,17 @@ contract Withdrawal {
         uint256 amount,
         address feeAsset,
         uint256 feeAmount,
-        bytes memory input
+        bytes memory ma,
+        bytes memory mb
     ) public payable {
         require(feeAsset != XIN, "invalid fee asset");
         if (asset == XIN) {
             require(msg.value / BASE == amount, "invalid withdrawal amount");
-            transferXIN(receiver, input);
+            transferXIN(receiver, ma);
         } else {
-            transferERC20(receiver, asset, amount, input);
+            transferERC20(receiver, asset, amount, ma);
         }
-        transferERC20(receiver, feeAsset, feeAmount, input);
+        transferERC20(receiver, feeAsset, feeAmount, mb);
     }
 
     function transferXIN(address receiver, bytes memory input) internal {
