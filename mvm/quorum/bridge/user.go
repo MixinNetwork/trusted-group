@@ -127,7 +127,11 @@ func (u *User) send(ctx context.Context, in *mixin.TransferInput) error {
 	return err
 }
 
-// TODO this wont' work as no fee
+// TODO user send two transfers from MetaMask at once, with multicall
+// they have the same destination, tag, and extra, the extra should be
+// an UUID to define the withdrawal connection, one withdrawal one fuel,
+// if either of the transaction not received, the other will be refunded,
+// the timeout could be 10 minutes
 func (u *User) withdraw(ctx context.Context, s *mixin.Snapshot, act *Action) error {
 	uc, err := mixin.NewFromKeystore(u.Key)
 	if err != nil {
