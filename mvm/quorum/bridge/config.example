@@ -18,6 +18,8 @@ const (
 	ProxyPIN = ""
 
 	ProxyUserSecret = ""
+
+	UserCreationLimit = 128
 )
 
 var (

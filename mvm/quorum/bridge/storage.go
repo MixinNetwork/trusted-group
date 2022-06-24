@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"time"
 
 	"github.com/MixinNetwork/mixin/common"
@@ -15,6 +16,7 @@ const (
 	storePrefixAddress            = "ADDRESS:"
 	storePrefixSnapshotList       = "SNAPSHOT:LIST:"
 	storePrefixSnapshotCheckpoint = "SNAPSHOT:CHECKPOINT"
+	storePrefixLimitUserCreation  = "LIMIT:USER"
 )
 
 type Storage struct {
@@ -178,4 +180,30 @@ func timeToBytes(t time.Time) []byte {
 	now := uint64(t.UnixNano())
 	binary.BigEndian.PutUint64(buf, now)
 	return buf
+}
+
+func (s *Storage) writeLimiter(ip string) error {
+	return s.Update(func(txn *badger.Txn) error {
+		key := fmt.Sprintf("%s:%s:%d", storePrefixLimitUserCreation, ip, time.Now().UnixNano())
+		e := badger.NewEntry([]byte(key), []byte("")).WithTTL(24 * time.Hour)
+		return txn.SetEntry(e)
+	})
+}
+
+func (s *Storage) limiterAvailable(ip string) []string {
+	txn := s.NewTransaction(false)
+	defer txn.Discard()
+
+	prefix := fmt.Sprintf("%s:%s", storePrefixLimitUserCreation, ip)
+	opts := badger.DefaultIteratorOptions
+	opts.Prefix = []byte(prefix)
+	it := txn.NewIterator(opts)
+	defer it.Close()
+
+	var keys []string
+	for it.Seek(opts.Prefix); it.Valid(); it.Next() {
+		item := it.Item()
+		keys = append(keys, string(item.Key()))
+	}
+	return keys
 }

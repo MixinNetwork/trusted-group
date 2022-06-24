@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"github.com/dimfeld/httptreemux"
+	"github.com/gorilla/handlers"
 	"github.com/unrolled/render"
 )
 
@@ -25,6 +26,7 @@ func StartHTTP(p *Proxy, s *Storage) error {
 	router.POST("/extra", encodeExtra)
 	router.POST("/users", createUser)
 	handler := handleCORS(router)
+	handler = handlers.ProxyHeaders(handler)
 	return http.ListenAndServe(fmt.Sprintf(":%d", HTTPPort), handler)
 }
 
@@ -40,6 +42,9 @@ func index(w http.ResponseWriter, r *http.Request, params map[string]string) {
 }
 
 func createUser(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	if len(store.limiterAvailable(r.RemoteAddr)) > UserCreationLimit {
+		render.New().JSON(w, http.StatusTooManyRequests, map[string]interface{}{"error": "too many request"})
+	}
 	var body struct {
 		PublicKey string `json:"public_key"`
 		Signature string `json:"signature"`
@@ -47,6 +52,11 @@ func createUser(w http.ResponseWriter, r *http.Request, params map[string]string
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
 		render.New().JSON(w, http.StatusBadRequest, map[string]interface{}{"error": err})
+		return
+	}
+	err = store.writeLimiter(r.RemoteAddr)
+	if err != nil {
+		render.New().JSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err})
 		return
 	}
 	user, err := proxy.createUser(r.Context(), store, body.PublicKey, body.Signature)
