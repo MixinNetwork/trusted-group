@@ -68,6 +68,12 @@ func (p *Proxy) Run(ctx context.Context, store *Storage) {
 		}
 	}()
 
+	go func() {
+		for {
+			p.processWithdrawals(ctx, store)
+		}
+	}()
+
 	for {
 		err := p.loopSnapshots(ctx, store)
 		if err != nil {
@@ -127,7 +133,11 @@ func (p *Proxy) processSnapshots(ctx context.Context, store *Storage) {
 		if user == nil {
 			continue
 		}
-		err = p.processSnapshotForUser(ctx, s, user)
+		err = p.fetchAsset(ctx, s.AssetID)
+		if err != nil {
+			panic(err)
+		}
+		err = p.processSnapshotForUser(ctx, store, s, user)
 		if err != nil {
 			panic(err)
 		}
@@ -142,13 +152,25 @@ func (p *Proxy) processSnapshots(ctx context.Context, store *Storage) {
 	}
 }
 
-func (p *Proxy) processSnapshotForUser(ctx context.Context, s *mixin.Snapshot, user *User) error {
+func (p *Proxy) processSnapshotForUser(ctx context.Context, store *Storage, s *mixin.Snapshot, user *User) error {
 	act, err := p.decodeAction(user, s)
 	if err != nil {
 		return err
 	}
-	if act != nil && user.handle(ctx, s, act) == nil {
+	if act != nil && user.handle(ctx, store, s, act) == nil {
 		return nil
 	}
 	return user.pass(ctx, p, s)
+}
+
+func (p *Proxy) fetchAsset(ctx context.Context, id string) error {
+	asset, err := store.readAsset(id)
+	if err != nil || asset != nil {
+		return err
+	}
+	asset, err = p.ReadAsset(ctx, id)
+	if err != nil {
+		return err
+	}
+	return store.writeAsset(asset)
 }

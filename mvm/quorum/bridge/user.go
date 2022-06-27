@@ -86,10 +86,10 @@ func (p *Proxy) readUserWithContract(store *Storage, id string) (*User, error) {
 	return user, err
 }
 
-func (u *User) handle(ctx context.Context, s *mixin.Snapshot, act *Action) error {
+func (u *User) handle(ctx context.Context, store *Storage, s *mixin.Snapshot, act *Action) error {
 	logger.Verbosef("User.handle(%v, %v)", *s, *act)
 	if act.Destination != "" {
-		return u.withdraw(ctx, s, act)
+		return u.submit(ctx, store, s, act)
 	}
 
 	traceId := mixin.UniqueConversationID(s.SnapshotID, "HANDLE||TRANSFER")
@@ -124,33 +124,5 @@ func (u *User) send(ctx context.Context, in *mixin.TransferInput) error {
 		_, err = uc.Transfer(ctx, in, u.PIN)
 	}
 	logger.Verbosef("User.send(%v) => %v", *in, err)
-	return err
-}
-
-// TODO this wont' work as no fee
-func (u *User) withdraw(ctx context.Context, s *mixin.Snapshot, act *Action) error {
-	uc, err := mixin.NewFromKeystore(u.Key)
-	if err != nil {
-		return err
-	}
-	ain := mixin.CreateAddressInput{
-		AssetID:     s.AssetID,
-		Destination: act.Destination,
-		Tag:         act.Tag,
-		Label:       s.SnapshotID,
-	}
-	addr, err := uc.CreateAddress(ctx, ain, u.PIN)
-	if err != nil {
-		return err
-	}
-
-	traceId := mixin.UniqueConversationID(s.SnapshotID, "HANDLE||WITHDRAWAL")
-	win := mixin.WithdrawInput{
-		AddressID: addr.AddressID,
-		Amount:    s.Amount,
-		TraceID:   traceId,
-		Memo:      act.Extra,
-	}
-	_, err = uc.Withdraw(ctx, win, u.PIN)
 	return err
 }

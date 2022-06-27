@@ -10,10 +10,11 @@ const (
 	GethPrivateKey = ""
 	GethChainId    = 73927
 
-	MVMRegistryId       = "bd670872-76ce-3263-b933-3aa337e212a4"
-	MVMRegistryContract = "0x3c84B6C98FBeB813e05a7A7813F0442883450B1F"
-	MVMStorageContract  = "0xef241988D19892fE4efF4935256087F4fdc5ecAa"
-	MVMBridgeContract   = "0x12266b2BbdEAb152f8A0CF83c3997Bc8dbAD0be0"
+	MVMRegistryId         = "bd670872-76ce-3263-b933-3aa337e212a4"
+	MVMRegistryContract   = "0x3c84B6C98FBeB813e05a7A7813F0442883450B1F"
+	MVMStorageContract    = "0xef241988D19892fE4efF4935256087F4fdc5ecAa"
+	MVMBridgeContract     = "0x12266b2BbdEAb152f8A0CF83c3997Bc8dbAD0be0"
+	MVMWithdrawalContract = "0xb27C8e0665D2Afa10F50A7CF4D2B9B6B461FD438"
 
 	ProxyPIN = ""
 
