@@ -7,9 +7,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net/http"
 
 	"github.com/dimfeld/httptreemux"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/gofrs/uuid"
 	"github.com/gorilla/handlers"
 	"github.com/unrolled/render"
 )
@@ -23,6 +26,8 @@ func StartHTTP(p *Proxy, s *Storage) error {
 	proxy, store = p, s
 	router := httptreemux.New()
 	router.GET("/", index)
+	router.GET("/assets/:id/contract", assetContract)
+	router.GET("/assets/:contract/id", assetInfo)
 	router.POST("/extra", encodeExtra)
 	router.POST("/users", createUser)
 	handler := handleCORS(router)
@@ -79,6 +84,36 @@ func createUser(w http.ResponseWriter, r *http.Request, params map[string]string
 		},
 		"contract": u.Contract,
 	}})
+}
+
+func assetContract(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	id, _ := uuid.FromString(params["id"])
+	if id.String() != params["id"] {
+		render.New().JSON(w, http.StatusAccepted, map[string]interface{}{"error": fmt.Sprintf("invalid asset id %s", params["id"])})
+		return
+	}
+
+	k := new(big.Int).SetBytes(id.Bytes())
+	address, err := proxy.registry.Contracts(nil, k)
+	if err != nil {
+		render.New().JSON(w, http.StatusAccepted, map[string]interface{}{"error": err.Error()})
+	}
+
+	render.New().JSON(w, http.StatusOK, map[string]interface{}{"contract": address.String()})
+}
+
+func assetInfo(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	address := common.HexToAddress(params["contract"])
+	num, err := proxy.registry.Assets(nil, address)
+	if err != nil {
+		render.New().JSON(w, http.StatusAccepted, map[string]interface{}{"error": err.Error()})
+	}
+	id, err := uuid.FromBytes(num.Bytes())
+	if err != nil {
+		render.New().JSON(w, http.StatusAccepted, map[string]interface{}{"uuid error": err.Error()})
+	}
+
+	render.New().JSON(w, http.StatusOK, map[string]interface{}{"asset_id": id.String()})
 }
 
 func encodeExtra(w http.ResponseWriter, r *http.Request, params map[string]string) {
