@@ -38,15 +38,16 @@ func MessageHash(address string) []byte {
 	return EIP712Hash(typed)
 }
 
-func Ecrecover(hash, signature []byte) (*common.Address, error) {
+func Ecrecover(hash, signature []byte) (common.Address, error) {
+	var address common.Address
 	sig := make([]byte, len(signature))
 	copy(sig, signature)
 	if len(sig) != 65 {
-		return nil, fmt.Errorf("invalid length of signture: %d", len(sig))
+		return address, fmt.Errorf("invalid length of signture: %d", len(sig))
 	}
 
 	if sig[64] != 27 && sig[64] != 28 && sig[64] != 1 && sig[64] != 0 {
-		return nil, fmt.Errorf("invalid signature type")
+		return address, fmt.Errorf("invalid signature type")
 	}
 	if sig[64] >= 27 {
 		sig[64] -= 27
@@ -54,15 +55,14 @@ func Ecrecover(hash, signature []byte) (*common.Address, error) {
 
 	recoverPub, err := crypto.Ecrecover(hash, sig)
 	if err != nil {
-		return nil, fmt.Errorf("can not ecrecover: %v", err)
+		return address, fmt.Errorf("can not ecrecover: %v", err)
 	}
 	pubKey, err := crypto.UnmarshalPubkey(recoverPub)
 	if err != nil {
-		return nil, fmt.Errorf("can not unmarshal pubkey: %v", err)
+		return address, fmt.Errorf("can not unmarshal pubkey: %v", err)
 	}
 
-	address := crypto.PubkeyToAddress(*pubKey)
-	return &address, nil
+	return crypto.PubkeyToAddress(*pubKey), nil
 }
 
 // sanitizeData doesn't need

@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"crypto/ed25519"
+	"encoding/hex"
+	"fmt"
 	"math/big"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -18,11 +20,22 @@ type User struct {
 	Contract string          `json:"contract"`
 }
 
-// TODO should verify the signature from MetaMask of the addr
 func (p *Proxy) createUser(ctx context.Context, store *Storage, addr, sig string) (*User, error) {
 	err := ethereum.VerifyAddress(addr)
 	if err != nil {
 		return nil, err
+	}
+
+	sigBuf, err := hex.DecodeString(sig)
+	if err != nil {
+		return nil, err
+	}
+
+	address, err := Ecrecover(MessageHash(addr), sigBuf)
+	if err != nil {
+		return nil, err
+	} else if address.Hex() != addr {
+		return nil, fmt.Errorf("Invalid address %s", addr)
 	}
 
 	old, err := store.readUserByAddress(addr)
