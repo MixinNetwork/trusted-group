@@ -18,7 +18,7 @@ func PublicKeyToCurve25519(curve25519Public *[32]byte, publicKey ed25519.PublicK
 	return nil
 }
 
-func ServerCurvePublic(public string) string {
+func CurvePublicKey(public string) string {
 	buf, err := base64.RawURLEncoding.DecodeString(public)
 	if err != nil {
 		panic(err)

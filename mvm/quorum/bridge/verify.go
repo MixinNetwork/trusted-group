@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"
 )
 
-// MVM || Bridge || Proxy || ServerPublicKey(in config.go) || 0x123...ABC
+// MVM || Bridge || Proxy || public_key_base64 || 0x123...ABC
 func MessageHash(address string) []byte {
 	msg := apitypes.TypedDataMessage{
 		"data": fmt.Sprintf("MVM:Bridge:Proxy:%s:%s", ServerPublic, address),

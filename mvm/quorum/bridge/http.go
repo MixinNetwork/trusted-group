@@ -45,7 +45,7 @@ func index(w http.ResponseWriter, r *http.Request, params map[string]string) {
 		"withdrawal": "https://scan.mvm.dev/address/" + MVMWithdrawalContract,
 		"storage":    "https://scan.mvm.dev/address/" + MVMStorageContract,
 
-		"curve_public_base64": ServerCurvePublic(ServerPublic),
+		"public_key_base64": CurvePublicKey(ServerPublic),
 	})
 }
 
