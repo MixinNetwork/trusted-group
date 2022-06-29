@@ -1,17 +1,23 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"
 )
 
+func recoverTypedSignature(signature string) {
+	// buf,err:=	hex.DecodeString(signature)
+}
+
 // MVM || Bridge || Proxy || ServerPublicKey(in config.go) || 0x123...ABC
-func MessageHash(address string) ([]byte, error) {
+func MessageHash(address string) []byte {
 	msg := apitypes.TypedDataMessage{
 		"data": fmt.Sprintf("MVM:Bridge:Proxy:%s:%s", ServerPublic, address),
 	}
@@ -30,20 +36,6 @@ func MessageHash(address string) ([]byte, error) {
 		Message:     msg,
 	}
 	return EIP712Hash(typed)
-}
-
-// sanitizeData doesn't need
-func EIP712Hash(typedData apitypes.TypedData) ([]byte, error) {
-	domainSeparator, err := typedData.HashStruct("EIP712Domain", typedData.Domain.Map())
-	if err != nil {
-		return nil, err
-	}
-	typedDataHash, err := typedData.HashStruct(typedData.PrimaryType, typedData.Message)
-	if err != nil {
-		return nil, err
-	}
-	rawData := []byte(fmt.Sprintf("\x19\x01%s%s", string(domainSeparator), string(typedDataHash)))
-	return crypto.Keccak256(rawData), nil
 }
 
 func Ecrecover(hash, signature []byte) (*common.Address, error) {
@@ -73,40 +65,46 @@ func Ecrecover(hash, signature []byte) (*common.Address, error) {
 	return &address, nil
 }
 
+// sanitizeData doesn't need
+// only supports version V4
+func EIP712Hash(typedData apitypes.TypedData) []byte {
+	domainSeparator := hashStruct("EIP712Domain", typedData.Domain.Map(), typedData.Types, "V4")
+	typedDataHash := hashStruct(typedData.PrimaryType, typedData.Message, typedData.Types, "V4")
+	rawData := []byte{0x19, 0x1}
+	rawData = append(rawData, domainSeparator...)
+	rawData = append(rawData, typedDataHash...)
+	return crypto.Keccak256(rawData)
+}
+
 // https://docs.metamask.io/guide/signing-data.html#signing-data-with-metamask
 // only signTypedData_v4 supports
 func hashStruct(primaryType string, data apitypes.TypedDataMessage, types apitypes.Types, version string) []byte {
-	return crypto.Keccak256([]byte(encodeData(primaryType, data, types, version)))
+	return crypto.Keccak256(encodeData(primaryType, data, types, version))
 }
 
-func encodeData(primaryType string, data map[string]interface{}, types apitypes.Types, version string) string {
-	var output string
+// for bytes32
+// rawEncode combine the output only
+func encodeData(primaryType string, data map[string]interface{}, types apitypes.Types, version string) []byte {
+	output := hashType(primaryType, types)
 	for _, field := range types[primaryType] {
-		arrays := encodeField(types, field.Name, field.Type, data[field.Name], version)
-		output += arrays[1]
+		buf := encodeField(types, field.Name, field.Type, data[field.Name], version)
+		output = append(output, buf...)
 	}
 	return output
 }
 
-func encodeField(types apitypes.Types, name string, field string, value interface{}, version string) []string {
+func encodeField(types apitypes.Types, name string, field string, value interface{}, version string) []byte {
 	if len(types[field]) != 0 {
 		if version == "V4" && value == nil {
-			// TODO version === SignTypedDataVersion.V4 && value == null ? '0x0000000000000000000000000000000000000000000000000000000000000000' : keccak(encodeData(type, value, types, version)),
-			return []string{"bytes32", "0x0000000000000000000000000000000000000000000000000000000000000000"}
+			return bytes.Repeat([]byte{0x0}, 32)
 		}
-		// TODO
-	}
-
-	if field == "bytes" {
-		v := value.([]byte)
-		return []string{"bytes32", string(crypto.Keccak256(v))}
 	}
 
 	if field == "string" {
 		v := value.(string)
-		return []string{"bytes32", string(crypto.Keccak256([]byte(v)))}
+		return crypto.Keccak256([]byte(v))
 	}
-	return []string{}
+	return []byte{}
 }
 
 func hashType(primaryType string, types apitypes.Types) []byte {
@@ -139,7 +137,7 @@ func encodeType(primaryType string, types apitypes.Types) string {
 		for _, child := range children {
 			params = append(params, fmt.Sprintf("%s %s", child.Type, child.Name))
 		}
-		result += fmt.Sprintf("%s(%s)", dep, params)
+		result += fmt.Sprintf("%s(%s)", dep, strings.Join(params, ","))
 	}
 	return result
 }
