@@ -12,10 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"
 )
 
-func recoverTypedSignature(signature string) {
-	// buf,err:=	hex.DecodeString(signature)
-}
-
 // MVM || Bridge || Proxy || ServerPublicKey(in config.go) || 0x123...ABC
 func MessageHash(address string) []byte {
 	msg := apitypes.TypedDataMessage{

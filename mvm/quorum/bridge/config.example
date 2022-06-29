@@ -16,8 +16,8 @@ const (
 	MVMBridgeContract     = "0x12266b2BbdEAb152f8A0CF83c3997Bc8dbAD0be0"
 	MVMWithdrawalContract = "0xb27C8e0665D2Afa10F50A7CF4D2B9B6B461FD438"
 
-  ServerPrivate = "ReplaceWithLocal_aUcl8ebVv-l_n053pCcVZwhCtshUu6jGy_bEDHA3ucv8aZ7TLI65oBg"
-  ServerPublic = "59Od6QnFWcIQrbIVLuoxsv2xAxwN7nL_Gme0yyOuaAY"
+	ServerPrivate = "muscalsEy3DZpzcO9osj53H5KnVBoTt8enp4jZS64Xo3mpU_eKm3Lhr4riA723_zo1vquY3cGYDPox-ewtv_oQ"
+	ServerPublic  = "N5qVP3ipty4a-K4gO9t_86Nb6rmN3BmAz6MfnsLb_6E"
 
 	ProxyPIN = ""
 
