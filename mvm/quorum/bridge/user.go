@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/ed25519"
-	"encoding/hex"
 	"fmt"
 	"math/big"
 
@@ -26,12 +25,7 @@ func (p *Proxy) createUser(ctx context.Context, store *Storage, addr, sig string
 		return nil, err
 	}
 
-	sigBuf, err := hex.DecodeString(sig)
-	if err != nil {
-		return nil, err
-	}
-
-	address, err := Ecrecover(MessageHash(addr), sigBuf)
+	address, err := EcrecoverEIP191(addr, sig)
 	if err != nil {
 		return nil, err
 	} else if address.Hex() != addr {

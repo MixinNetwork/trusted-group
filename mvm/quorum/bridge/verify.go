@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"regexp"
 	"sort"
@@ -11,6 +12,32 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"
 )
+
+// eip191 recover to pub
+func EcrecoverEIP191(address, sig string) (*common.Address, error) {
+	data := []byte(fmt.Sprintf("MVM:Bridge:Proxy:%s:%s", ServerPublic, address))
+	data = []byte("0x" + hex.EncodeToString(crypto.Keccak256Hash(data).Bytes()))
+	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(data), data)
+	hash := crypto.Keccak256Hash([]byte(msg))
+
+	buf, err := hex.DecodeString(sig)
+	if err != nil {
+		return nil, err
+	}
+	if buf[64] == 27 || buf[64] == 28 {
+		buf[64] -= 27
+	}
+	pub, err := crypto.Ecrecover(hash.Bytes(), buf)
+	if err != nil {
+		return nil, err
+	}
+	pubKey, err := crypto.UnmarshalPubkey(pub)
+	if err != nil {
+		return nil, err
+	}
+	addr := crypto.PubkeyToAddress(*pubKey)
+	return &addr, nil
+}
 
 // MVM || Bridge || Proxy || public_key_base64 || 0x123...ABC
 func MessageHash(address string) []byte {
@@ -34,6 +61,7 @@ func MessageHash(address string) []byte {
 	return EIP712Hash(typed)
 }
 
+// eip712
 func Ecrecover(hash, signature []byte) (common.Address, error) {
 	var address common.Address
 	sig := make([]byte, len(signature))
