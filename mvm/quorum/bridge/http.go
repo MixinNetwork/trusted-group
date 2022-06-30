@@ -5,10 +5,14 @@ package main
 // POST /extra
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"math/big"
 	"net/http"
+	"time"
 
 	"github.com/dimfeld/httptreemux"
 	"github.com/ethereum/go-ethereum/common"
@@ -31,8 +35,30 @@ func StartHTTP(p *Proxy, s *Storage) error {
 	router.POST("/extra", encodeExtra)
 	router.POST("/users", createUser)
 	handler := handleCORS(router)
+	handler = State(handler)
 	handler = handlers.ProxyHeaders(handler)
 	return http.ListenAndServe(fmt.Sprintf(":%d", HTTPPort), handler)
+}
+
+func State(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		log.Printf("INFO -- : Started %s '%s'", r.Method, r.URL)
+		defer func() {
+			log.Printf("INFO -- : Completed %s in %fms", r.Method, time.Now().Sub(start).Seconds())
+		}()
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			render.New().JSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err})
+			return
+		}
+		if len(body) > 0 {
+			log.Printf("INFO -- : Paremeters %s", string(body))
+		}
+		r.Body.Close()
+		r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+		handler.ServeHTTP(w, r)
+	})
 }
 
 // TODO make a bridge web interface
