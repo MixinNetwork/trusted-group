@@ -6,70 +6,37 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/signer/core/apitypes"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestVerify(t *testing.T) {
 	assert := assert.New(t)
 
-	types := apitypes.Types{
-		"EIP712Domain": []apitypes.Type{},
-		"Message": []apitypes.Type{
-			apitypes.Type{
-				Name: "data",
-				Type: "string",
-			},
-		},
-	}
-	domain := apitypes.TypedDataDomain{}
-	primaryType := "Message"
-	message := apitypes.TypedDataMessage{
-		"data": "test",
-	}
-	data := apitypes.TypedData{
-		Types:       types,
-		PrimaryType: primaryType,
-		Domain:      domain,
-		Message:     message,
-	}
-
-	buf := EIP712Hash(data)
-	assert.Equal("db1e257f42232aee5d38ee5c6e1edc097011c0c242365b063ea863ce11364c1a", hex.EncodeToString(buf))
-
-	sig, _ := hex.DecodeString("f6cda8eaf5137e8cc15d48d03a002b0512446e2a7acbc576c01cfbe40ad9345663ccda8884520d98dece9a8bfe38102851bdae7f69b3d8612b9808e6337801601b")
-	hash, _ := hex.DecodeString("db1e257f42232aee5d38ee5c6e1edc097011c0c242365b063ea863ce11364c1a")
-	address, err := Ecrecover(hash, sig)
-	assert.Nil(err)
-	assert.Equal("0x29C76e6aD8f28BB1004902578Fb108c507Be341b", address.Hex())
-
-	buf = MessageHash("0x29C76e6aD8f28BB1004902578Fb108c507Be341b")
-	assert.Equal("906b4645eee4ace95fca8a4a02124f78be8a4a6f8f178f40128a86d6a7233023", hex.EncodeToString(buf))
-
 	privateKey, err := crypto.HexToECDSA("0123456789012345678901234567890123456789012345678901234567890123")
 	assert.Nil(err)
 
-	dat := []byte("MVM:Bridge:Proxy:N5qVP3ipty4a-K4gO9t_86Nb6rmN3BmAz6MfnsLb_6E:0x12266b2BbdEAb152f8A0CF83c3997Bc8dbAD0be0")
-	dat = []byte("0x" + hex.EncodeToString(crypto.Keccak256Hash(dat).Bytes()))
-	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(dat), dat)
-	hsh := crypto.Keccak256Hash([]byte(msg))
-	signature, err := crypto.Sign(hsh.Bytes(), privateKey)
+	source := "0xDFDF68C62D32063e1405911aE35a040F93D7A9C8"
+	data := []byte(fmt.Sprintf("MVM:Bridge:Proxy:8MfEmL3g8s-PoDpZ4OcDCUDQPDiH4u1_OmxB0Aaknzg:%s", source))
+	data = []byte("0x" + hex.EncodeToString(crypto.Keccak256Hash(data).Bytes()))
+	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(data), data)
+	hash := crypto.Keccak256Hash([]byte(msg))
+	signature, err := crypto.Sign(hash.Bytes(), privateKey)
 	assert.Nil(err)
-	pub, err := crypto.Ecrecover(hsh.Bytes(), signature)
+	pub, err := crypto.Ecrecover(hash.Bytes(), signature)
 	assert.Nil(err)
 	pubKey, err := crypto.UnmarshalPubkey(pub)
 	assert.Nil(err)
-	address = crypto.PubkeyToAddress(*pubKey)
-	assert.Equal(address.Hex(), "0x14791697260E4c9A71f18484C9f997B308e59325")
+	address := crypto.PubkeyToAddress(*pubKey)
+	assert.Equal("0x14791697260E4c9A71f18484C9f997B308e59325", address.Hex())
 
-	buf, _ = hex.DecodeString("a25788c4f62f24d3d58aa029c08cbce1c7746a0cd2c206ee8bebfbf4a26f603f2ae7e47d45735840ba0297a3a3637d4225626606459fff5bc7ae36de369ad5431c")
+	buf, _ := hex.DecodeString("b5d480b5fd08b19e976f6d7b68aaf4460227e56d387ab9ef51112b31fcaf11eb3488dc5d92764b55862c4f5cca26294dd982ef7fd3cf0107e023000f6e9136761c")
 	if buf[64] == 27 || buf[64] == 28 {
 		buf[64] -= 27
 	}
-	pub, err = crypto.Ecrecover(hsh.Bytes(), buf)
+	pub, err = crypto.Ecrecover(hash.Bytes(), buf)
 	assert.Nil(err)
 	pubKey, err = crypto.UnmarshalPubkey(pub)
 	assert.Nil(err)
 	address = crypto.PubkeyToAddress(*pubKey)
-	assert.Equal(address.Hex(), "0xaE9ADd61e9Fa5c203a5139DBe3dfC86c838C1239")
+	assert.Equal(source, address.Hex())
 }
