@@ -29,7 +29,7 @@ func (p *Proxy) createUser(ctx context.Context, store *Storage, addr, sig string
 	if err != nil {
 		return nil, err
 	} else if address.Hex() != addr {
-		return nil, fmt.Errorf("Invalid address %s", addr)
+		return nil, fmt.Errorf("Invalid address %s or sig %s", addr, sig)
 	}
 
 	old, err := store.readUserByAddress(addr)

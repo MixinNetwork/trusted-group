@@ -19,4 +19,4 @@ config.toml
 local.sh
 deploy.sh
 /mvm/mvm
-mvm/quorum/bridge/bridge
+/mvm/quorum/bridge/bridge

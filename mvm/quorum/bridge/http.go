@@ -118,13 +118,11 @@ func assetContract(w http.ResponseWriter, r *http.Request, params map[string]str
 		render.New().JSON(w, http.StatusAccepted, map[string]interface{}{"error": fmt.Sprintf("invalid asset id %s", params["id"])})
 		return
 	}
-
 	k := new(big.Int).SetBytes(id.Bytes())
 	address, err := proxy.registry.Contracts(nil, k)
 	if err != nil {
 		render.New().JSON(w, http.StatusAccepted, map[string]interface{}{"error": err.Error()})
 	}
-
 	render.New().JSON(w, http.StatusOK, map[string]interface{}{"contract": address.String()})
 }
 
@@ -138,7 +136,6 @@ func assetInfo(w http.ResponseWriter, r *http.Request, params map[string]string)
 	if err != nil {
 		render.New().JSON(w, http.StatusAccepted, map[string]interface{}{"uuid error": err.Error()})
 	}
-
 	render.New().JSON(w, http.StatusOK, map[string]interface{}{"asset_id": id.String()})
 }
 
