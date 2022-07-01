@@ -19,10 +19,10 @@ func EcrecoverEIP191(address, sig string) (*common.Address, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(sig) != 65 {
-		return nil, fmt.Errorf("invalid length of signture: %d", len(sig))
+	if len(buf) != 65 {
+		return nil, fmt.Errorf("invalid length of signture: %d", len(buf))
 	}
-	if sig[64] != 27 && sig[64] != 28 && sig[64] != 1 && sig[64] != 0 {
+	if buf[64] != 27 && buf[64] != 28 && buf[64] != 1 && buf[64] != 0 {
 		return nil, fmt.Errorf("invalid signature type")
 	}
 	if buf[64] >= 27 {
