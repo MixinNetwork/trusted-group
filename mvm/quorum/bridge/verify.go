@@ -10,7 +10,7 @@ import (
 
 // EIP191 recover sig to pub
 func EcrecoverEIP191(address, sig string) (*common.Address, error) {
-	data := []byte(fmt.Sprintf("MVM:Bridge:Proxy:%s:%s", ServerPublic, address))
+	data := []byte(fmt.Sprintf("MVM:Bridge:Proxy:%s:%s", CurvePublicKey(ServerPublic), address))
 	data = []byte("0x" + hex.EncodeToString(crypto.Keccak256Hash(data).Bytes()))
 	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(data), data)
 	hash := crypto.Keccak256Hash([]byte(msg))
