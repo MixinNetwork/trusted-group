@@ -132,10 +132,7 @@ func assetInfo(w http.ResponseWriter, r *http.Request, params map[string]string)
 	if err != nil {
 		render.New().JSON(w, http.StatusAccepted, map[string]interface{}{"error": err.Error()})
 	}
-	id, err := uuid.FromBytes(num.Bytes())
-	if err != nil {
-		render.New().JSON(w, http.StatusAccepted, map[string]interface{}{"uuid error": err.Error()})
-	}
+	id := uuid.FromBytesOrNil(num.Bytes())
 	render.New().JSON(w, http.StatusOK, map[string]interface{}{"asset_id": id.String()})
 }
 
