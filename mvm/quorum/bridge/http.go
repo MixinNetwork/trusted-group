@@ -30,8 +30,7 @@ func StartHTTP(p *Proxy, s *Storage) error {
 	proxy, store = p, s
 	router := httptreemux.New()
 	router.GET("/", index)
-	router.GET("/assets/:id/contract", assetContract)
-	router.GET("/assets/:contract/id", assetInfo)
+	router.GET("/assets/:id", assetInfo)
 	router.POST("/extra", encodeExtra)
 	router.POST("/users", createUser)
 	handler := handleCORS(router)
@@ -78,6 +77,7 @@ func index(w http.ResponseWriter, r *http.Request, params map[string]string) {
 func createUser(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	if len(store.limiterAvailable(r.RemoteAddr)) > UserCreationLimit {
 		render.New().JSON(w, http.StatusTooManyRequests, map[string]interface{}{"error": "too many request"})
+		return
 	}
 	var body struct {
 		PublicKey string `json:"public_key"`
@@ -112,28 +112,28 @@ func createUser(w http.ResponseWriter, r *http.Request, params map[string]string
 	}})
 }
 
-func assetContract(w http.ResponseWriter, r *http.Request, params map[string]string) {
+func assetInfo(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	id, _ := uuid.FromString(params["id"])
-	if id.String() != params["id"] {
-		render.New().JSON(w, http.StatusAccepted, map[string]interface{}{"error": fmt.Sprintf("invalid asset id %s", params["id"])})
+	if id.String() == params["id"] {
+		k := new(big.Int).SetBytes(id.Bytes())
+		address, err := proxy.registry.Contracts(nil, k)
+		if err != nil {
+			render.New().JSON(w, http.StatusAccepted, map[string]interface{}{"error": err.Error()})
+			return
+		}
+
+		render.New().JSON(w, http.StatusOK, map[string]interface{}{"asset_id": id.String(), "contract": address.String()})
 		return
 	}
-	k := new(big.Int).SetBytes(id.Bytes())
-	address, err := proxy.registry.Contracts(nil, k)
-	if err != nil {
-		render.New().JSON(w, http.StatusAccepted, map[string]interface{}{"error": err.Error()})
-	}
-	render.New().JSON(w, http.StatusOK, map[string]interface{}{"contract": address.String()})
-}
 
-func assetInfo(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	address := common.HexToAddress(params["contract"])
+	address := common.HexToAddress(params["id"])
 	num, err := proxy.registry.Assets(nil, address)
 	if err != nil {
 		render.New().JSON(w, http.StatusAccepted, map[string]interface{}{"error": err.Error()})
+		return
 	}
-	id := uuid.FromBytesOrNil(num.Bytes())
-	render.New().JSON(w, http.StatusOK, map[string]interface{}{"asset_id": id.String()})
+	id = uuid.FromBytesOrNil(num.Bytes())
+	render.New().JSON(w, http.StatusOK, map[string]interface{}{"asset_id": id.String(), "contract": address.String()})
 }
 
 func encodeExtra(w http.ResponseWriter, r *http.Request, params map[string]string) {
