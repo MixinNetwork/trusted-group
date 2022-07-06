@@ -6,6 +6,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -70,7 +71,7 @@ func index(w http.ResponseWriter, r *http.Request, params map[string]string) {
 		"withdrawal": "https://scan.mvm.dev/address/" + MVMWithdrawalContract,
 		"storage":    "https://scan.mvm.dev/address/" + MVMStorageContract,
 
-		"public_key_base64": CurvePublicKey(ServerPublic),
+		"public_key_base64": hex.EncodeToString(CurvePublicKey(ServerPublic)),
 	})
 }
 
@@ -81,7 +82,8 @@ func createUser(w http.ResponseWriter, r *http.Request, params map[string]string
 	}
 	var body struct {
 		PublicKey string `json:"public_key"`
-		Signature string `json:"signature"`
+		Secret    string `json:"secret"`
+		Signature string `jsxheon:"signature"`
 	}
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
@@ -93,7 +95,7 @@ func createUser(w http.ResponseWriter, r *http.Request, params map[string]string
 		render.New().JSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err})
 		return
 	}
-	u, err := proxy.createUser(r.Context(), store, body.PublicKey, body.Signature)
+	u, err := proxy.createUser(r.Context(), store, body.PublicKey, body.Secret, body.Signature)
 	if err != nil {
 		render.New().JSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err})
 		return

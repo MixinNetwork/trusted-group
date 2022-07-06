@@ -2,7 +2,7 @@ package main
 
 import (
 	"crypto/ed25519"
-	"encoding/base64"
+	"encoding/hex"
 
 	"filippo.io/edwards25519"
 )
@@ -15,8 +15,8 @@ func PublicKeyToCurve25519(publicKey ed25519.PublicKey) ([]byte, error) {
 	return p.BytesMontgomery(), nil
 }
 
-func CurvePublicKey(public string) string {
-	buf, err := base64.RawURLEncoding.DecodeString(public)
+func CurvePublicKey(public string) []byte {
+	buf, err := hex.DecodeString(public)
 	if err != nil {
 		panic(err)
 	}
@@ -24,5 +24,5 @@ func CurvePublicKey(public string) string {
 	if err != nil {
 		panic(err)
 	}
-	return base64.RawURLEncoding.EncodeToString(curve25519Public)
+	return curve25519Public
 }
