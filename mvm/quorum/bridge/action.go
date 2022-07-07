@@ -32,7 +32,6 @@ func decryptData(data string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	// TODO encryption and decryption
 	return b, nil
 }
 
