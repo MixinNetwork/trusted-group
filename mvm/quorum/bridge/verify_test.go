@@ -1,11 +1,15 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/fox-one/msgpack"
+	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -39,4 +43,34 @@ func TestVerify(t *testing.T) {
 	assert.Nil(err)
 	address = crypto.PubkeyToAddress(*pubKey)
 	assert.Equal(source, address.Hex())
+}
+
+func TestMsgpack(t *testing.T) {
+	assert := assert.New(t)
+
+	var result map[string]interface{}
+	buf, _ := hex.DecodeString("81a3666f6fa3626172")
+	err := msgpack.Unmarshal(buf, &result)
+	assert.Nil(err)
+	assert.Equal("bar", result["foo"].(string))
+
+	type mixinExtraPack struct {
+		T uuid.UUID
+		G string `msgpack:",omitempty"`
+		M string `msgpack:",omitempty"`
+	}
+
+	buf, err = base64.RawURLEncoding.DecodeString("gqFUxBBuwL1_EcBD2pdeKorZ664LoU2sZ2FObWIyLWpZbUZ5")
+	assert.Nil(err)
+
+	buf, err = decryptData("gqFUxBBuwL1_EcBD2pdeKorZ664LoU2sZ2FObWIyLWpZbUZ5")
+	assert.Nil(err)
+	assert.Equal("gaNmb2-jYmFy", base64.RawURLEncoding.EncodeToString(buf))
+
+	buf, err = decryptData("gqFUxBBuwL1_EcBD2pdeKorZ664LoU3ZW3ZXY0ljbmJPTW1PNU16cWpOLUlTcE84a0dZalJtSkwtVHY5Sk5TVmdoX1Q5eGV5cThBVk9Hb2NCVXBnSXVXZ2NmXzN2cjg1a3JjTEJTcVVlSGE4bmNKSDNIeGM")
+	assert.Nil(err)
+	assert.Equal("vWcIcnbOMmO5MzqjN-ISpO8kGYjRmJL-Tv9JNSVgh_T9xeyq8AVOGocBUpgIuWgcf_3vr85krcLBSqUeHa8ncJH3Hxc", base64.RawURLEncoding.EncodeToString(buf))
+	assert.Equal(68, len(buf))
+	assert.Equal(MVMRegistryId, uuid.FromBytesOrNil(buf[:16]).String())
+	assert.Equal(hex.EncodeToString(buf[16:36]), strings.ToLower(MVMStorageContract[2:]))
 }
