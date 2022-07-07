@@ -6,7 +6,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -71,7 +70,7 @@ func index(w http.ResponseWriter, r *http.Request, params map[string]string) {
 		"withdrawal": "https://scan.mvm.dev/address/" + MVMWithdrawalContract,
 		"storage":    "https://scan.mvm.dev/address/" + MVMStorageContract,
 
-		"public_key_base64": hex.EncodeToString(CurvePublicKey(ServerPublic)),
+		"public_key_base64": CurvePublicKey(ServerPublic),
 	})
 }
 
@@ -139,13 +138,16 @@ func assetInfo(w http.ResponseWriter, r *http.Request, params map[string]string)
 }
 
 func encodeExtra(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	var body Action
+	var body struct {
+		PublicKey string `json:"public_key"`
+		Action    Action `json:"action"`
+	}
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
 		render.New().JSON(w, http.StatusBadRequest, map[string]interface{}{"error": err})
 		return
 	}
-	extra, err := encodeActionAsExtra(&body)
+	extra, err := encodeActionAsExtra(body.PublicKey, &body.Action)
 	if err != nil {
 		render.New().JSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err})
 		return
