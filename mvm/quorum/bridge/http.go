@@ -82,7 +82,7 @@ func createUser(w http.ResponseWriter, r *http.Request, params map[string]string
 	var body struct {
 		PublicKey string `json:"public_key"`
 		Secret    string `json:"secret"`
-		Signature string `jsxheon:"signature"`
+		Signature string `json:"signature"`
 	}
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
