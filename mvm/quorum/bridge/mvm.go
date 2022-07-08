@@ -116,7 +116,8 @@ func encodeActionAsExtra(pub string, a *Action) (string, error) {
 		panic(err)
 	}
 	data := aesEncryptCBC(buf, b)
-	hk := crypto.Keccak256(data)
+	buf = append(buf, data...)
+	hk := crypto.Keccak256(buf)
 
 	extra := append(hr, ha...)
 	extra = append(extra, hk...)

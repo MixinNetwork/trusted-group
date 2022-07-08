@@ -56,13 +56,13 @@ func (p *Proxy) decodeAction(u *User, s *mixin.Snapshot) (*Action, error) {
 	logger.Verbosef("Proxy.storage.Read(%x) => %x %v", k.Bytes(), val, err)
 
 	key := SharedKey(val[:32])
-	val, err = aesDecryptCBC(key[:], val[32:])
+	actionBody, err := aesDecryptCBC(key[:], val[32:])
 	if err != nil {
 		return nil, err
 	}
 
 	var act Action
-	err = json.Unmarshal(val, &act)
+	err = json.Unmarshal(actionBody, &act)
 	if err != nil {
 		return nil, nil
 	}

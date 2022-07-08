@@ -70,7 +70,7 @@ func index(w http.ResponseWriter, r *http.Request, params map[string]string) {
 		"withdrawal": "https://scan.mvm.dev/address/" + MVMWithdrawalContract,
 		"storage":    "https://scan.mvm.dev/address/" + MVMStorageContract,
 
-		"public_key_base64": CurvePublicKey(ServerPublic),
+		"public_key_hex": CurvePublicKey(ServerPublic),
 	})
 }
 
@@ -115,25 +115,24 @@ func createUser(w http.ResponseWriter, r *http.Request, params map[string]string
 
 func assetInfo(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	id, _ := uuid.FromString(params["id"])
+	var address common.Address
 	if id.String() == params["id"] {
 		k := new(big.Int).SetBytes(id.Bytes())
-		address, err := proxy.registry.Contracts(nil, k)
+		var err error
+		address, err = proxy.registry.Contracts(nil, k)
 		if err != nil {
 			render.New().JSON(w, http.StatusAccepted, map[string]interface{}{"error": err.Error()})
 			return
 		}
-
-		render.New().JSON(w, http.StatusOK, map[string]interface{}{"asset_id": id.String(), "contract": address.String()})
-		return
+	} else {
+		address = common.HexToAddress(params["id"])
+		num, err := proxy.registry.Assets(nil, address)
+		if err != nil {
+			render.New().JSON(w, http.StatusAccepted, map[string]interface{}{"error": err.Error()})
+			return
+		}
+		id = uuid.FromBytesOrNil(num.Bytes())
 	}
-
-	address := common.HexToAddress(params["id"])
-	num, err := proxy.registry.Assets(nil, address)
-	if err != nil {
-		render.New().JSON(w, http.StatusAccepted, map[string]interface{}{"error": err.Error()})
-		return
-	}
-	id = uuid.FromBytesOrNil(num.Bytes())
 	render.New().JSON(w, http.StatusOK, map[string]interface{}{"asset_id": id.String(), "contract": address.String()})
 }
 
