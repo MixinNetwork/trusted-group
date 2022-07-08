@@ -19,7 +19,7 @@ type User struct {
 	Contract string          `json:"contract"`
 }
 
-func (p *Proxy) createUser(ctx context.Context, store *Storage, addr, secret, sig string) (*User, error) {
+func (p *Proxy) createUser(ctx context.Context, store *Storage, addr, sig string) (*User, error) {
 	err := ethereum.VerifyAddress(addr)
 	if err != nil {
 		return nil, err

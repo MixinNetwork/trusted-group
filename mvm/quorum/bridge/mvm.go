@@ -100,11 +100,7 @@ func (p *Proxy) buildHash(b []byte) []byte {
 	return extra
 }
 
-func encodeActionAsExtra(pub string, a *Action) (string, error) {
-	buf, err := hex.DecodeString(pub)
-	if err != nil {
-		return "", err
-	}
+func encodeActionAsExtra(pub []byte, a *Action) (string, error) {
 	b, err := json.Marshal(a)
 	if err != nil {
 		return "", err
@@ -115,8 +111,9 @@ func encodeActionAsExtra(pub string, a *Action) (string, error) {
 	if err != nil {
 		panic(err)
 	}
-	data := aesEncryptCBC(buf, b)
-	buf = append(buf, data...)
+	key := SharedKey(pub)
+	cipher := aesEncryptCBC(key[:], b)
+	buf := append(pub, cipher...)
 	hk := crypto.Keccak256(buf)
 
 	extra := append(hr, ha...)

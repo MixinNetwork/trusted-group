@@ -6,12 +6,14 @@ package main
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"math/big"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/dimfeld/httptreemux"
@@ -81,7 +83,6 @@ func createUser(w http.ResponseWriter, r *http.Request, params map[string]string
 	}
 	var body struct {
 		PublicKey string `json:"public_key"`
-		Secret    string `json:"secret"`
 		Signature string `json:"signature"`
 	}
 	err := json.NewDecoder(r.Body).Decode(&body)
@@ -94,7 +95,7 @@ func createUser(w http.ResponseWriter, r *http.Request, params map[string]string
 		render.New().JSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err})
 		return
 	}
-	u, err := proxy.createUser(r.Context(), store, body.PublicKey, body.Secret, body.Signature)
+	u, err := proxy.createUser(r.Context(), store, body.PublicKey, body.Signature)
 	if err != nil {
 		render.New().JSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err})
 		return
@@ -114,10 +115,11 @@ func createUser(w http.ResponseWriter, r *http.Request, params map[string]string
 }
 
 func assetInfo(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	id, _ := uuid.FromString(params["id"])
+	id := strings.ToLower(strings.TrimSpace(params["id"]))
+	aid, _ := uuid.FromString(id)
 	var address common.Address
-	if id.String() == params["id"] {
-		k := new(big.Int).SetBytes(id.Bytes())
+	if aid.String() == id {
+		k := new(big.Int).SetBytes(aid.Bytes())
 		var err error
 		address, err = proxy.registry.Contracts(nil, k)
 		if err != nil {
@@ -125,15 +127,15 @@ func assetInfo(w http.ResponseWriter, r *http.Request, params map[string]string)
 			return
 		}
 	} else {
-		address = common.HexToAddress(params["id"])
+		address = common.HexToAddress(id)
 		num, err := proxy.registry.Assets(nil, address)
 		if err != nil {
 			render.New().JSON(w, http.StatusAccepted, map[string]interface{}{"error": err.Error()})
 			return
 		}
-		id = uuid.FromBytesOrNil(num.Bytes())
+		aid = uuid.FromBytesOrNil(num.Bytes())
 	}
-	render.New().JSON(w, http.StatusOK, map[string]interface{}{"asset_id": id.String(), "contract": address.String()})
+	render.New().JSON(w, http.StatusOK, map[string]interface{}{"asset_id": aid.String(), "contract": address.String()})
 }
 
 func encodeExtra(w http.ResponseWriter, r *http.Request, params map[string]string) {
@@ -146,7 +148,12 @@ func encodeExtra(w http.ResponseWriter, r *http.Request, params map[string]strin
 		render.New().JSON(w, http.StatusBadRequest, map[string]interface{}{"error": err})
 		return
 	}
-	extra, err := encodeActionAsExtra(body.PublicKey, &body.Action)
+	pub, err := hex.DecodeString(body.PublicKey)
+	if err != nil || len(pub) != 32 {
+		render.New().JSON(w, http.StatusBadRequest, map[string]interface{}{"error": fmt.Errorf("invalid public key: %s", body.PublicKey)})
+		return
+	}
+	extra, err := encodeActionAsExtra(pub, &body.Action)
 	if err != nil {
 		render.New().JSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err})
 		return
