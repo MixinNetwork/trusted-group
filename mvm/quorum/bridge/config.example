@@ -16,8 +16,8 @@ const (
 	MVMBridgeContract     = "0x12266b2BbdEAb152f8A0CF83c3997Bc8dbAD0be0"
 	MVMWithdrawalContract = "0xb27C8e0665D2Afa10F50A7CF4D2B9B6B461FD438"
 
-	ServerPrivate = "e3a7ec95dbf66561d594014f7816ecf9f0142d910f0a2c81596807b63a451a8b <replace> "
-	ServerPublic  = "e3a7ec95dbf66561d594014f7816ecf9f0142d910f0a2c81596807b63a451a8b <replace>"
+	ServerPrivate = "d61bbd95e593a1acac27e80d5b868c2f93a24f1ee897b0c73c239b3d53225020 <ed25519 private key replace> "
+	ServerPublic  = "eeda555b8144a9776c120b28f1a8605ea040fb494fbf89588ccf31952753c57b <ed25519 public key replace>"
 
 	ProxyPIN = ""
 
