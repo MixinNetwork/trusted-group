@@ -118,22 +118,21 @@ func assetInfo(w http.ResponseWriter, r *http.Request, params map[string]string)
 	id := strings.ToLower(strings.TrimSpace(params["id"]))
 	aid, _ := uuid.FromString(id)
 	var address common.Address
+	var err error
 	if aid.String() == id {
 		k := new(big.Int).SetBytes(aid.Bytes())
-		var err error
 		address, err = proxy.registry.Contracts(nil, k)
-		if err != nil {
-			render.New().JSON(w, http.StatusAccepted, map[string]interface{}{"error": err.Error()})
-			return
-		}
 	} else {
 		address = common.HexToAddress(id)
-		num, err := proxy.registry.Assets(nil, address)
-		if err != nil {
-			render.New().JSON(w, http.StatusAccepted, map[string]interface{}{"error": err.Error()})
-			return
+		var num *big.Int
+		num, err = proxy.registry.Assets(nil, address)
+		if err == nil {
+			aid = uuid.FromBytesOrNil(num.Bytes())
 		}
-		aid = uuid.FromBytesOrNil(num.Bytes())
+	}
+	if err != nil {
+		render.New().JSON(w, http.StatusAccepted, map[string]interface{}{"error": err.Error()})
+		return
 	}
 	render.New().JSON(w, http.StatusOK, map[string]interface{}{"asset_id": aid.String(), "contract": address.String()})
 }

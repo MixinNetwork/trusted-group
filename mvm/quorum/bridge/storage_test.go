@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,12 +11,13 @@ import (
 func TestStorage(t *testing.T) {
 	assert := assert.New(t)
 
-	path := DataPath + "test"
+	path := "/tmp/bridge"
 	store, err := OpenStorage(path)
 
 	if err != nil {
 		panic(err)
 	}
+	defer os.RemoveAll(path)
 	defer store.Close()
 
 	ip := "127.0.0.1"
