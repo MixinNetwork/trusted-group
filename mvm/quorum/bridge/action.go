@@ -55,10 +55,15 @@ func (p *Proxy) decodeAction(u *User, s *mixin.Snapshot) (*Action, error) {
 	}
 	logger.Verbosef("Proxy.storage.Read(%x) => %x %v", k.Bytes(), val, err)
 
+	if len(val) < 32 {
+		return nil, nil
+	}
+
 	key := SharedKey(val[:32])
 	actionBody, err := aesDecryptCBC(key[:], val[32:])
 	if err != nil {
-		return nil, err
+		logger.Verbosef("aesDecryptCBC error %v, data %s", err, s.Memo)
+		return nil, nil
 	}
 
 	var act Action
