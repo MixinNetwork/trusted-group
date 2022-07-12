@@ -118,7 +118,7 @@ func encodeActionAsExtra(pub []byte, a *Action) (string, error) {
 
 	extra := append(hr, ha...)
 	extra = append(extra, hk...)
-	extra = append(extra, b...)
+	extra = append(extra, buf...)
 	return hex.EncodeToString(extra), nil
 }
 
