@@ -30,7 +30,16 @@ func (m *Machine) ProcessOutput(ctx context.Context, out *mtg.Output) {
 	}
 }
 
-func (m *Machine) ProcessCollectibleOutput(context.Context, *mtg.CollectibleOutput) {
+func (m *Machine) ProcessCollectibleOutput(ctx context.Context, out *mtg.CollectibleOutput) {
+	op, err := parseOperation(out.Memo)
+	if err != nil {
+		logger.Verbosef("parseOperation(%s) => %s", out.Memo, err)
+		return
+	}
+	switch op.Purpose {
+	case encoding.OperationPurposeGroupEvent:
+		m.WriteNFOGroupEvent(ctx, op.Process, out, op.Extra)
+	}
 }
 
 func parseOperation(memo string) (*encoding.Operation, error) {

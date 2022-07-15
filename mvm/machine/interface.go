@@ -26,6 +26,9 @@ type Store interface {
 
 	WriteAsset(a *Asset) error
 	ReadAsset(id string) (*Asset, error)
+
+	WriteCollectibleToken(t *CollectibleToken) error
+	ReadCollectibleToken(id string) (*CollectibleToken, error)
 }
 
 type Engine interface {
