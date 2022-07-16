@@ -50,6 +50,29 @@ func parseOperation(memo string) (*encoding.Operation, error) {
 	return encoding.DecodeOperation(b)
 }
 
+func (m *Machine) checkAssetOrCollectible(ctx context.Context, id string) (string, error) {
+	cat, err := m.store.ReadAssetOrCollectible(id)
+	if err != nil || cat != "" {
+		return cat, err
+	}
+
+	asset, err := m.fetchAssetMeta(ctx, id)
+	if err != nil {
+		return "", err
+	} else if asset != nil {
+		return "ASSET", m.store.WriteAssetOrCollectible(id, "ASSET")
+	}
+
+	token, err := m.fetchCollectibleToken(ctx, id)
+	if err != nil {
+		return "", err
+	} else if token != nil {
+		return "COLLECTIBLE", m.store.WriteAssetOrCollectible(id, "COLLECTIBLE")
+	}
+
+	panic(id)
+}
+
 func (m *Machine) fetchAssetMeta(ctx context.Context, id string) ([]byte, error) {
 	old, err := m.store.ReadAsset(id)
 	if err != nil {
@@ -58,7 +81,7 @@ func (m *Machine) fetchAssetMeta(ctx context.Context, id string) ([]byte, error)
 		return encodeAssetMeta(old.Symbol, old.Name), nil
 	}
 	asset, err := m.mixin.ReadAsset(ctx, id)
-	if err != nil {
+	if err != nil || asset == nil {
 		return nil, err
 	}
 	err = m.store.WriteAsset(&Asset{

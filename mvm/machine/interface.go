@@ -24,6 +24,9 @@ type Store interface {
 	ListProcesses() ([]*Process, error)
 	WriteProcess(p *Process) error
 
+	WriteAssetOrCollectible(id, category string) error
+	ReadAssetOrCollectible(id string) (string, error)
+
 	WriteAsset(a *Asset) error
 	ReadAsset(id string) (*Asset, error)
 

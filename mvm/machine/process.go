@@ -106,7 +106,11 @@ func (m *Machine) loopReceiveEvents(ctx context.Context, p *Process) {
 				panic(err)
 			}
 
-			err = p.buildGroupTransaction(ctx, m.group, e)
+			cat, err := m.checkAssetOrCollectible(ctx, e.Asset)
+			if err != nil {
+				panic(err)
+			}
+			err = p.buildGroupTransaction(ctx, m.group, e, cat)
 			if err != nil {
 				logger.Printf("Process.buildGroupTransaction(%v) => %s", e, err)
 				continue
@@ -122,7 +126,7 @@ func (m *Machine) loopReceiveEvents(ctx context.Context, p *Process) {
 	}
 }
 
-func (p *Process) buildGroupTransaction(ctx context.Context, group *mtg.Group, evt *encoding.Event) error {
+func (p *Process) buildGroupTransaction(ctx context.Context, group *mtg.Group, evt *encoding.Event, category string) error {
 	if p.Identifier != evt.Process {
 		panic(evt)
 	}
@@ -136,5 +140,12 @@ func (p *Process) buildGroupTransaction(ctx context.Context, group *mtg.Group, e
 		p.Identifier, evt.Nonce, evt.Asset, evt.Members, evt.Threshold, evt.Amount, traceId)
 	amount := evt.Amount.String()
 	memo := base64.RawURLEncoding.EncodeToString(evt.Extra)
-	return group.BuildTransaction(ctx, evt.Asset, evt.Members, evt.Threshold, amount, memo, traceId, p.Identifier)
+
+	if category == "ASSET" {
+		return group.BuildTransaction(ctx, evt.Asset, evt.Members, evt.Threshold, amount, memo, traceId, p.Identifier)
+	} else if category == "COLLECTIBLE" {
+		return group.BuildCollectibleTransaction(ctx, evt.Members, evt.Threshold, evt.Extra, evt.Asset)
+	}
+
+	panic(category)
 }

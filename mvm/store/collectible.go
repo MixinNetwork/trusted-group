@@ -8,7 +8,32 @@ import (
 
 const (
 	prefixCollectibleTokenMeta = "MVM:COLLECTIBLE:TOKEN:META:"
+	prefixCollectibleOrAsset   = "MVM:OR:COLLECTIBLE:ASSET:"
 )
+
+func (bs *BadgerStore) ReadAssetOrCollectible(id string) (string, error) {
+	txn := bs.Badger().NewTransaction(false)
+	defer txn.Discard()
+
+	key := []byte(prefixCollectibleOrAsset + id)
+	item, err := txn.Get(key)
+	if err == badger.ErrKeyNotFound {
+		return "", nil
+	} else if err != nil {
+		return "", err
+	}
+
+	val, err := item.ValueCopy(nil)
+	return string(val), err
+}
+
+func (bs *BadgerStore) WriteAssetOrCollectible(id, cat string) error {
+	return bs.Badger().Update(func(txn *badger.Txn) error {
+		key := []byte(prefixCollectibleOrAsset + id)
+		val := []byte(cat)
+		return txn.Set(key, val)
+	})
+}
 
 func (bs *BadgerStore) ReadCollectibleToken(id string) (*machine.CollectibleToken, error) {
 	txn := bs.Badger().NewTransaction(false)
