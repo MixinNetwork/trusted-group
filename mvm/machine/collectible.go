@@ -4,12 +4,66 @@ import (
 	"context"
 
 	"github.com/MixinNetwork/mixin/common"
+	"github.com/MixinNetwork/nfo/mtg"
+	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 )
 
 type CollectibleToken struct {
 	Id     string
 	Symbol string
 	Name   string
+}
+
+func (m *Machine) WriteNFOGroupEvent(ctx context.Context, pid string, out *mtg.CollectibleOutput, extra []byte) {
+	m.procLock.RLock()
+	defer m.procLock.RUnlock()
+
+	proc := m.processes[pid]
+	if proc == nil {
+		return
+	}
+	if proc.Asset {
+		meta, err := m.fetchCollectibleToken(ctx, out.TokenId)
+		if err != nil {
+			panic(err)
+		}
+		extra = append(meta, extra...)
+	}
+	if len(extra) > encoding.EventExtraMaxSize {
+		return
+	}
+
+	done, err := m.store.CheckPendingGroupEventIdentifier(out.OutputId)
+	if err != nil {
+		panic(err)
+	} else if done {
+		return
+	}
+
+	amount := common.NewIntegerFromString(out.Amount)
+	if amount.Cmp(common.NewInteger(1)) != 0 {
+		panic(out.Amount)
+	}
+	evt := &encoding.Event{
+		Process:   proc.Identifier,
+		Asset:     out.TokenId,
+		Members:   out.Senders,
+		Threshold: int(out.SendersThreshold),
+		Amount:    amount,
+		Extra:     extra,
+		Timestamp: uint64(out.CreatedAt.UnixNano()),
+		Nonce:     proc.Nonce,
+	}
+	as := proc.buildAccountSnapshot(evt, true)
+	err = m.store.WriteAccountSnapshot(as)
+	if err != nil {
+		panic(err)
+	}
+	err = m.store.WritePendingGroupEventAndNonce(evt, out.OutputId)
+	if err != nil {
+		panic(err)
+	}
+	proc.Nonce = proc.Nonce + 1
 }
 
 func (m *Machine) fetchCollectibleToken(ctx context.Context, id string) ([]byte, error) {
