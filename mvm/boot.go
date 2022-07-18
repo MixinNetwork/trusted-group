@@ -97,6 +97,7 @@ func bootCmd(c *cli.Context) error {
 	}
 
 	go im.Loop(ctx)
+	go RunMonitor(ctx, messenger, db)
 
 	group.SetOutputGrouper(machine.OutputGrouper)
 	group.AddWorker(im)
