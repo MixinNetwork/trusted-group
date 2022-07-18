@@ -14,28 +14,28 @@ func RunMonitor(ctx context.Context, messenger messenger.Messenger, store machin
 	startedAt := time.Now()
 
 	for {
-		time.Sleep(30 * time.Minute)
 		msg, err := bundleMachineState(ctx, store, startedAt)
 		if err != nil {
 			logger.Verbosef("Monitor.bundleMachineState() => %v", err)
 			continue
 		}
-		err = messenger.BroadcastMessage(ctx, msg)
-		logger.Verbosef("Monitor.BroadcastMessage(%x) => %v", msg, err)
+		err = messenger.BroadcastPlainMessage(ctx, msg)
+		logger.Verbosef("Monitor.BroadcastPlainMessage(%x) => %v", msg, err)
+		time.Sleep(30 * time.Minute)
 	}
 }
 
-func bundleMachineState(ctx context.Context, store machine.Store, startedAt time.Time) ([]byte, error) {
+func bundleMachineState(ctx context.Context, store machine.Store, startedAt time.Time) (string, error) {
 	state := fmt.Sprintf("Run time :%s\n", time.Now().Sub(startedAt).String())
 	procs, err := store.ListProcesses()
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	state = state + fmt.Sprintf("Total processes count: %d\n", len(procs))
 	events, err := store.ListPendingGroupEvents(100)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	state = state + fmt.Sprintf("Pending group events count: %d", len(events))
-	return []byte(state), nil
+	return state, nil
 }
