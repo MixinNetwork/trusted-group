@@ -5,8 +5,8 @@ filippo.io/edwards25519 v1.0.0-rc.1/go.mod h1:N1IkdkCkiLB6tki+MYJoSx2JTY9NUlxZE7
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/MixinNetwork/mixin v0.13.10 h1:Tq48MzTldYz3NUXSu7Nn3pSooeJsFi4YFQoSP/vRxIo=
 github.com/MixinNetwork/mixin v0.13.10/go.mod h1:SpfK1DIrANThX9uBuq6r905ffUspRX6LE3Okp44N29s=
-github.com/MixinNetwork/nfo v0.1.2-0.20220715122853-a541045818c3 h1:PoSWJIfpAu0RC8xqKTgLu0q+znJ4uH3855e2SvdiSdw=
-github.com/MixinNetwork/nfo v0.1.2-0.20220715122853-a541045818c3/go.mod h1:+iGFkTqFT3+tu8yHBNWx3CBnYysjACNtJTASVGKGnh8=
+github.com/MixinNetwork/nfo v0.1.2-0.20220718165052-a7b2a908466a h1:EFixpMw2DtJNbiACNftAkGEWcJ3AbzC9xTmrHa7s8X4=
+github.com/MixinNetwork/nfo v0.1.2-0.20220718165052-a7b2a908466a/go.mod h1:+iGFkTqFT3+tu8yHBNWx3CBnYysjACNtJTASVGKGnh8=
 github.com/MixinNetwork/tip v0.0.0-20220228221951-d9543cfc8f38 h1:yfQrrVJ/cCFG2Sx8TYxwwHl0xYPGov4NeZWpg/Z4E7k=
 github.com/MixinNetwork/tip v0.0.0-20220228221951-d9543cfc8f38/go.mod h1:IO3qSvgI/UrWIFdXC1rYOi1dhPJD1LqwFR0VPnZPzto=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
@@ -184,7 +184,6 @@ github.com/russross/blackfriday/v2 v2.1.0 h1:JIOH55/0cWyOuilr9/qlrm0BSXldqnqwMsf
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/shopspring/decimal v1.3.1 h1:2Usl1nmF/WZucqkFZhnfFYxxxu8LG21F6nPQBE5gKV8=
 github.com/shopspring/decimal v1.3.1/go.mod h1:DKyhrW/HYNuLGql+MJL6WCR6knT2jwCFRcu2hWCYk4o=
-github.com/shurcooL/sanitized_anchor_name v1.0.0 h1:PdmoCO6wvbs+7yrJyMORt4/BmY5IYyJwS/kOiWx8mHo=
 github.com/shurcooL/sanitized_anchor_name v1.0.0/go.mod h1:1NzhyTcUVG4SuEtjjoZeVRXNmyL/1OwPU0+IJeTBvfc=
 github.com/spaolacci/murmur3 v0.0.0-20180118202830-f09979ecbc72/go.mod h1:JwIasOWyU6f++ZhiEuf87xNszmSA2myDM2Kzu9HwQUA=
 github.com/spaolacci/murmur3 v1.1.0/go.mod h1:JwIasOWyU6f++ZhiEuf87xNszmSA2myDM2Kzu9HwQUA=
