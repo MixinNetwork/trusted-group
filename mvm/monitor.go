@@ -26,16 +26,16 @@ func RunMonitor(ctx context.Context, messenger messenger.Messenger, store machin
 }
 
 func bundleMachineState(ctx context.Context, store machine.Store, startedAt time.Time) (string, error) {
-	state := fmt.Sprintf("Run time :%s\n", time.Now().Sub(startedAt).String())
+	state := fmt.Sprintf("⏲️ Run time :%s\n", time.Now().Sub(startedAt).String())
 	procs, err := store.ListProcesses()
 	if err != nil {
 		return "", err
 	}
-	state = state + fmt.Sprintf("Total processes count: %d\n", len(procs))
+	state = state + fmt.Sprintf("🎆 Total processes count: %d\n", len(procs))
 	events, err := store.ListPendingGroupEvents(100)
 	if err != nil {
 		return "", err
 	}
-	state = state + fmt.Sprintf("Pending group events count: %d", len(events))
+	state = state + fmt.Sprintf("🚴 Pending group events count: %d", len(events))
 	return state, nil
 }

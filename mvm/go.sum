@@ -5,8 +5,8 @@ filippo.io/edwards25519 v1.0.0-rc.1/go.mod h1:N1IkdkCkiLB6tki+MYJoSx2JTY9NUlxZE7
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/MixinNetwork/mixin v0.13.10 h1:Tq48MzTldYz3NUXSu7Nn3pSooeJsFi4YFQoSP/vRxIo=
 github.com/MixinNetwork/mixin v0.13.10/go.mod h1:SpfK1DIrANThX9uBuq6r905ffUspRX6LE3Okp44N29s=
-github.com/MixinNetwork/nfo v0.1.2-0.20220719061119-a54503aadc91 h1:W9cuR+JSnM2mebNqwuRSrIz7fd6cvbin5/6kXUIW/Ic=
-github.com/MixinNetwork/nfo v0.1.2-0.20220719061119-a54503aadc91/go.mod h1:+iGFkTqFT3+tu8yHBNWx3CBnYysjACNtJTASVGKGnh8=
+github.com/MixinNetwork/nfo v0.1.2-0.20220719151850-2f5cc5e3df50 h1:RgYz22weMw2IM+K1JPGYxChSIwKnxHLYeU3oOI6IZa0=
+github.com/MixinNetwork/nfo v0.1.2-0.20220719151850-2f5cc5e3df50/go.mod h1:+iGFkTqFT3+tu8yHBNWx3CBnYysjACNtJTASVGKGnh8=
 github.com/MixinNetwork/tip v0.0.0-20220718172842-5937b26d132a h1:7DcBX+UmKA89aJN8huh1aMlnCMLzZDL6lg1DyhLLpak=
 github.com/MixinNetwork/tip v0.0.0-20220718172842-5937b26d132a/go.mod h1:IO3qSvgI/UrWIFdXC1rYOi1dhPJD1LqwFR0VPnZPzto=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
