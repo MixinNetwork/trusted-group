@@ -166,6 +166,7 @@ func (m *Machine) AddProcess(ctx context.Context, pid string, platform, address 
 }
 
 func (m *Machine) WriteGroupEvent(ctx context.Context, pid string, out *mtg.Output, extra []byte) {
+	logger.Verbosef("Machine.WriteGroupEvent(%s, %v, %x)", pid, out, extra)
 	m.procLock.RLock()
 	defer m.procLock.RUnlock()
 

@@ -18,8 +18,8 @@ type Asset struct {
 
 func (m *Machine) ProcessOutput(ctx context.Context, out *mtg.Output) {
 	op, err := parseOperation(out.Memo)
+	logger.Verbosef("Machine.ProcessOutput(%v) => %v %s", out, op, err)
 	if err != nil {
-		logger.Verbosef("parseOperation(%s) => %s", out.Memo, err)
 		return
 	}
 	switch op.Purpose {
@@ -32,8 +32,8 @@ func (m *Machine) ProcessOutput(ctx context.Context, out *mtg.Output) {
 
 func (m *Machine) ProcessCollectibleOutput(ctx context.Context, out *mtg.CollectibleOutput) {
 	op, err := parseOperation(out.Memo)
+	logger.Verbosef("Machine.ProcessCollectibleOutput(%v) => %v %s", out, op, err)
 	if err != nil {
-		logger.Verbosef("parseOperation(%s) => %s", out.Memo, err)
 		return
 	}
 	switch op.Purpose {

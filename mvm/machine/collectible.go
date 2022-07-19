@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/MixinNetwork/mixin/common"
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/nfo/mtg"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 )
@@ -15,6 +16,7 @@ type CollectibleToken struct {
 }
 
 func (m *Machine) WriteNFOGroupEvent(ctx context.Context, pid string, out *mtg.CollectibleOutput, extra []byte) {
+	logger.Verbosef("Machine.WriteNFOGroupEvent(%s, %v, %x)", pid, out, extra)
 	m.procLock.RLock()
 	defer m.procLock.RUnlock()
 
