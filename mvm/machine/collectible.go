@@ -42,7 +42,7 @@ func (m *Machine) WriteNFOGroupEvent(ctx context.Context, pid string, out *mtg.C
 		return
 	}
 
-	amount := common.NewIntegerFromString(out.Amount)
+	amount := common.NewIntegerFromString(out.Amount.String())
 	if amount.Cmp(common.NewInteger(1)) != 0 {
 		panic(out.Amount)
 	}
