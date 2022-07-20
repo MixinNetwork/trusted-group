@@ -110,6 +110,10 @@ func main() {
 						Usage: "Asset amount",
 					},
 					&cli.StringFlag{
+						Name:  "token",
+						Usage: "Collectible Token ID",
+					},
+					&cli.StringFlag{
 						Name:    "extra",
 						Aliases: []string{"e"},
 						Usage:   "The extra",
