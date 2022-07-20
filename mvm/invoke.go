@@ -77,7 +77,7 @@ func invokeProcessCmd(c *cli.Context) error {
 
 	token := uuid.FromStringOrNil(c.String("token"))
 	if token.String() == c.String("token") {
-		return doCollectible(ctx, client, conf, c)
+		return doCollectible(ctx, client, conf, c, key.PIN)
 	}
 	return doPayment(ctx, client, conf, c)
 }
@@ -119,7 +119,7 @@ func doPayment(ctx context.Context, client *mixin.Client, conf *config.Configura
 	return nil
 }
 
-func doCollectible(ctx context.Context, client *mixin.Client, conf *config.Configuration, c *cli.Context) error {
+func doCollectible(ctx context.Context, client *mixin.Client, conf *config.Configuration, c *cli.Context, pin string) error {
 	token, err := client.ReadCollectiblesToken(ctx, c.String("token"))
 	if err != nil {
 		return err
@@ -154,7 +154,7 @@ func doCollectible(ctx context.Context, client *mixin.Client, conf *config.Confi
 	if err != nil {
 		return err
 	}
-	req, err = client.SignCollectibleRequest(ctx, req.RequestID, client.PIN)
+	req, err = client.SignCollectibleRequest(ctx, req.RequestID, pin)
 	if err != nil {
 		return err
 	}
