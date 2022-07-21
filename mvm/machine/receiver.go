@@ -31,6 +31,10 @@ func (m *Machine) ProcessOutput(ctx context.Context, out *mtg.Output) {
 }
 
 func (m *Machine) ProcessCollectibleOutput(ctx context.Context, out *mtg.CollectibleOutput) {
+	if out.OutputId == "8f96c027-fbf0-39dc-99b7-6ba6cdf9c66c" {
+		// because the sdk bug, this output is skipped, and should always be in the future
+		return
+	}
 	op, err := parseOperation(out.Memo)
 	logger.Verbosef("Machine.ProcessCollectibleOutput(%v) => %v %v", out, op, err)
 	if err != nil {
