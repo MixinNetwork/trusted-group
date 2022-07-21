@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"os/user"
@@ -123,7 +122,7 @@ func doCollectible(ctx context.Context, client *mixin.Client, conf *config.Confi
 	token, err := client.ReadCollectiblesToken(ctx, c.String("token"))
 	if err != nil {
 		return err
-	} else {
+	} else if token == nil {
 		return fmt.Errorf("invalid token id %s", c.String("token"))
 	}
 	outputs, err := readUnspentCollectibleOutputs(ctx, client, []string{client.ClientID}, 1, time.Time{}, 500)
@@ -211,8 +210,8 @@ func readUnspentCollectibleOutputs(ctx context.Context, client *mixin.Client, me
 	if limit > 0 {
 		params["limit"] = fmt.Sprint(limit)
 	}
-	if threshold < 1 || int(threshold) >= len(members) {
-		return nil, errors.New("invalid members")
+	if threshold < 1 || int(threshold) > len(members) {
+		return nil, fmt.Errorf("invalid members %v %d", members, threshold)
 	}
 	params["members"] = mixin.HashMembers(members)
 	params["threshold"] = fmt.Sprint(threshold)
