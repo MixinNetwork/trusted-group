@@ -8,6 +8,7 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/nfo/mtg"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
+	"github.com/fox-one/mixin-sdk-go"
 )
 
 type Asset struct {
@@ -15,6 +16,16 @@ type Asset struct {
 	Symbol string
 	Name   string
 }
+
+var (
+	// because the sdk bug, this output is skipped, and should always be in the future
+	InvalidCollectibleOutputHackMap = map[string]bool{
+		"271d7ef5-6bf3-3b96-9c0c-701f7a989435": true,
+		"8f96c027-fbf0-39dc-99b7-6ba6cdf9c66c": true,
+		"5bb0997f-669a-3e65-8c2f-5cc15de4c9ca": true,
+		"175620b8-f4b8-3e66-84bb-669c62d5140d": true,
+	}
+)
 
 func (m *Machine) ProcessOutput(ctx context.Context, out *mtg.Output) {
 	op, err := parseOperation(out.Memo)
@@ -31,8 +42,7 @@ func (m *Machine) ProcessOutput(ctx context.Context, out *mtg.Output) {
 }
 
 func (m *Machine) ProcessCollectibleOutput(ctx context.Context, out *mtg.CollectibleOutput) {
-	if out.OutputId == "8f96c027-fbf0-39dc-99b7-6ba6cdf9c66c" {
-		// because the sdk bug, this output is skipped, and should always be in the future
+	if InvalidCollectibleOutputHackMap[out.OutputId] {
 		return
 	}
 	op, err := parseOperation(out.Memo)
@@ -61,6 +71,9 @@ func (m *Machine) checkAssetOrCollectible(ctx context.Context, id string) (strin
 	}
 
 	asset, err := m.fetchAssetMeta(ctx, id)
+	if mixin.IsErrorCodes(err, 404, 10002) {
+		err = nil
+	}
 	if err != nil {
 		return "", err
 	} else if asset != nil {
