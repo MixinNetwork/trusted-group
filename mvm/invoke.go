@@ -145,6 +145,13 @@ func doCollectible(ctx context.Context, client *mixin.Client, conf *config.Confi
 		return err
 	}
 	extra, _ := hex.DecodeString(c.String("extra"))
+	op := &encoding.Operation{
+		Purpose: encoding.OperationPurposeGroupEvent,
+		Process: c.String("process"),
+		Extra:   extra,
+	}
+	extra = []byte(base64.RawURLEncoding.EncodeToString(op.Encode()))
+
 	raw, err := buildRawCollectibleTransaction(ctx, client, conf, token, out, extra, trace.String())
 	if err != nil {
 		return err
