@@ -144,8 +144,7 @@ func (p *Process) buildGroupTransaction(ctx context.Context, group *mtg.Group, e
 	if category == "ASSET" {
 		return group.BuildTransaction(ctx, evt.Asset, evt.Members, evt.Threshold, amount, memo, traceId, p.Identifier)
 	} else if category == "COLLECTIBLE" {
-		nfo := mtg.BuildExtraNFO(evt.Extra)
-		return group.BuildCollectibleTransaction(ctx, evt.Members, evt.Threshold, nfo, evt.Asset, traceId)
+		return group.BuildCollectibleTransferTransaction(ctx, evt.Members, evt.Threshold, memo, evt.Asset, traceId)
 	}
 
 	panic(category)
