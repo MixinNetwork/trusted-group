@@ -154,6 +154,9 @@ func (m *Machine) appendPendingGroupEventSignature(e *encoding.Event, msg, parti
 		return nil
 	}
 
+	// FIXME remove this hack for old invalid data
+	partials = m.removeInvalidPartials(msg, partials)
+
 	if checkSignedWith(partials, partial) {
 		return nil
 	}
@@ -166,6 +169,18 @@ func (m *Machine) appendPendingGroupEventSignature(e *encoding.Event, msg, parti
 	e.Signature = m.recoverSignature(msg, partials)
 	logger.Verbosef("loopSignGroupEvents() => WriteSignedGroupEventAndExpirePending(%v) recover", e)
 	return m.store.WriteSignedGroupEventAndExpirePending(e)
+}
+
+func (m *Machine) removeInvalidPartials(msg []byte, inputs [][]byte) [][]byte {
+	var partials [][]byte
+	for _, p := range inputs {
+		scheme := tbls.NewThresholdSchemeOnG1(en256.NewSuiteG2())
+		err := scheme.VerifyPartial(m.poly, msg, p)
+		if err == nil {
+			partials = append(partials, p)
+		}
+	}
+	return partials
 }
 
 func (m *Machine) writeSignedGroupEventAndExpirePending(e *encoding.Event) error {
