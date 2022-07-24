@@ -24,6 +24,7 @@ var (
 		"8f96c027-fbf0-39dc-99b7-6ba6cdf9c66c": true,
 		"5bb0997f-669a-3e65-8c2f-5cc15de4c9ca": true,
 		"175620b8-f4b8-3e66-84bb-669c62d5140d": true,
+		"ad5b6f50-0cca-36fa-b8cc-de3641ab0428": true,
 	}
 )
 
