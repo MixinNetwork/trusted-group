@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
@@ -122,7 +123,17 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 			m.messenger.QueueMessage(ctx, peer, append(evt.Encode(), threshold...))
 			sm[evt.ID()] = time.Now()
 		default:
-			// FIXME ensure valid partial signature
+			scheme := tbls.NewThresholdSchemeOnG1(en256.NewSuiteG2())
+			err = scheme.VerifyPartial(m.poly, msg, sig)
+			if err != nil {
+				logger.Verbosef("scheme.VerifyPartial(%s, %x, %x) => %v", peer, msg, sig, err)
+				warn := fmt.Sprintf("⚠️⚠️⚠️⚠️⚠️⚠️⚠️\nINVALID SIGNATURE\n%s\n%v\n%x\n%x", peer, evt, msg, sig)
+				err = m.messenger.BroadcastPlainMessage(ctx, warn)
+				if err != nil {
+					panic(err)
+				}
+				continue
+			}
 			err = m.appendPendingGroupEventSignature(evt, msg, sig)
 			if err != nil {
 				panic(err)
