@@ -2,6 +2,7 @@ package machine
 
 import (
 	"context"
+	"strings"
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
@@ -99,4 +100,8 @@ func encodeCollectibleMeta(symbol, name string) []byte {
 	enc.WriteInt(len(name))
 	enc.Write([]byte(name))
 	return enc.Bytes()
+}
+
+func matchCollectibleMeta(symbol, name string) bool {
+	return strings.HasPrefix(symbol, "NFT#") && strings.HasPrefix(name, "Collectible ")
 }

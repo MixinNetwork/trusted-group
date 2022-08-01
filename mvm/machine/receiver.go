@@ -70,7 +70,7 @@ func (m *Machine) checkAssetOrCollectible(ctx context.Context, id string) (strin
 		return cat, err
 	}
 
-	asset, err := m.fetchAssetMeta(ctx, id)
+	asset, err := m.fetchAssetMeta(ctx, id, false)
 	if mixin.IsErrorCodes(err, 404, 10002) {
 		err = nil
 	}
@@ -90,7 +90,7 @@ func (m *Machine) checkAssetOrCollectible(ctx context.Context, id string) (strin
 	panic(id)
 }
 
-func (m *Machine) fetchAssetMeta(ctx context.Context, id string) ([]byte, error) {
+func (m *Machine) fetchAssetMeta(ctx context.Context, id string, skipCM bool) ([]byte, error) {
 	old, err := m.store.ReadAsset(id)
 	if err != nil {
 		return nil, err
@@ -100,6 +100,9 @@ func (m *Machine) fetchAssetMeta(ctx context.Context, id string) ([]byte, error)
 	asset, err := m.mixin.ReadAsset(ctx, id)
 	if err != nil || asset == nil {
 		return nil, err
+	}
+	if skipCM && matchCollectibleMeta(asset.Symbol, asset.Name) {
+		return nil, nil
 	}
 	err = m.store.WriteAsset(&Asset{
 		Id:     id,

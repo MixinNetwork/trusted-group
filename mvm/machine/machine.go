@@ -174,11 +174,14 @@ func (m *Machine) WriteGroupEvent(ctx context.Context, pid string, out *mtg.Outp
 	if proc == nil {
 		return
 	}
+	meta, err := m.fetchAssetMeta(ctx, out.AssetID, true)
+	if err != nil {
+		panic(err)
+	}
+	if meta == nil {
+		return
+	}
 	if proc.Asset {
-		meta, err := m.fetchAssetMeta(ctx, out.AssetID)
-		if err != nil {
-			panic(err)
-		}
 		extra = append(meta, extra...)
 	}
 	if len(extra) > encoding.EventExtraMaxSize {
