@@ -21,10 +21,10 @@ const (
 	EventMethod = "0x5cae8005"
 
 	GasLimit = 8000000
-	GasPrice = 1000000000
+	GasPrice = 50000000
 
-	NotifierMinimumBalance = 0.1
-	NotifierMaximumBalance = 1
+	NotifierMinimumBalance = 0.02
+	NotifierMaximumBalance = 0.1
 )
 
 type Configuration struct {
