@@ -22,6 +22,7 @@ type Proxy struct {
 	key      *mixin.Keystore
 	storage  *abi.StorageContract
 	bridge   *abi.BridgeContract
+	mirror   *abi.MirrorContract
 	registry *abi.RegistryContract
 	signer   *bind.TransactOpts
 }
@@ -39,6 +40,10 @@ func NewProxy(ctx context.Context, kst *mixin.Keystore, conn *ethclient.Client) 
 	if err != nil {
 		panic(err)
 	}
+	pm, err := abi.NewMirrorContract(common.HexToAddress(MVMMirrorContract), conn)
+	if err != nil {
+		panic(err)
+	}
 	pr, err := abi.NewRegistryContract(common.HexToAddress(MVMRegistryContract), conn)
 	if err != nil {
 		panic(err)
@@ -53,7 +58,7 @@ func NewProxy(ctx context.Context, kst *mixin.Keystore, conn *ethclient.Client) 
 	if err != nil {
 		panic(err)
 	}
-	proxy := &Proxy{client, kst, ps, pb, pr, signer}
+	proxy := &Proxy{client, kst, ps, pb, pm, pr, signer}
 	_, err = proxy.UserMe(ctx)
 	if err != nil {
 		panic(err)
