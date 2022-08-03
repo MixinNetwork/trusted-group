@@ -64,6 +64,9 @@ contract Mirror {
         bytes memory _data
     ) external returns (bytes4) {
         address receiver = bridges[_from];
+        if (receiver == address(0)) {
+            receiver = parseDataAsReceiver(_data, 0);
+        }
         require(receiver != address(0), "no address bound");
 
         Collectible(msg.sender).burn(_tokenId);
@@ -90,12 +93,12 @@ contract Mirror {
 
         bytes memory uri = addressToFixedBytes(asset);
         uri = bytes.concat("https://bridge.mvm.dev/collectibles/", uri);
-        Collectible(collectible).mint(msg.sender, token, string(uri));
+        Collectible(collectible).mint(receiver, token, string(uri));
         tokens[collectible][token] = asset;
         mints[asset].collection = collectible;
         mints[asset].id = token;
 
-        IERC20(asset).transferFrom(msg.sender, receiver, AMOUNT);
+        IERC20(asset).transferFrom(msg.sender, address(this), AMOUNT);
         emit Through(collectible, msg.sender, receiver, token);
     }
 
@@ -175,6 +178,24 @@ contract Mirror {
             }
         }
         return addr;
+    }
+
+    function parseDataAsReceiver(bytes memory _bytes, uint256 _start)
+        internal
+        pure
+        returns (address)
+    {
+        require(_bytes.length >= _start + 20, "toAddress_outOfBounds");
+        address tempAddress;
+
+        assembly {
+            tempAddress := div(
+                mload(add(add(_bytes, 0x20), _start)),
+                0x1000000000000000000000000
+            )
+        }
+
+        return tempAddress;
     }
 
     function addressToFixedBytes(address x)
