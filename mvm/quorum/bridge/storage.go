@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/binary"
+	"encoding/hex"
 	"time"
 
 	"github.com/MixinNetwork/mixin/common"
@@ -11,12 +12,15 @@ import (
 )
 
 const (
-	storePrefixUser               = "USER:"
-	storePrefixAsset              = "ASSET:"
-	storePrefixAddress            = "ADDRESS:"
-	storePrefixSnapshotList       = "SNAPSHOT:LIST:"
-	storePrefixSnapshotCheckpoint = "SNAPSHOT:CHECKPOINT"
-	storePrefixWithdrawalPair     = "WITHDRAWAL:PAIR:"
+	storePrefixUser                        = "USER:"
+	storePrefixAsset                       = "ASSET:"
+	storePrefixAddress                     = "ADDRESS:"
+	storePrefixSnapshotList                = "SNAPSHOT:LIST:"
+	storePrefixSnapshotCheckpoint          = "SNAPSHOT:CHECKPOINT"
+	storePrefixWithdrawalPair              = "WITHDRAWAL:PAIR:"
+	storePrefixCollectibleOutputCheckpoint = "COLLECTIBLE:OUTPUT:CHECKPOINT"
+	storePrefixCollectibleOutputList       = "COLLECTIBLE:OUTPUT:LIST:"
+	storePrefixCollectibleRawTransaction   = "COLLECTIBLE:RAW:TRANSACTION:"
 )
 
 type Storage struct {
@@ -64,10 +68,19 @@ func (s *Storage) readAsset(id string) (*mixin.Asset, error) {
 }
 
 func (s *Storage) readSnapshotsCheckpoint(ctx context.Context) (time.Time, error) {
+	key := []byte(storePrefixSnapshotCheckpoint)
+	return s.readCheckpoint(ctx, key)
+}
+
+func (s *Storage) writeSnapshotsCheckpoint(ctx context.Context, ckpt time.Time) error {
+	key := []byte(storePrefixSnapshotCheckpoint)
+	return s.writeCheckpoint(ctx, key, ckpt)
+}
+
+func (s *Storage) readCheckpoint(ctx context.Context, key []byte) (time.Time, error) {
 	txn := s.NewTransaction(false)
 	defer txn.Discard()
 
-	key := []byte(storePrefixSnapshotCheckpoint)
 	item, err := txn.Get(key)
 	if err == badger.ErrKeyNotFound {
 		return time.Now(), nil
@@ -82,9 +95,8 @@ func (s *Storage) readSnapshotsCheckpoint(ctx context.Context) (time.Time, error
 	return time.Unix(0, int64(ckpt)), nil
 }
 
-func (s *Storage) writeSnapshotsCheckpoint(ctx context.Context, ckpt time.Time) error {
+func (s *Storage) writeCheckpoint(ctx context.Context, key []byte, ckpt time.Time) error {
 	return s.Update(func(txn *badger.Txn) error {
-		key := []byte(storePrefixSnapshotCheckpoint)
 		val := timeToBytes(ckpt)
 		return txn.Set(key, val)
 	})
@@ -297,4 +309,113 @@ func timeToBytes(t time.Time) []byte {
 	now := uint64(t.UnixNano())
 	binary.BigEndian.PutUint64(buf, now)
 	return buf
+}
+
+func (s *Storage) readCollectiblesCheckpoint(ctx context.Context) (time.Time, error) {
+	key := []byte(storePrefixCollectibleOutputCheckpoint)
+	return s.readCheckpoint(ctx, key)
+}
+
+func (s *Storage) writeCollectiblesCheckpoint(ctx context.Context, ckpt time.Time) error {
+	key := []byte(storePrefixCollectibleOutputCheckpoint)
+	return s.writeCheckpoint(ctx, key, ckpt)
+}
+
+func (s *Storage) writeCollectibleOutput(out *mixin.CollectibleOutput) error {
+	return s.Update(func(txn *badger.Txn) error {
+		key := collectibleOutputKey(out)
+		val := common.CompressMsgpackMarshalPanic(out)
+		return txn.Set(key, val)
+	})
+}
+
+func (s *Storage) listCollectibleOutputs(limit int) ([]*mixin.CollectibleOutput, error) {
+	outputs := make([]*mixin.CollectibleOutput, 0)
+	txn := s.NewTransaction(false)
+	defer txn.Discard()
+
+	opts := badger.DefaultIteratorOptions
+	opts.Prefix = []byte(storePrefixCollectibleOutputList)
+	it := txn.NewIterator(opts)
+	defer it.Close()
+
+	it.Seek(opts.Prefix)
+	for ; it.Valid() && len(outputs) < limit; it.Next() {
+		item := it.Item()
+		v, err := item.ValueCopy(nil)
+		if err != nil {
+			return outputs, err
+		}
+		var out mixin.CollectibleOutput
+		err = common.DecompressMsgpackUnmarshal(v, &out)
+		if err != nil {
+			return outputs, err
+		}
+		outputs = append(outputs, &out)
+	}
+
+	return outputs, nil
+}
+
+func (s *Storage) deleteCollectibleOutputs(outs []*mixin.CollectibleOutput) error {
+	return s.Update(func(txn *badger.Txn) error {
+		for _, out := range outs {
+			key := collectibleOutputKey(out)
+			err := txn.Delete(key)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (s *Storage) writeCollectibleRawTransaction(raw string) error {
+	b, _ := hex.DecodeString(raw)
+	ver, _ := common.UnmarshalVersionedTransaction(b)
+	return s.Update(func(txn *badger.Txn) error {
+		key := storePrefixCollectibleRawTransaction + ver.PayloadHash().String()
+		return txn.Set([]byte(key), []byte(raw))
+	})
+}
+
+func (s *Storage) listCollectibleRawTransactions(limit int) (map[string]string, error) {
+	raws := make(map[string]string)
+	txn := s.NewTransaction(false)
+	defer txn.Discard()
+
+	opts := badger.DefaultIteratorOptions
+	opts.Prefix = []byte(storePrefixCollectibleRawTransaction)
+	it := txn.NewIterator(opts)
+	defer it.Close()
+
+	it.Seek(opts.Prefix)
+	for ; it.Valid() && len(raws) < limit; it.Next() {
+		item := it.Item()
+		v, err := item.ValueCopy(nil)
+		if err != nil {
+			return raws, err
+		}
+		key := item.Key()[len(storePrefixCollectibleRawTransaction):]
+		raws[string(key)] = string(v)
+	}
+
+	return raws, nil
+}
+
+func (s *Storage) deleteCollectibleRawTransaction(raw string) error {
+	b, _ := hex.DecodeString(raw)
+	ver, _ := common.UnmarshalVersionedTransaction(b)
+	return s.Update(func(txn *badger.Txn) error {
+		key := storePrefixCollectibleRawTransaction + ver.PayloadHash().String()
+		return txn.Delete([]byte(key))
+	})
+}
+
+func collectibleOutputKey(o *mixin.CollectibleOutput) []byte {
+	key := []byte(storePrefixCollectibleOutputList)
+	buf := timeToBytes(o.CreatedAt)
+	key = append(key, buf...)
+	key = append(key, o.OutputID...)
+	return key
 }

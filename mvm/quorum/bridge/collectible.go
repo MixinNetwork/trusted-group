@@ -10,6 +10,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/nfo/mtg"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/fox-one/mixin-sdk-go"
@@ -20,9 +21,123 @@ const (
 	nfoAssetId = "1700941284a95f31b25ec8c546008f208f88eee4419ccdcdbe6e3195e60128ca" // FIXME
 )
 
-func (u *User) bindAndPassCollectible(ctx context.Context, p *Proxy, out *mixin.CollectibleOutput, addr string) error {
+func (p *Proxy) loopCollectibleOutputs(ctx context.Context, store *Storage) error {
+	ckpt, err := store.readCollectiblesCheckpoint(ctx)
+	if err != nil {
+		return err
+	}
+	outputs, err := p.readNetworkCollectibleOutputs(ctx, ckpt, 500)
+	logger.Verbosef("Proxy.loopSnapshots(%s) => %d %v", ckpt, len(outputs), err)
+	if err != nil {
+		return err
+	}
+
+	for _, o := range outputs {
+		ckpt = o.CreatedAt
+		if o.UserID == "" {
+			continue
+		}
+		if len(o.Receivers) != 1 || o.ReceiversThreshold != 1 {
+			continue
+		}
+		if o.Receivers[0] != o.UserID {
+			continue
+		}
+		logger.Verbosef("Proxy.loopCollectibleOutputs(%s) => %d %v => %v", ckpt, len(outputs), err, *o)
+		err = store.writeCollectibleOutput(o)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = store.writeCollectiblesCheckpoint(ctx, ckpt)
+	if err != nil {
+		return err
+	}
+	if len(outputs) < 500 {
+		time.Sleep(time.Second * 2)
+	}
+	return nil
+}
+
+func (p *Proxy) processCollectibleOutputs(ctx context.Context, store *Storage) {
+	outputs, err := store.listCollectibleOutputs(100)
+	if err != nil {
+		panic(err)
+	}
+
+	for _, o := range outputs {
+		user, err := store.readUserById(o.UserID)
+		if err != nil {
+			panic(err)
+		}
+		if user == nil {
+			continue
+		}
+		err = p.processCollectibleOutputForUser(ctx, store, o, user)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	err = store.deleteCollectibleOutputs(outputs)
+	if err != nil {
+		panic(err)
+	}
+	if len(outputs) < 100 {
+		time.Sleep(1 * time.Second)
+	}
+}
+
+func (p *Proxy) processCollectibleRawTransactions(ctx context.Context, store *Storage) {
+	raws, err := store.listCollectibleRawTransactions(100)
+	if err != nil {
+		panic(err)
+	}
+
+	for key, raw := range raws {
+		hash, err := p.SendRawTransaction(ctx, raw)
+		if err != nil {
+			panic(err)
+		}
+		if hash.String() != key {
+			panic(raw)
+		}
+		tx, err := p.GetRawTransaction(ctx, *hash)
+		if err != nil {
+			panic(err)
+		}
+		if tx == nil || tx.Snapshot == nil {
+			continue
+		}
+		err = store.deleteCollectibleRawTransaction(raw)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	if len(raws) < 100 {
+		time.Sleep(1 * time.Second)
+	}
+}
+
+func (p *Proxy) processCollectibleOutputForUser(ctx context.Context, store *Storage, o *mixin.CollectibleOutput, user *User) error {
+	/*
+		act, err := p.decodeCollectibleAction(user, o)
+		if err != nil {
+			return err
+		}
+		if act != nil && user.handleCollectible(ctx, store, o, act) == nil {
+			return nil
+		}
+	*/
+	return user.bindAndPassCollectible(ctx, p, o)
+}
+
+func (u *User) bindAndPassCollectible(ctx context.Context, p *Proxy, out *mixin.CollectibleOutput) error {
+	logger.Verbosef("User.bindAndPassCollectible(%v)", *out)
 	traceId := mixin.UniqueConversationID(out.OutputID, "BIND||PASS")
-	extra := u.buildCollectibleExtra(p, addr, out.TokenID)
+	extra := u.buildCollectibleExtra(p, u.FullName, out.TokenID)
 	op := &encoding.Operation{
 		Purpose: encoding.OperationPurposeGroupEvent,
 		Process: MVMRegistryId,
@@ -42,11 +157,7 @@ func (u *User) bindAndPassCollectible(ctx context.Context, p *Proxy, out *mixin.
 	if err != nil {
 		return err
 	}
-	hash, err := p.SendRawTransaction(ctx, req.RawTransaction)
-	if err != nil {
-		return err
-	}
-	return nil
+	return store.writeCollectibleRawTransaction(req.RawTransaction)
 }
 
 func (u *User) buildCollectibleExtra(p *Proxy, addr, token string) []byte {
@@ -131,7 +242,7 @@ func newCommonOutput(out *mixin.Output) *common.Output {
 	return cout
 }
 
-func (p *Proxy) readNetworkCollectibleOutputs(ctx context.Context, members []string, threshold uint8, offset time.Time, limit int) ([]*mixin.CollectibleOutput, error) {
+func (p *Proxy) readNetworkCollectibleOutputs(ctx context.Context, offset time.Time, limit int) ([]*mixin.CollectibleOutput, error) {
 	params := make(map[string]string)
 	if !offset.IsZero() {
 		params["offset"] = offset.UTC().Format(time.RFC3339Nano)
@@ -139,15 +250,9 @@ func (p *Proxy) readNetworkCollectibleOutputs(ctx context.Context, members []str
 	if limit > 0 {
 		params["limit"] = fmt.Sprint(limit)
 	}
-	if threshold < 1 || int(threshold) > len(members) {
-		return nil, fmt.Errorf("invalid members %v %d", members, threshold)
-	}
-	params["members"] = mixin.HashMembers(members)
-	params["threshold"] = fmt.Sprint(threshold)
-	params["state"] = "unspent"
 
 	var outputs []*mixin.CollectibleOutput
-	err := p.Get(ctx, "/collectibles/outputs", params, &outputs)
+	err := p.Get(ctx, "/network/collectibles/outputs", params, &outputs)
 	if err != nil {
 		return nil, err
 	}
