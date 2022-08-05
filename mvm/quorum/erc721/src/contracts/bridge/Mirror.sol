@@ -65,7 +65,7 @@ contract Mirror {
     ) external returns (bytes4) {
         address receiver = bridges[_from];
         if (receiver == address(0)) {
-            receiver = parseDataAsReceiver(_data, 0);
+            (receiver, _data) = parseDataAsReceiver(_data);
         }
         require(receiver != address(0), "no address bound");
 
@@ -92,11 +92,8 @@ contract Mirror {
         (bytes memory tsb, uint256 token) = parseSymbol(bytes(erc20.symbol()));
         address collectible = getOrCreateCollectibleContract(collection);
 
-        bytes memory uri = bytes.concat(
-            "https://bridge.mvm.dev/collectibles/",
-            csb
-        );
-        uri = bytes.concat(uri, "/", tsb);
+        bytes memory uri = "https://bridge.mvm.dev/collectibles/";
+        uri = bytes.concat(uri, csb, "/", tsb, ".json");
         Collectible(collectible).mint(receiver, token, string(uri));
         tokens[collectible][token] = asset;
         mints[asset].collection = collectible;
@@ -184,22 +181,22 @@ contract Mirror {
         return addr;
     }
 
-    function parseDataAsReceiver(bytes memory _bytes, uint256 _start)
+    function parseDataAsReceiver(bytes memory _bytes)
         internal
         pure
-        returns (address)
+        returns (address, bytes memory)
     {
-        require(_bytes.length >= _start + 20, "toAddress_outOfBounds");
+        require(_bytes.length >= 20, "toAddress_outOfBounds");
         address tempAddress;
 
         assembly {
             tempAddress := div(
-                mload(add(add(_bytes, 0x20), _start)),
+                mload(add(add(_bytes, 0x20), 0)),
                 0x1000000000000000000000000
             )
         }
 
-        return tempAddress;
+        return (tempAddress, slice(_bytes, 20, _bytes.length - 20));
     }
 
     function parseName(bytes memory _bytes)
@@ -214,7 +211,7 @@ contract Mirror {
             tempUint := mload(add(add(_bytes, 0x20), 12))
         }
 
-        return (slice(_bytes, 12, 44), tempUint);
+        return (slice(_bytes, 12, 32), tempUint);
     }
 
     function parseSymbol(bytes memory b)
@@ -229,7 +226,7 @@ contract Mirror {
             require(c >= 48 && c <= 57, "invalid collectible asset symbol");
             result = result * 10 + (c - 48);
         }
-        return (slice(b, 4, b.length), result);
+        return (slice(b, 4, b.length - 4), result);
     }
 
     function slice(

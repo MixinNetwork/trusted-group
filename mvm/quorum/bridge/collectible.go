@@ -21,6 +21,11 @@ const (
 	nfoAssetId = "1700941284a95f31b25ec8c546008f208f88eee4419ccdcdbe6e3195e60128ca" // FIXME
 )
 
+type CollectibleOutput struct {
+	mixin.CollectibleOutput
+	Memo string `json:"memo"`
+}
+
 func (p *Proxy) loopCollectibleOutputs(ctx context.Context, store *Storage) error {
 	ckpt, err := store.readCollectiblesCheckpoint(ctx)
 	if err != nil {
@@ -127,20 +132,30 @@ func (p *Proxy) processCollectibleRawTransactions(ctx context.Context, store *St
 	}
 }
 
-func (p *Proxy) processCollectibleOutputForUser(ctx context.Context, store *Storage, o *mixin.CollectibleOutput, user *User) error {
-	/*
-		act, err := p.decodeCollectibleAction(user, o)
-		if err != nil {
-			return err
-		}
-		if act != nil && user.handleCollectible(ctx, store, o, act) == nil {
-			return nil
-		}
-	*/
+func (p *Proxy) processCollectibleOutputForUser(ctx context.Context, store *Storage, o *CollectibleOutput, user *User) error {
+	act, err := p.decodeAction(user, o.Memo, "", true)
+	if err != nil {
+		return err
+	}
+	if act != nil && user.handleCollectible(ctx, store, o, act) == nil {
+		return nil
+	}
 	return user.bindAndPassCollectible(ctx, p, o)
 }
 
-func (u *User) bindAndPassCollectible(ctx context.Context, p *Proxy, out *mixin.CollectibleOutput) error {
+func (u *User) handleCollectible(ctx context.Context, store *Storage, o *CollectibleOutput, act *Action) error {
+	logger.Verbosef("User.handleCollectible(%v, %v)", *o, *act)
+	if act.Destination != "" {
+		panic(act.Destination)
+	}
+
+	traceId := mixin.UniqueConversationID(o.OutputID, "HANDLE||TRANSFER")
+	extra := []byte(base64.RawURLEncoding.EncodeToString([]byte(act.Extra)))
+
+	return u.sendRawCollectibleTransaction(ctx, o, act.Receivers, uint8(act.Threshold), extra, traceId)
+}
+
+func (u *User) bindAndPassCollectible(ctx context.Context, p *Proxy, out *CollectibleOutput) error {
 	logger.Verbosef("User.bindAndPassCollectible(%v)", *out)
 	traceId := mixin.UniqueConversationID(out.OutputID, "BIND||PASS")
 	extra := u.buildCollectibleExtra(p, u.FullName, out.TokenID)
@@ -151,23 +166,7 @@ func (u *User) bindAndPassCollectible(ctx context.Context, p *Proxy, out *mixin.
 	}
 	extra = []byte(base64.RawURLEncoding.EncodeToString(op.Encode()))
 
-	raw, err := p.buildRawCollectibleTransaction(ctx, out, extra, traceId)
-	if err != nil {
-		return err
-	}
-	uc, err := mixin.NewFromKeystore(u.Key)
-	if err != nil {
-		return err
-	}
-	req, err := uc.CreateCollectibleRequest(ctx, "SIGN", hex.EncodeToString(raw.PayloadMarshal()))
-	if err != nil {
-		return err
-	}
-	req, err = uc.SignCollectibleRequest(ctx, req.RequestID, u.PIN)
-	if err != nil {
-		return err
-	}
-	return store.writeCollectibleRawTransaction(req.RawTransaction)
+	return u.sendRawCollectibleTransaction(ctx, out, MVMMembers, uint8(MVMThreshold), extra, traceId)
 }
 
 func (u *User) buildCollectibleExtra(p *Proxy, addr, token string) []byte {
@@ -211,7 +210,7 @@ func (u *User) checkCollectibleBind(p *Proxy) bool {
 	return ba.String() != "0x0000000000000000000000000000000000000000"
 }
 
-func (p *Proxy) buildRawCollectibleTransaction(ctx context.Context, utxo *mixin.CollectibleOutput, extra []byte, traceId string) (*common.VersionedTransaction, error) {
+func (u *User) sendRawCollectibleTransaction(ctx context.Context, utxo *CollectibleOutput, receivers []string, threshold uint8, extra []byte, traceId string) error {
 	assetId, err := crypto.HashFromString(nfoAssetId)
 	if err != nil {
 		panic(err)
@@ -224,18 +223,34 @@ func (p *Proxy) buildRawCollectibleTransaction(ctx context.Context, utxo *mixin.
 	}
 	ver.AddInput(crypto.Hash(utxo.TransactionHash), utxo.OutputIndex)
 
-	keys, err := p.BatchReadGhostKeys(ctx, []*mixin.GhostInput{{
-		Receivers: MVMMembers,
+	uc, err := mixin.NewFromKeystore(u.Key)
+	if err != nil {
+		panic(err)
+	}
+	keys, err := uc.BatchReadGhostKeys(ctx, []*mixin.GhostInput{{
+		Receivers: receivers,
 		Index:     0,
 		Hint:      traceId,
 	}})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	out := keys[0].DumpOutput(uint8(MVMThreshold), utxo.Amount)
+	out := keys[0].DumpOutput(threshold, utxo.Amount)
 	ver.Outputs = append(ver.Outputs, newCommonOutput(out))
-	return ver.AsLatestVersion(), nil
+	req, err := uc.CreateCollectibleRequest(ctx, "SIGN", hex.EncodeToString(ver.AsLatestVersion().PayloadMarshal()))
+	if err != nil {
+		return err
+	}
+	req, err = uc.SignCollectibleRequest(ctx, req.RequestID, u.PIN)
+	if err != nil {
+		return err
+	}
+	err = store.writeCollectibleRawTransaction(req.RawTransaction)
+	if err != nil {
+		panic(err)
+	}
+	return nil
 }
 
 func newCommonOutput(out *mixin.Output) *common.Output {
@@ -252,7 +267,7 @@ func newCommonOutput(out *mixin.Output) *common.Output {
 	return cout
 }
 
-func (p *Proxy) readNetworkCollectibleOutputs(ctx context.Context, offset time.Time, limit int) ([]*mixin.CollectibleOutput, error) {
+func (p *Proxy) readNetworkCollectibleOutputs(ctx context.Context, offset time.Time, limit int) ([]*CollectibleOutput, error) {
 	params := make(map[string]string)
 	if !offset.IsZero() {
 		params["offset"] = offset.UTC().Format(time.RFC3339Nano)
@@ -261,7 +276,7 @@ func (p *Proxy) readNetworkCollectibleOutputs(ctx context.Context, offset time.T
 		params["limit"] = fmt.Sprint(limit)
 	}
 
-	var outputs []*mixin.CollectibleOutput
+	var outputs []*CollectibleOutput
 	err := p.Get(ctx, "/network/collectibles/outputs", params, &outputs)
 	if err != nil {
 		return nil, err

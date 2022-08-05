@@ -321,7 +321,7 @@ func (s *Storage) writeCollectiblesCheckpoint(ctx context.Context, ckpt time.Tim
 	return s.writeCheckpoint(ctx, key, ckpt)
 }
 
-func (s *Storage) writeCollectibleOutput(out *mixin.CollectibleOutput) error {
+func (s *Storage) writeCollectibleOutput(out *CollectibleOutput) error {
 	return s.Update(func(txn *badger.Txn) error {
 		key := collectibleOutputKey(out)
 		val := common.CompressMsgpackMarshalPanic(out)
@@ -329,8 +329,8 @@ func (s *Storage) writeCollectibleOutput(out *mixin.CollectibleOutput) error {
 	})
 }
 
-func (s *Storage) listCollectibleOutputs(limit int) ([]*mixin.CollectibleOutput, error) {
-	outputs := make([]*mixin.CollectibleOutput, 0)
+func (s *Storage) listCollectibleOutputs(limit int) ([]*CollectibleOutput, error) {
+	outputs := make([]*CollectibleOutput, 0)
 	txn := s.NewTransaction(false)
 	defer txn.Discard()
 
@@ -346,7 +346,7 @@ func (s *Storage) listCollectibleOutputs(limit int) ([]*mixin.CollectibleOutput,
 		if err != nil {
 			return outputs, err
 		}
-		var out mixin.CollectibleOutput
+		var out CollectibleOutput
 		err = common.DecompressMsgpackUnmarshal(v, &out)
 		if err != nil {
 			return outputs, err
@@ -357,7 +357,7 @@ func (s *Storage) listCollectibleOutputs(limit int) ([]*mixin.CollectibleOutput,
 	return outputs, nil
 }
 
-func (s *Storage) deleteCollectibleOutputs(outs []*mixin.CollectibleOutput) error {
+func (s *Storage) deleteCollectibleOutputs(outs []*CollectibleOutput) error {
 	return s.Update(func(txn *badger.Txn) error {
 		for _, out := range outs {
 			key := collectibleOutputKey(out)
@@ -412,7 +412,7 @@ func (s *Storage) deleteCollectibleRawTransaction(raw string) error {
 	})
 }
 
-func collectibleOutputKey(o *mixin.CollectibleOutput) []byte {
+func collectibleOutputKey(o *CollectibleOutput) []byte {
 	key := []byte(storePrefixCollectibleOutputList)
 	buf := timeToBytes(o.CreatedAt)
 	key = append(key, buf...)
