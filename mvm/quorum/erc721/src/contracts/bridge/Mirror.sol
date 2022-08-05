@@ -86,7 +86,8 @@ contract Mirror {
         address receiver = bridges[msg.sender];
         require(receiver != address(0), "no address bound");
 
-        IERC20 erc20 = IERC20(canonical(asset));
+        asset = canonical(asset);
+        IERC20 erc20 = IERC20(asset);
         uint256 collection = parseNameToCollection(bytes(erc20.name()));
         uint256 token = parseSymbolToToken(bytes(erc20.symbol()));
         address collectible = getOrCreateCollectibleContract(collection);
@@ -98,7 +99,7 @@ contract Mirror {
         mints[asset].collection = collectible;
         mints[asset].id = token;
 
-        IERC20(asset).transferFrom(msg.sender, address(this), AMOUNT);
+        erc20.transferFrom(msg.sender, address(this), AMOUNT);
         emit Through(collectible, msg.sender, receiver, token);
     }
 
