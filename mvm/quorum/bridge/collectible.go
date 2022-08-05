@@ -27,7 +27,7 @@ func (p *Proxy) loopCollectibleOutputs(ctx context.Context, store *Storage) erro
 		return err
 	}
 	outputs, err := p.readNetworkCollectibleOutputs(ctx, ckpt, 500)
-	logger.Verbosef("Proxy.loopSnapshots(%s) => %d %v", ckpt, len(outputs), err)
+	logger.Verbosef("Proxy.loopCollectibleOutputs(%s) => %d %v", ckpt, len(outputs), err)
 	if err != nil {
 		return err
 	}
@@ -41,6 +41,9 @@ func (p *Proxy) loopCollectibleOutputs(ctx context.Context, store *Storage) erro
 			continue
 		}
 		if o.Receivers[0] != o.UserID {
+			continue
+		}
+		if o.State != "unspent" {
 			continue
 		}
 		logger.Verbosef("Proxy.loopCollectibleOutputs(%s) => %d %v => %v", ckpt, len(outputs), err, *o)
@@ -67,6 +70,9 @@ func (p *Proxy) processCollectibleOutputs(ctx context.Context, store *Storage) {
 	}
 
 	for _, o := range outputs {
+		if o.State != "unspent" {
+			continue
+		}
 		user, err := store.readUserById(o.UserID)
 		if err != nil {
 			panic(err)
@@ -149,11 +155,15 @@ func (u *User) bindAndPassCollectible(ctx context.Context, p *Proxy, out *mixin.
 	if err != nil {
 		return err
 	}
-	req, err := p.CreateCollectibleRequest(ctx, "SIGN", hex.EncodeToString(raw.PayloadMarshal()))
+	uc, err := mixin.NewFromKeystore(u.Key)
 	if err != nil {
 		return err
 	}
-	req, err = p.SignCollectibleRequest(ctx, req.RequestID, u.PIN)
+	req, err := uc.CreateCollectibleRequest(ctx, "SIGN", hex.EncodeToString(raw.PayloadMarshal()))
+	if err != nil {
+		return err
+	}
+	req, err = uc.SignCollectibleRequest(ctx, req.RequestID, u.PIN)
 	if err != nil {
 		return err
 	}
@@ -162,7 +172,7 @@ func (u *User) bindAndPassCollectible(ctx context.Context, p *Proxy, out *mixin.
 
 func (u *User) buildCollectibleExtra(p *Proxy, addr, token string) []byte {
 	bind, pass := "81bac14f", "82c4b3b2"
-	contract := strings.ToLower(MVMBridgeContract[2:])
+	contract := strings.ToLower(MVMMirrorContract[2:])
 	addr = "000000000000000000000000" + strings.ToLower(addr[2:])
 	first := fmt.Sprintf("%04x", len(bind+addr)/2)
 	second := fmt.Sprintf("%04x", len(pass+addr)/2)

@@ -69,6 +69,28 @@ func NewProxy(ctx context.Context, kst *mixin.Keystore, conn *ethclient.Client) 
 func (p *Proxy) Run(ctx context.Context, store *Storage) {
 	go func() {
 		for {
+			p.processCollectibleRawTransactions(ctx, store)
+		}
+	}()
+
+	go func() {
+		for {
+			p.processCollectibleOutputs(ctx, store)
+		}
+	}()
+
+	go func() {
+		for {
+			err := p.loopCollectibleOutputs(ctx, store)
+			if err != nil {
+				logger.Verbosef("Proxy.loopCollectibleOutputs() => %v", err)
+				time.Sleep(3 * time.Second)
+			}
+		}
+	}()
+
+	go func() {
+		for {
 			p.processSnapshots(ctx, store)
 		}
 	}()
