@@ -88,12 +88,15 @@ contract Mirror {
 
         asset = canonical(asset);
         IERC20 erc20 = IERC20(asset);
-        uint256 collection = parseNameToCollection(bytes(erc20.name()));
-        uint256 token = parseSymbolToToken(bytes(erc20.symbol()));
+        (bytes memory csb, uint256 collection) = parseName(bytes(erc20.name()));
+        (bytes memory tsb, uint256 token) = parseSymbol(bytes(erc20.symbol()));
         address collectible = getOrCreateCollectibleContract(collection);
 
-        bytes memory uri = addressToFixedBytes(asset);
-        uri = bytes.concat("https://bridge.mvm.dev/collectibles/", uri);
+        bytes memory uri = bytes.concat(
+            "https://bridge.mvm.dev/collectibles/",
+            csb
+        );
+        uri = bytes.concat(uri, "/", tsb);
         Collectible(collectible).mint(receiver, token, string(uri));
         tokens[collectible][token] = asset;
         mints[asset].collection = collectible;
@@ -199,23 +202,10 @@ contract Mirror {
         return tempAddress;
     }
 
-    function addressToFixedBytes(address x)
+    function parseName(bytes memory _bytes)
         internal
         pure
-        returns (bytes memory)
-    {
-        bytes memory c = new bytes(20);
-        bytes20 b = bytes20(uint160(x));
-        for (uint256 i = 0; i < 20; i++) {
-            c[i] = b[i];
-        }
-        return c;
-    }
-
-    function parseNameToCollection(bytes memory _bytes)
-        internal
-        pure
-        returns (uint256)
+        returns (bytes memory, uint256)
     {
         require(_bytes.length == 44, "invalid collectible asset name");
         uint256 tempUint;
@@ -224,13 +214,13 @@ contract Mirror {
             tempUint := mload(add(add(_bytes, 0x20), 12))
         }
 
-        return tempUint;
+        return (slice(_bytes, 12, 44), tempUint);
     }
 
-    function parseSymbolToToken(bytes memory b)
+    function parseSymbol(bytes memory b)
         internal
         pure
-        returns (uint256)
+        returns (bytes memory, uint256)
     {
         require(b.length > 4, "invalid collectible asset symbol");
         uint256 result = 0;
@@ -239,6 +229,56 @@ contract Mirror {
             require(c >= 48 && c <= 57, "invalid collectible asset symbol");
             result = result * 10 + (c - 48);
         }
-        return result;
+        return (slice(b, 4, b.length), result);
+    }
+
+    function slice(
+        bytes memory _bytes,
+        uint256 _start,
+        uint256 _length
+    ) internal pure returns (bytes memory) {
+        require(_length + 31 >= _length, "slice_overflow");
+        require(_bytes.length >= _start + _length, "slice_outOfBounds");
+
+        bytes memory tempBytes;
+
+        assembly {
+            switch iszero(_length)
+            case 0 {
+                tempBytes := mload(0x40)
+                let lengthmod := and(_length, 31)
+                let mc := add(
+                    add(tempBytes, lengthmod),
+                    mul(0x20, iszero(lengthmod))
+                )
+                let end := add(mc, _length)
+
+                for {
+                    let cc := add(
+                        add(
+                            add(_bytes, lengthmod),
+                            mul(0x20, iszero(lengthmod))
+                        ),
+                        _start
+                    )
+                } lt(mc, end) {
+                    mc := add(mc, 0x20)
+                    cc := add(cc, 0x20)
+                } {
+                    mstore(mc, mload(cc))
+                }
+
+                mstore(tempBytes, _length)
+                mstore(0x40, and(add(mc, 31), not(31)))
+            }
+            default {
+                tempBytes := mload(0x40)
+                mstore(tempBytes, 0)
+
+                mstore(0x40, add(tempBytes, 0x20))
+            }
+        }
+
+        return tempBytes;
     }
 }
