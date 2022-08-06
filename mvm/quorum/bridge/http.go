@@ -35,6 +35,7 @@ func index(w http.ResponseWriter, r *http.Request, params map[string]string) {
 		"process":    MVMRegistryId,
 		"registry":   "https://scan.mvm.dev/address/" + MVMRegistryContract,
 		"bridge":     "https://scan.mvm.dev/address/" + MVMBridgeContract,
+		"mirror":     "https://scan.mvm.dev/address/" + MVMMirrorContract,
 		"withdrawal": "https://scan.mvm.dev/address/" + MVMWithdrawalContract,
 		"storage":    "https://scan.mvm.dev/address/" + MVMStorageContract,
 	})
