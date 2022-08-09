@@ -205,16 +205,16 @@ contract Mirror {
         returns (bytes memory, uint256)
     {
         require(
-            _bytes.length > 14 && _bytes.length <= 44,
-            "invalid collectible asset name"
+            _bytes.length > 12 && _bytes.length <= 44,
+            "invalid collectible asset name length"
         );
-        uint256 tempUint;
+        require(
+            keccak256(slice(_bytes, 0, 12)) == keccak256(bytes("Collectible ")),
+            "invalid collectible asset name prefix"
+        );
 
-        assembly {
-            tempUint := mload(add(add(_bytes, 0x20), 12))
-        }
-
-        return (slice(_bytes, 12, _bytes.length - 12), tempUint);
+        bytes memory name = slice(_bytes, 12, _bytes.length - 12);
+        return (name, uint256(keccak256(name)));
     }
 
     function parseSymbol(bytes memory b)
@@ -222,11 +222,15 @@ contract Mirror {
         pure
         returns (bytes memory, uint256)
     {
-        require(b.length > 4, "invalid collectible asset symbol");
+        require(b.length > 4, "invalid collectible asset symbol length");
+        require(
+            keccak256(slice(b, 0, 4)) == keccak256(bytes("NFT#")),
+            "invalid collectible asset symbol prefix"
+        );
         uint256 result = 0;
         for (uint i = 4; i < b.length; i++) {
             uint256 c = uint256(uint8(b[i]));
-            require(c >= 48 && c <= 57, "invalid collectible asset symbol");
+            require(c >= 48 && c <= 57, "invalid collectible asset symbol id");
             result = result * 10 + (c - 48);
         }
         return (slice(b, 4, b.length - 4), result);
