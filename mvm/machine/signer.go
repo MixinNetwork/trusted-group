@@ -144,10 +144,9 @@ func (m *Machine) appendPendingGroupEventSignature(ctx context.Context, e *encod
 		return nil
 	}
 
-	if checkSignedWith(partials, partial) {
-		return nil
+	if !checkSignedWith(partials, partial) {
+		partials = append(partials, partial)
 	}
-	partials = append(partials, partial)
 	err = m.store.WritePendingGroupEventSignatures(e.Process, e.Nonce, partials)
 	if err != nil || !verify {
 		return err
