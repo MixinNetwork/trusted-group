@@ -35,16 +35,11 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 		}
 
 		for _, e := range events {
-			lst := sm[e.ID()].Add(messagePeriod)
-			if lst.After(time.Now()) {
-				continue
-			}
-			sm[e.ID()] = time.Now()
 			logger.Verbosef("Machine.loopSignGroupEvents() => %d, %v", e.Nonce, e)
-
 			if e.Signature != nil {
 				panic(e)
 			}
+
 			msg := e.Encode()
 			scheme := tbls.NewThresholdSchemeOnG1(en256.NewSuiteG2())
 			partial, err := scheme.Sign(m.share, msg)
@@ -53,13 +48,19 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 			}
 			e.Signature = partial
 
-			threshold := make([]byte, 8)
-			binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
-			err = m.queueMessage(ctx, append(e.Encode(), threshold...))
+			err = m.appendPendingGroupEventSignature(ctx, e, msg, e.Signature, true)
 			if err != nil {
 				panic(err)
 			}
-			err = m.appendPendingGroupEventSignature(ctx, e, msg, e.Signature, true)
+
+			lst := sm[e.ID()].Add(messagePeriod)
+			if lst.After(time.Now()) {
+				continue
+			}
+			sm[e.ID()] = time.Now()
+			threshold := make([]byte, 8)
+			binary.BigEndian.PutUint64(threshold, uint64(time.Now().UnixNano()))
+			err = m.queueMessage(ctx, append(e.Encode(), threshold...))
 			if err != nil {
 				panic(err)
 			}
