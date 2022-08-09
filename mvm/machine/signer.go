@@ -59,7 +59,7 @@ func (m *Machine) loopSignGroupEvents(ctx context.Context) {
 			if err != nil {
 				panic(err)
 			}
-			err = m.appendPendingGroupEventSignature(e, msg, e.Signature)
+			err = m.appendPendingGroupEventSignature(ctx, e, msg, e.Signature, true)
 			if err != nil {
 				panic(err)
 			}
@@ -123,18 +123,7 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 			m.messenger.QueueMessage(ctx, peer, append(evt.Encode(), threshold...))
 			sm[evt.ID()] = time.Now()
 		default:
-			scheme := tbls.NewThresholdSchemeOnG1(en256.NewSuiteG2())
-			err = scheme.VerifyPartial(m.poly, msg, sig)
-			if err != nil {
-				logger.Verbosef("scheme.VerifyPartial(%s, %x, %x) => %v", peer, msg, sig, err)
-				warn := fmt.Sprintf("⚠️⚠️⚠️⚠️⚠️⚠️⚠️\nINVALID SIGNATURE\n%s\n%v\n%x\n%x", peer, evt, msg, sig)
-				err = m.messenger.BroadcastPlainMessage(ctx, warn)
-				if err != nil {
-					panic(err)
-				}
-				continue
-			}
-			err = m.appendPendingGroupEventSignature(evt, msg, sig)
+			err = m.appendPendingGroupEventSignature(ctx, evt, msg, sig, false)
 			if err != nil {
 				panic(err)
 			}
@@ -142,7 +131,7 @@ func (m *Machine) loopReceiveGroupMessages(ctx context.Context) {
 	}
 }
 
-func (m *Machine) appendPendingGroupEventSignature(e *encoding.Event, msg, partial []byte) error {
+func (m *Machine) appendPendingGroupEventSignature(ctx context.Context, e *encoding.Event, msg, partial []byte, verify bool) error {
 	m.signerLock.Lock()
 	defer m.signerLock.Unlock()
 
@@ -154,16 +143,18 @@ func (m *Machine) appendPendingGroupEventSignature(e *encoding.Event, msg, parti
 		return nil
 	}
 
-	// FIXME remove this hack for old invalid data
-	partials = m.removeInvalidPartials(msg, partials)
-
 	if checkSignedWith(partials, partial) {
 		return nil
 	}
 	partials = append(partials, partial)
+	err = m.store.WritePendingGroupEventSignatures(e.Process, e.Nonce, partials)
+	if err != nil || !verify {
+		return err
+	}
 
+	partials = m.removeInvalidPartials(ctx, e, msg, partials)
 	if len(partials) < m.group.GetThreshold() {
-		return m.store.WritePendingGroupEventSignatures(e.Process, e.Nonce, partials)
+		return nil
 	}
 
 	e.Signature = m.recoverSignature(msg, partials)
@@ -171,13 +162,20 @@ func (m *Machine) appendPendingGroupEventSignature(e *encoding.Event, msg, parti
 	return m.store.WriteSignedGroupEventAndExpirePending(e)
 }
 
-func (m *Machine) removeInvalidPartials(msg []byte, inputs [][]byte) [][]byte {
+func (m *Machine) removeInvalidPartials(ctx context.Context, e *encoding.Event, msg []byte, inputs [][]byte) [][]byte {
 	var partials [][]byte
 	for _, p := range inputs {
 		scheme := tbls.NewThresholdSchemeOnG1(en256.NewSuiteG2())
 		err := scheme.VerifyPartial(m.poly, msg, p)
 		if err == nil {
 			partials = append(partials, p)
+			continue
+		}
+		logger.Verbosef("scheme.VerifyPartial(%x, %x) => %v", msg, p, err)
+		warn := fmt.Sprintf("⚠️⚠️⚠️⚠️⚠️⚠️⚠️\nINVALID SIGNATURE\n%v\n%x\n%x", e, msg, p)
+		err = m.messenger.BroadcastPlainMessage(ctx, warn)
+		if err != nil {
+			panic(err)
 		}
 	}
 	return partials
