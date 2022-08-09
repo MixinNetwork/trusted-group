@@ -204,14 +204,17 @@ contract Mirror {
         pure
         returns (bytes memory, uint256)
     {
-        require(_bytes.length == 44, "invalid collectible asset name");
+        require(
+            _bytes.length > 14 && _bytes.length <= 44,
+            "invalid collectible asset name"
+        );
         uint256 tempUint;
 
         assembly {
             tempUint := mload(add(add(_bytes, 0x20), 12))
         }
 
-        return (slice(_bytes, 12, 32), tempUint);
+        return (slice(_bytes, 12, _bytes.length - 12), tempUint);
     }
 
     function parseSymbol(bytes memory b)
