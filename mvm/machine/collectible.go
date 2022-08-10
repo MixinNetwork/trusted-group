@@ -86,9 +86,9 @@ func (m *Machine) fetchCollectibleToken(ctx context.Context, id string) ([]byte,
 	err = m.store.WriteCollectibleToken(&CollectibleToken{
 		Id:     id,
 		Symbol: token.Token,
-		Name:   token.Group,
+		Name:   token.Meta.Group,
 	})
-	return encodeCollectibleMeta(token.Token, token.Group), err
+	return encodeCollectibleMeta(token.Token, token.Meta.Group), err
 }
 
 func encodeCollectibleMeta(symbol, name string) []byte {
