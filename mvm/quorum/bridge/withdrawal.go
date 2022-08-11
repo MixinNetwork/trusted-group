@@ -143,11 +143,12 @@ func (p *Proxy) processWithdrawals(ctx context.Context, store *Storage) {
 		panic(err)
 	}
 	if len(withdrawals) < 100 {
-		time.Sleep(1 * time.Second)
+		time.Sleep(30 * time.Second)
 	}
 }
 
 func (p *Proxy) processWithdrawalForUser(ctx context.Context, store *Storage, w *Withdrawal, u *User) error {
+	logger.Verbosef("Proxy.processWithdrawalForUser(%v, %v)", *u, *w)
 	if w.CreatedAt.Add(WithdrawalTimeout).Before(time.Now()) {
 		return u.expireWithdrawal(ctx, p, w)
 	}
@@ -169,6 +170,7 @@ func (p *Proxy) processWithdrawalForUser(ctx context.Context, store *Storage, w 
 }
 
 func (u *User) expireWithdrawal(ctx context.Context, p *Proxy, w *Withdrawal) error {
+	logger.Verbosef("User.expireWithdrawal(%v)", *w)
 	if w.Asset != nil {
 		err := u.pass(ctx, p, w.Asset)
 		if err != nil {

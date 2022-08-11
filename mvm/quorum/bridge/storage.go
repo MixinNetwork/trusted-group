@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/common"
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/dgraph-io/badger/v3"
 	"github.com/fox-one/mixin-sdk-go"
 )
@@ -40,6 +41,7 @@ func (s *Storage) close() error {
 }
 
 func (s *Storage) writeAsset(a *mixin.Asset) error {
+	logger.Verbosef("Storage.writeAsset(%v)", *a)
 	return s.Update(func(txn *badger.Txn) error {
 		key := []byte(storePrefixAsset + a.AssetID)
 		val := common.MsgpackMarshalPanic(a)
@@ -145,6 +147,7 @@ func (s *Storage) readUser(txn *badger.Txn, id string) (*User, error) {
 }
 
 func (s *Storage) writeUser(u *User) error {
+	logger.Verbosef("Storage.writeUser(%v)", *u)
 	return s.Update(func(txn *badger.Txn) error {
 		key := []byte(storePrefixUser + u.UserID)
 		val := common.MsgpackMarshalPanic(u)
@@ -159,6 +162,7 @@ func (s *Storage) writeUser(u *User) error {
 }
 
 func (s *Storage) writeSnapshot(snap *mixin.Snapshot) error {
+	logger.Verbosef("Storage.writeSnapshot(%v)", *s)
 	return s.Update(func(txn *badger.Txn) error {
 		key := snapshotKey(snap)
 		val := common.CompressMsgpackMarshalPanic(snap)
@@ -249,6 +253,7 @@ func (s *Storage) deleteWitdrawals(withdrawals []*Withdrawal) error {
 }
 
 func (s *Storage) writeWithdrawal(w *Withdrawal) error {
+	logger.Verbosef("Storage.writeWithdrawal(%v)", *w)
 	return s.Update(func(txn *badger.Txn) error {
 		old, err := s.readWithdrawal(txn, w.TraceId)
 		if err != nil {
@@ -322,6 +327,7 @@ func (s *Storage) writeCollectiblesCheckpoint(ctx context.Context, ckpt time.Tim
 }
 
 func (s *Storage) writeCollectibleOutput(out *CollectibleOutput) error {
+	logger.Verbosef("Storage.writeCollectibleOutput(%v)", *out)
 	return s.Update(func(txn *badger.Txn) error {
 		key := collectibleOutputKey(out)
 		val := common.CompressMsgpackMarshalPanic(out)
@@ -371,6 +377,7 @@ func (s *Storage) deleteCollectibleOutputs(outs []*CollectibleOutput) error {
 }
 
 func (s *Storage) writeCollectibleRawTransaction(raw string) error {
+	logger.Verbosef("Storage.writeCollectibleRawTransaction(%s)", raw)
 	b, _ := hex.DecodeString(raw)
 	ver, _ := common.UnmarshalVersionedTransaction(b)
 	return s.Update(func(txn *badger.Txn) error {
