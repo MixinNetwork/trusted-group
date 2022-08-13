@@ -22,10 +22,13 @@ type Action struct {
 	Extra       string   `json:"extra,omitempty"`
 }
 
-func decryptData(data string) ([]byte, error) {
+func decryptData(data string, collectible bool) ([]byte, error) {
 	mep := mtg.DecodeMixinExtra(data)
 	if mep == nil {
 		return nil, fmt.Errorf("invalid mixin extra pack %s", data)
+	}
+	if collectible {
+		return []byte(mep.M), nil
 	}
 	b, err := base64.RawURLEncoding.Strict().DecodeString(mep.M)
 	if err != nil {
@@ -36,7 +39,7 @@ func decryptData(data string) ([]byte, error) {
 }
 
 func (p *Proxy) decodeAction(u *User, memo, assetId string, collectible bool) (*Action, error) {
-	b, err := decryptData(memo)
+	b, err := decryptData(memo, collectible)
 	logger.Verbosef("Proxy.decryptData(%s) => %x %v", memo, b, err)
 	if err != nil || len(b) != 68 {
 		return nil, nil
