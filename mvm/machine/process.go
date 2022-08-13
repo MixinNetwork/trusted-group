@@ -139,12 +139,12 @@ func (p *Process) buildGroupTransaction(ctx context.Context, group *mtg.Group, e
 	logger.Verbosef("Process(%s, %d) => buildGroupTransaction(%s, %v, %d, %s) => %s",
 		p.Identifier, evt.Nonce, evt.Asset, evt.Members, evt.Threshold, evt.Amount, traceId)
 	amount := evt.Amount.String()
-	memo := base64.RawURLEncoding.EncodeToString(evt.Extra)
 
 	if category == "ASSET" {
+		memo := base64.RawURLEncoding.EncodeToString(evt.Extra)
 		return group.BuildTransaction(ctx, evt.Asset, evt.Members, evt.Threshold, amount, memo, traceId, p.Identifier)
 	} else if category == "COLLECTIBLE" {
-		return group.BuildCollectibleTransferTransaction(ctx, evt.Members, evt.Threshold, memo, evt.Asset, traceId)
+		return group.BuildCollectibleTransferTransaction(ctx, evt.Members, evt.Threshold, string(evt.Extra), evt.Asset, traceId)
 	}
 
 	panic(category)
