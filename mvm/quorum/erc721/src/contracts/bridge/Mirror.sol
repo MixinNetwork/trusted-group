@@ -214,7 +214,7 @@ contract Mirror {
         );
 
         bytes memory name = slice(_bytes, 12, _bytes.length - 12);
-        return (name, uint256(keccak256(name)));
+        return (name, hexBytesToInt(name));
     }
 
     function parseSymbol(bytes memory b)
@@ -284,5 +284,23 @@ contract Mirror {
         }
 
         return tempBytes;
+    }
+
+    function hexBytesToInt(bytes memory ss) internal pure returns (uint256) {
+        uint256 val = 0;
+        uint8 a = uint8(97); // a
+        uint8 zero = uint8(48); //0
+        uint8 nine = uint8(57); //9
+        uint8 A = uint8(65); //A
+        uint8 F = uint8(70); //F
+        uint8 f = uint8(102); //f
+        for (uint i = 0; i < ss.length; ++i) {
+            uint8 byt = uint8(ss[i]);
+            if (byt >= zero && byt <= nine) byt = byt - zero;
+            else if (byt >= a && byt <= f) byt = byt - a + 10;
+            else if (byt >= A && byt <= F) byt = byt - A + 10;
+            val = (val << 4) | (byt & 0xF);
+        }
+        return val;
     }
 }
