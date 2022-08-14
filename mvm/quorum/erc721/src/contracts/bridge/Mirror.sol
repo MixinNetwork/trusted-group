@@ -88,9 +88,19 @@ contract Mirror {
 
         asset = canonical(asset);
         IERC20 erc20 = IERC20(asset);
-        (bytes memory csb, uint256 collection) = parseName(bytes(erc20.name()));
-        (bytes memory tsb, uint256 token) = parseSymbol(bytes(erc20.symbol()));
-        address collectible = getOrCreateCollectibleContract(collection);
+        string memory name = parseName(bytes(erc20.name()));
+        (
+            bytes memory csb,
+            bytes memory tsb,
+            uint256 collection,
+            uint256 token,
+            string memory symbol
+        ) = parseSymbol(bytes(erc20.symbol()));
+        address collectible = getOrCreateCollectibleContract(
+            collection,
+            name,
+            symbol
+        );
 
         bytes memory uri = "https://bridge.mvm.dev/collectibles/";
         uri = bytes.concat(uri, csb, "/", tsb, ".json");
@@ -112,18 +122,19 @@ contract Mirror {
         return asset;
     }
 
-    function getOrCreateCollectibleContract(uint256 collection)
-        internal
-        returns (address)
-    {
+    function getOrCreateCollectibleContract(
+        uint256 collection,
+        string memory name,
+        string memory symbol
+    ) internal returns (address) {
         address old = contracts[collection];
         if (old != address(0)) {
             return old;
         }
         bytes memory code = getCollectibleContractCode(
             collection,
-            "NFT",
-            "Collectible"
+            symbol,
+            name
         );
         address collectible = getContractAddress(code);
         if (collections[collectible] > 0) {
@@ -202,38 +213,47 @@ contract Mirror {
     function parseName(bytes memory _bytes)
         internal
         pure
-        returns (bytes memory, uint256)
+        returns (string memory)
     {
-        require(
-            _bytes.length > 12 && _bytes.length <= 44,
-            "invalid collectible asset name length"
-        );
+        require(_bytes.length > 12, "invalid collectible asset name length");
         require(
             keccak256(slice(_bytes, 0, 12)) == keccak256(bytes("Collectible ")),
             "invalid collectible asset name prefix"
         );
 
-        bytes memory name = slice(_bytes, 12, _bytes.length - 12);
-        return (name, hexBytesToInt(name));
+        return string(slice(_bytes, 12, _bytes.length - 12));
     }
 
     function parseSymbol(bytes memory b)
         internal
         pure
-        returns (bytes memory, uint256)
+        returns (
+            bytes memory,
+            bytes memory,
+            uint256,
+            uint256,
+            string memory
+        )
     {
-        require(b.length > 4, "invalid collectible asset symbol length");
+        require(b.length >= 40, "invalid collectible asset symbol length");
         require(
             keccak256(slice(b, 0, 4)) == keccak256(bytes("NFT#")),
             "invalid collectible asset symbol prefix"
         );
-        uint256 result = 0;
-        for (uint i = 4; i < b.length; i++) {
-            uint256 c = uint256(uint8(b[i]));
-            require(c >= 48 && c <= 57, "invalid collectible asset symbol id");
-            result = result * 10 + (c - 48);
-        }
-        return (slice(b, 4, b.length - 4), result);
+
+        uint256 collection = hexBytesToInt(b, 4, 36);
+        (uint256 number, uint256 size) = decimalBytesToInt(b, 37);
+
+        uint256 offset = 37 + size + 1;
+        string memory symbol = string(slice(b, offset, b.length - offset));
+
+        return (
+            slice(b, 4, 32),
+            slice(b, 37, size),
+            collection,
+            number,
+            symbol
+        );
     }
 
     function slice(
@@ -286,7 +306,27 @@ contract Mirror {
         return tempBytes;
     }
 
-    function hexBytesToInt(bytes memory ss) internal pure returns (uint256) {
+    function decimalBytesToInt(bytes memory b, uint256 offset)
+        internal
+        pure
+        returns (uint256, uint256)
+    {
+        uint256 number = 0;
+        uint8 sharp = 35;
+        for (uint i = offset; i < b.length; ++i) {
+            uint8 c = uint8(b[i]);
+            if (c >= 48 && c <= 57) number = number * 10 + (c - 48);
+            else if (c == sharp) return (number, i - offset);
+            else revert("invalid collectible token number");
+        }
+        revert("empty collectible token number");
+    }
+
+    function hexBytesToInt(
+        bytes memory ss,
+        uint start,
+        uint end
+    ) internal pure returns (uint256) {
         uint256 val = 0;
         uint8 a = uint8(97); // a
         uint8 zero = uint8(48); //0
@@ -294,11 +334,12 @@ contract Mirror {
         uint8 A = uint8(65); //A
         uint8 F = uint8(70); //F
         uint8 f = uint8(102); //f
-        for (uint i = 0; i < ss.length; ++i) {
-            uint8 byt = uint8(ss[i]);
+        for (; start < end; ++start) {
+            uint8 byt = uint8(ss[start]);
             if (byt >= zero && byt <= nine) byt = byt - zero;
             else if (byt >= a && byt <= f) byt = byt - a + 10;
             else if (byt >= A && byt <= F) byt = byt - A + 10;
+            else revert("invalid collectible collection id");
             val = (val << 4) | (byt & 0xF);
         }
         return val;
