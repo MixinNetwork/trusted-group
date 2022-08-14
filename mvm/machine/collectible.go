@@ -27,14 +27,14 @@ func (m *Machine) WriteNFOGroupEvent(ctx context.Context, pid string, out *mtg.C
 	if proc == nil {
 		return
 	}
+	meta, err := m.fetchCollectibleToken(ctx, out.TokenId)
+	if err != nil {
+		panic(err)
+	}
+	if len(meta) == 0 {
+		return
+	}
 	if proc.Asset {
-		meta, err := m.fetchCollectibleToken(ctx, out.TokenId)
-		if err != nil {
-			panic(err)
-		}
-		if len(meta) == 0 {
-			return
-		}
 		extra = append(meta, extra...)
 	}
 	if len(extra) > encoding.EventExtraMaxSize {
