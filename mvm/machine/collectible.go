@@ -11,9 +11,11 @@ import (
 )
 
 type CollectibleToken struct {
-	Id     string
-	Symbol string
-	Name   string
+	Id               string
+	CollectionId     string
+	TokenNumber      string
+	CollectionName   string
+	CollectionSymbol string
 }
 
 func (m *Machine) WriteNFOGroupEvent(ctx context.Context, pid string, out *mtg.CollectibleOutput, extra []byte) {
@@ -29,6 +31,9 @@ func (m *Machine) WriteNFOGroupEvent(ctx context.Context, pid string, out *mtg.C
 		meta, err := m.fetchCollectibleToken(ctx, out.TokenId)
 		if err != nil {
 			panic(err)
+		}
+		if len(meta) == 0 {
+			return
 		}
 		extra = append(meta, extra...)
 	}
@@ -73,8 +78,8 @@ func (m *Machine) fetchCollectibleToken(ctx context.Context, id string) ([]byte,
 	old, err := m.store.ReadCollectibleToken(id)
 	if err != nil {
 		return nil, err
-	} else if old != nil {
-		return encodeCollectibleMeta(old.Symbol, old.Name), nil
+	} else if old != nil && old.CollectionId != "" {
+		return encodeCollectibleMeta(old), nil
 	}
 	token, err := m.mixin.ReadCollectiblesToken(ctx, id)
 	if err != nil {
@@ -83,17 +88,23 @@ func (m *Machine) fetchCollectibleToken(ctx context.Context, id string) ([]byte,
 	if token.TokenID != id {
 		panic(token.TokenID)
 	}
-	err = m.store.WriteCollectibleToken(&CollectibleToken{
-		Id:     id,
-		Symbol: token.Token,
-		Name:   token.Group,
-	})
-	return encodeCollectibleMeta(token.Token, token.Group), err
+	old = &CollectibleToken{
+		Id:               id,
+		CollectionId:     token.Group,
+		TokenNumber:      token.Token,
+		CollectionName:   token.Meta.Group,
+		CollectionSymbol: "NFT",
+	}
+	err = m.store.WriteCollectibleToken(old)
+	return encodeCollectibleMeta(old), err
 }
 
-func encodeCollectibleMeta(symbol, name string) []byte {
-	symbol = "NFT#" + symbol
-	name = "Collectible " + name
+func encodeCollectibleMeta(t *CollectibleToken) []byte {
+	if len(t.CollectionId) != 32 {
+		return nil
+	}
+	symbol := "NFT#" + t.CollectionId + "#" + t.TokenNumber + "#" + t.CollectionSymbol
+	name := "Collectible " + t.CollectionName
 	enc := common.NewEncoder()
 	enc.WriteInt(len(symbol))
 	enc.Write([]byte(symbol))
