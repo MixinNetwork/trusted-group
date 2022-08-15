@@ -5,11 +5,13 @@ package main
 // POST /extra
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
 
 	"github.com/dimfeld/httptreemux"
+	"github.com/gofrs/uuid"
 	"github.com/unrolled/render"
 )
 
@@ -24,6 +26,7 @@ func StartHTTP(p *Proxy, s *Storage) error {
 	router.GET("/", index)
 	router.POST("/extra", encodeExtra)
 	router.POST("/users", createUser)
+	router.GET("/collectibles/:collection/:id", getTokenMeta)
 	handler := handleCORS(router)
 	return http.ListenAndServe(fmt.Sprintf(":%d", HTTPPort), handler)
 }
@@ -83,6 +86,31 @@ func encodeExtra(w http.ResponseWriter, r *http.Request, params map[string]strin
 		return
 	}
 	render.New().JSON(w, http.StatusOK, map[string]interface{}{"extra": extra})
+}
+
+func getTokenMeta(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	cb, err := hex.DecodeString(params["collection"])
+	if err != nil {
+		render.New().JSON(w, http.StatusBadRequest, map[string]interface{}{"error": err})
+		return
+	}
+	collection := uuid.FromBytesOrNil(cb).String()
+
+	tdt := fmt.Sprintf("https://thetrident.one/api/%s/%s", collection, params["id"])
+	resp, err := http.Get(tdt)
+	if err != nil {
+		render.New().JSON(w, http.StatusBadRequest, map[string]interface{}{"error": err})
+		return
+	}
+	defer resp.Body.Close()
+
+	var body map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	if err != nil {
+		render.New().JSON(w, http.StatusBadRequest, map[string]interface{}{"error": err})
+		return
+	}
+	render.New().JSON(w, http.StatusOK, body)
 }
 
 // TODO may consider a whitelist in the case of Ethereum scams
