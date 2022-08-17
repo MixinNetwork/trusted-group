@@ -127,48 +127,54 @@ func (p *Proxy) processWithdrawals(ctx context.Context, store *Storage) {
 		panic(err)
 	}
 
+	processed := make([]*Withdrawal, 0)
 	for _, w := range withdrawals {
 		user, err := store.readUserById(w.UserId)
 		if err != nil {
 			panic(err)
 		}
-		err = p.processWithdrawalForUser(ctx, store, w, user)
+		done, err := p.processWithdrawalForUser(ctx, store, w, user)
 		if err != nil {
 			panic(err)
 		}
+		if done {
+			processed = append(processed, w)
+		}
 	}
 
-	err = store.deleteWitdrawals(withdrawals)
+	err = store.deleteWitdrawals(processed)
 	if err != nil {
 		panic(err)
 	}
 	if len(withdrawals) < 100 {
-		time.Sleep(1 * time.Second)
+		time.Sleep(30 * time.Second)
 	}
 }
 
-func (p *Proxy) processWithdrawalForUser(ctx context.Context, store *Storage, w *Withdrawal, u *User) error {
+func (p *Proxy) processWithdrawalForUser(ctx context.Context, store *Storage, w *Withdrawal, u *User) (bool, error) {
+	logger.Verbosef("Proxy.processWithdrawalForUser(%v, %v)", *u, *w)
 	if w.CreatedAt.Add(WithdrawalTimeout).Before(time.Now()) {
-		return u.expireWithdrawal(ctx, p, w)
+		return true, u.expireWithdrawal(ctx, p, w)
 	}
 	if w.Asset == nil || w.Fee == nil {
-		return nil
+		return false, nil
 	}
 	if w.Asset.UserID != u.UserID || w.Fee.UserID != u.UserID {
 		panic(u.UserID)
 	}
 	err := u.withdraw(ctx, w.Asset, w.Destination, w.Tag)
 	if err == nil {
-		return nil
+		return true, nil
 	}
 	err = u.pass(ctx, p, w.Asset)
 	if err != nil {
-		return err
+		return true, err
 	}
-	return u.pass(ctx, p, w.Fee)
+	return true, u.pass(ctx, p, w.Fee)
 }
 
 func (u *User) expireWithdrawal(ctx context.Context, p *Proxy, w *Withdrawal) error {
+	logger.Verbosef("User.expireWithdrawal(%v)", *w)
 	if w.Asset != nil {
 		err := u.pass(ctx, p, w.Asset)
 		if err != nil {

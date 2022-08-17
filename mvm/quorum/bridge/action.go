@@ -11,7 +11,6 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/nfo/mtg"
-	"github.com/fox-one/mixin-sdk-go"
 	"github.com/gofrs/uuid"
 )
 
@@ -23,10 +22,13 @@ type Action struct {
 	Extra       string   `json:"extra,omitempty"`
 }
 
-func decryptData(data string) ([]byte, error) {
+func decryptData(data string, collectible bool) ([]byte, error) {
 	mep := mtg.DecodeMixinExtra(data)
 	if mep == nil {
 		return nil, fmt.Errorf("invalid mixin extra pack %s", data)
+	}
+	if collectible {
+		return []byte(mep.M), nil
 	}
 	b, err := base64.RawURLEncoding.Strict().DecodeString(mep.M)
 	if err != nil {
@@ -35,9 +37,9 @@ func decryptData(data string) ([]byte, error) {
 	return b, nil
 }
 
-func (p *Proxy) decodeAction(u *User, s *mixin.Snapshot) (*Action, error) {
-	b, err := decryptData(s.Memo)
-	logger.Verbosef("Proxy.decryptData(%s) => %x %v", s.Memo, b, err)
+func (p *Proxy) decodeAction(u *User, memo, assetId string, collectible bool) (*Action, error) {
+	b, err := decryptData(memo, collectible)
+	logger.Verbosef("Proxy.decryptData(%s) => %x %v", memo, b, err)
 	if err != nil || len(b) != 68 {
 		return nil, nil
 	}
@@ -62,7 +64,7 @@ func (p *Proxy) decodeAction(u *User, s *mixin.Snapshot) (*Action, error) {
 	key := SharedKey(val[:32])
 	actionBody, err := aesDecryptCBC(key[:], val[32:])
 	if err != nil {
-		logger.Verbosef("aesDecryptCBC error %v, data %s", err, s.Memo)
+		logger.Verbosef("aesDecryptCBC error %v, data %s", err, memo)
 		return nil, nil
 	}
 
@@ -71,10 +73,13 @@ func (p *Proxy) decodeAction(u *User, s *mixin.Snapshot) (*Action, error) {
 	if err != nil {
 		return nil, nil
 	}
-	logger.Verbosef("Proxy.decodeAction(%v, %v) => %v %v", u, s, act, err)
+	logger.Verbosef("Proxy.decodeAction(%v, %s, %v) => %v %v", u, memo, collectible, act, err)
+	if act.Destination != "" && collectible {
+		return nil, nil
+	}
 
 	if act.Destination != "" {
-		asset, err := store.readAsset(s.AssetID)
+		asset, err := store.readAsset(assetId)
 		if err != nil {
 			panic(err)
 		}

@@ -1,0 +1,25 @@
+.DS_Store
+.vscode
+node_modules
+dist
+abi
+build
+# Config files,
+.idea/
+.vscode
+# Node.js
+node_modules
+package.json
+package-lock.json
+#Hardhat files
+bin
+cache
+artifacts
+data/
+#Solidity
+soljson*
+.tmp*
+metadata/
+#coverage
+coverage.json
+coverage

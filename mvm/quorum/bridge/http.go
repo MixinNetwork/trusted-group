@@ -35,6 +35,7 @@ func StartHTTP(p *Proxy, s *Storage) error {
 	router.GET("/assets/:id", assetInfo)
 	router.POST("/extra", encodeExtra)
 	router.POST("/users", createUser)
+	router.GET("/collectibles/:collection/:id", getTokenMeta)
 	handler := handleCORS(router)
 	handler = State(handler)
 	handler = handlers.ProxyHeaders(handler)
@@ -69,6 +70,7 @@ func index(w http.ResponseWriter, r *http.Request, params map[string]string) {
 		"process":    MVMRegistryId,
 		"registry":   "https://scan.mvm.dev/address/" + MVMRegistryContract,
 		"bridge":     "https://scan.mvm.dev/address/" + MVMBridgeContract,
+		"mirror":     "https://scan.mvm.dev/address/" + MVMMirrorContract,
 		"withdrawal": "https://scan.mvm.dev/address/" + MVMWithdrawalContract,
 		"storage":    "https://scan.mvm.dev/address/" + MVMStorageContract,
 
@@ -158,6 +160,31 @@ func encodeExtra(w http.ResponseWriter, r *http.Request, params map[string]strin
 		return
 	}
 	render.New().JSON(w, http.StatusOK, map[string]interface{}{"extra": extra})
+}
+
+func getTokenMeta(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	cb, err := hex.DecodeString(params["collection"])
+	if err != nil {
+		render.New().JSON(w, http.StatusBadRequest, map[string]interface{}{"error": err})
+		return
+	}
+	collection := uuid.FromBytesOrNil(cb).String()
+
+	tdt := fmt.Sprintf("https://thetrident.one/api/%s/%s", collection, params["id"])
+	resp, err := http.Get(tdt)
+	if err != nil {
+		render.New().JSON(w, http.StatusBadRequest, map[string]interface{}{"error": err})
+		return
+	}
+	defer resp.Body.Close()
+
+	var body map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	if err != nil {
+		render.New().JSON(w, http.StatusBadRequest, map[string]interface{}{"error": err})
+		return
+	}
+	render.New().JSON(w, http.StatusOK, body)
 }
 
 // TODO may consider a whitelist in the case of Ethereum scams
