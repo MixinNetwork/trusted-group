@@ -23,6 +23,8 @@ interface IERC20 {
 
 interface Factory {
     function contracts(uint256 id) external view returns (address);
+
+    function assets(address addr) external view returns (uint128);
 }
 
 contract Mirror {
@@ -87,6 +89,8 @@ contract Mirror {
         require(receiver != address(0), "no address bound");
 
         asset = canonical(asset);
+        require(Factory(FACTORY).assets(asset) > 0, "invalid asset");
+
         IERC20 erc20 = IERC20(asset);
         string memory name = parseName(bytes(erc20.name()));
         (
