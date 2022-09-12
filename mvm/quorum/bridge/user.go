@@ -136,10 +136,11 @@ func (u *User) send(ctx context.Context, in *mixin.TransferInput) error {
 func (u *User) allocate(ctx context.Context, p *Proxy) error {
 	traceId := mixin.UniqueConversationID(MVMRegistryContract, u.UserID)
 	input := &mixin.TransferInput{
-		AssetID: "c94ac88f-4671-3976-b60a-09064f1811e8",
-		Amount:  decimal.NewFromFloat(0.0000001),
-		TraceID: traceId,
-		Memo:    "ALLOCATION DEPOSIT",
+		OpponentID: u.UserID,
+		AssetID:    "c94ac88f-4671-3976-b60a-09064f1811e8",
+		Amount:     decimal.NewFromFloat(0.0000001),
+		TraceID:    traceId,
+		Memo:       "ALLOCATION DEPOSIT",
 	}
 	_, err := p.Transfer(ctx, input, ProxyPIN)
 	return err

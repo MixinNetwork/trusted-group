@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/dimfeld/httptreemux"
 	"github.com/gofrs/uuid"
 	"github.com/unrolled/render"
@@ -28,6 +29,7 @@ func StartHTTP(p *Proxy, s *Storage) error {
 	router.POST("/users", createUser)
 	router.GET("/collectibles/:collection/:id", getTokenMeta)
 	handler := handleCORS(router)
+	handler = handleLog(handler)
 	return http.ListenAndServe(fmt.Sprintf(":%d", HTTPPort), handler)
 }
 
@@ -130,5 +132,12 @@ func handleCORS(handler http.Handler) http.Handler {
 		} else {
 			handler.ServeHTTP(w, r)
 		}
+	})
+}
+
+func handleLog(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		logger.Verbosef("ServeHTTP(%v)", *r)
+		handler.ServeHTTP(w, r)
 	})
 }
