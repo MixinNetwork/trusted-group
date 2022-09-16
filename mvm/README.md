@@ -42,3 +42,7 @@ The developer contract can wrap or map the MTG asset to its own native issued as
 ## Privacy
 
 Masked user id for different contracts.
+
+## Audits
+
+The core MVM contracts have been audited https://github.com/MixinNetwork/audits
