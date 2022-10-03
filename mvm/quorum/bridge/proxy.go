@@ -141,7 +141,7 @@ func (p *Proxy) loopSnapshots(ctx context.Context, store *Storage) error {
 		return err
 	}
 	if len(snapshots) < 500 {
-		time.Sleep(time.Second * 2)
+		time.Sleep(time.Millisecond * 300)
 	}
 	return nil
 }
@@ -175,7 +175,7 @@ func (p *Proxy) processSnapshots(ctx context.Context, store *Storage) {
 		panic(err)
 	}
 	if len(snapshots) < 100 {
-		time.Sleep(1 * time.Second)
+		time.Sleep(time.Millisecond * 200)
 	}
 }
 

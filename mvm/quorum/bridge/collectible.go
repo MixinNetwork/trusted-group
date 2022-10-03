@@ -96,7 +96,7 @@ func (p *Proxy) processCollectibleOutputs(ctx context.Context, store *Storage) {
 		panic(err)
 	}
 	if len(outputs) < 100 {
-		time.Sleep(1 * time.Second)
+		time.Sleep(300 * time.Millisecond)
 	}
 }
 
@@ -128,7 +128,7 @@ func (p *Proxy) processCollectibleRawTransactions(ctx context.Context, store *St
 	}
 
 	if len(raws) < 100 {
-		time.Sleep(1 * time.Second)
+		time.Sleep(200 * time.Millisecond)
 	}
 }
 
