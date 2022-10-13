@@ -38,6 +38,7 @@ func upgradeUserPIN(ctx context.Context, store *Storage) {
 		}
 
 		u.PIN = pin
+		u.HasPin = true
 		u.Version = CurrentUserVersion
 		err = store.writeUser(u)
 		if err != nil {

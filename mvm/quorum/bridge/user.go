@@ -69,6 +69,7 @@ func (p *Proxy) createUser(ctx context.Context, store *Storage, addr, sig string
 		if err != nil {
 			return nil, err
 		}
+		user.HasPin = true
 	}
 
 	err = store.writeUser(user)
