@@ -192,6 +192,9 @@ func (s *Storage) listSnapshots(limit int) ([]*mixin.Snapshot, error) {
 		if err != nil {
 			return snapshots, err
 		}
+		if snap.UserID == "a2fbad4d-1cb6-30ab-b8e3-fb7f92dbb99c" {
+			continue // FIXME skip the failed user for 24 hours
+		}
 		snapshots = append(snapshots, &snap)
 	}
 
