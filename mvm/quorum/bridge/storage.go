@@ -147,7 +147,7 @@ func (s *Storage) readUser(txn *badger.Txn, id string) (*User, error) {
 }
 
 func (s *Storage) writeUser(u *User) error {
-	logger.Verbosef("Storage.writeUser(%v)", *u)
+	logger.Verbosef("Storage.writeUser(%s, %t, %s)", u.UserID, u.HasPin, u.Contract)
 	return s.Update(func(txn *badger.Txn) error {
 		key := []byte(storePrefixUser + u.UserID)
 		val := common.MsgpackMarshalPanic(u)
