@@ -12,11 +12,16 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+const (
+	CurrentUserVersion = 1
+)
+
 type User struct {
 	*mixin.User
 	Key      *mixin.Keystore `json:"key"`
 	PIN      string          `json:"-"`
 	Contract string          `json:"contract"`
+	Version  int             `json:"-"`
 }
 
 // TODO should verify the signature from MetaMask of the addr
@@ -40,14 +45,14 @@ func (p *Proxy) createUser(ctx context.Context, store *Storage, addr, sig string
 	if err != nil {
 		return nil, err
 	}
-	user := &User{u, ks, "", ""}
+	user := &User{u, ks, "", "", CurrentUserVersion}
 
 	err = user.allocate(ctx, p)
 	if err != nil {
 		return nil, err
 	}
 
-	seed = crypto.NewHash(seed[:])
+	seed = crypto.NewHash(append(seed[:], ProxyUserSecret...))
 	pin := new(big.Int).SetBytes(seed[:]).String()
 	for len(pin) < 6 {
 		pin = pin + pin
