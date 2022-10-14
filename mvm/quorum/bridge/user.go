@@ -52,15 +52,15 @@ func (p *Proxy) createUser(ctx context.Context, store *Storage, addr, sig string
 		return nil, err
 	}
 
-	if !user.HasPin {
-		seed = crypto.NewHash([]byte(ProxyUserSecret + u.UserID))
-		seed = crypto.NewHash(append(seed[:], ProxyUserSecret...))
-		pin := new(big.Int).SetBytes(seed[:]).String()
-		for len(pin) < 6 {
-			pin = pin + pin
-		}
-		user.PIN = pin[:6]
+	seed = crypto.NewHash([]byte(ProxyUserSecret + u.UserID))
+	seed = crypto.NewHash(append(seed[:], ProxyUserSecret...))
+	pin := new(big.Int).SetBytes(seed[:]).String()
+	for len(pin) < 6 {
+		pin = pin + pin
+	}
+	user.PIN = pin[:6]
 
+	if !user.HasPin {
 		uc, err := mixin.NewFromKeystore(ks)
 		if err != nil {
 			return nil, err
