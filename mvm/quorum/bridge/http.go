@@ -35,7 +35,7 @@ func StartHTTP(p *Proxy, s *Storage) error {
 
 // TODO make a bridge web interface
 func index(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	render.New().JSON(w, http.StatusOK, map[string]interface{}{
+	render.New().JSON(w, http.StatusOK, map[string]any{
 		"code":       "https://github.com/MixinNetwork/trusted-group/tree/master/mvm/quorum/bridge",
 		"process":    MVMRegistryId,
 		"registry":   "https://scan.mvm.dev/address/" + MVMRegistryContract,
@@ -53,20 +53,20 @@ func createUser(w http.ResponseWriter, r *http.Request, params map[string]string
 	}
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
-		render.New().JSON(w, http.StatusBadRequest, map[string]interface{}{"error": err})
+		render.New().JSON(w, http.StatusBadRequest, map[string]any{"error": err})
 		return
 	}
 	u, err := proxy.createUser(r.Context(), store, body.PublicKey, body.Signature)
 	if err != nil {
-		render.New().JSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err})
+		render.New().JSON(w, http.StatusInternalServerError, map[string]any{"error": err})
 		return
 	}
-	render.New().JSON(w, http.StatusOK, map[string]interface{}{"user": map[string]interface{}{
+	render.New().JSON(w, http.StatusOK, map[string]any{"user": map[string]any{
 		"user_id":    u.UserID,
 		"session_id": u.SessionID,
 		"full_name":  u.FullName,
 		"created_at": u.CreatedAt,
-		"key": map[string]interface{}{
+		"key": map[string]any{
 			"client_id":   u.Key.ClientID,
 			"session_id":  u.Key.SessionID,
 			"private_key": u.Key.PrivateKey,
@@ -79,21 +79,21 @@ func encodeExtra(w http.ResponseWriter, r *http.Request, params map[string]strin
 	var body Action
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
-		render.New().JSON(w, http.StatusBadRequest, map[string]interface{}{"error": err})
+		render.New().JSON(w, http.StatusBadRequest, map[string]any{"error": err})
 		return
 	}
 	extra, err := encodeActionAsExtra(&body)
 	if err != nil {
-		render.New().JSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err})
+		render.New().JSON(w, http.StatusInternalServerError, map[string]any{"error": err})
 		return
 	}
-	render.New().JSON(w, http.StatusOK, map[string]interface{}{"extra": extra})
+	render.New().JSON(w, http.StatusOK, map[string]any{"extra": extra})
 }
 
 func getTokenMeta(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	cb, err := hex.DecodeString(params["collection"])
 	if err != nil {
-		render.New().JSON(w, http.StatusBadRequest, map[string]interface{}{"error": err})
+		render.New().JSON(w, http.StatusBadRequest, map[string]any{"error": err})
 		return
 	}
 	collection := uuid.FromBytesOrNil(cb).String()
@@ -101,15 +101,15 @@ func getTokenMeta(w http.ResponseWriter, r *http.Request, params map[string]stri
 	tdt := fmt.Sprintf("https://thetrident.one/api/%s/%s", collection, params["id"])
 	resp, err := http.Get(tdt)
 	if err != nil {
-		render.New().JSON(w, http.StatusBadRequest, map[string]interface{}{"error": err})
+		render.New().JSON(w, http.StatusBadRequest, map[string]any{"error": err})
 		return
 	}
 	defer resp.Body.Close()
 
-	var body map[string]interface{}
+	var body map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&body)
 	if err != nil {
-		render.New().JSON(w, http.StatusBadRequest, map[string]interface{}{"error": err})
+		render.New().JSON(w, http.StatusBadRequest, map[string]any{"error": err})
 		return
 	}
 	render.New().JSON(w, http.StatusOK, body)
@@ -128,7 +128,7 @@ func handleCORS(handler http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Allow-Methods", "OPTIONS,GET,POST,DELETE")
 		w.Header().Set("Access-Control-Max-Age", "600")
 		if r.Method == "OPTIONS" {
-			render.New().JSON(w, http.StatusOK, map[string]interface{}{})
+			render.New().JSON(w, http.StatusOK, map[string]any{})
 		} else {
 			handler.ServeHTTP(w, r)
 		}

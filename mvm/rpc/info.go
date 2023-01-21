@@ -18,14 +18,14 @@ const (
 	outputsDrainingKey = "outputs-draining-checkpoint"
 )
 
-func getInfo(store *store.BadgerStore) (map[string]interface{}, error) {
+func getInfo(store *store.BadgerStore) (map[string]any, error) {
 	odc, err := readDrainingCheckpoint(store, outputsDrainingKey)
 	if err != nil {
 		return nil, err
 	}
-	return map[string]interface{}{
-		"group": map[string]interface{}{
-			"outputs": map[string]interface{}{
+	return map[string]any{
+		"group": map[string]any{
+			"outputs": map[string]any{
 				"draining": odc,
 			},
 		},

@@ -67,8 +67,10 @@ func bootCmd(c *cli.Context) error {
 		if !c.Bool("profile") {
 			return
 		}
-
-		go http.ListenAndServe(":9239", http.DefaultServeMux)
+		err := http.ListenAndServe(":9239", http.DefaultServeMux)
+		if err != nil {
+			panic(err)
+		}
 	}()
 
 	group, err := mtg.BuildGroup(ctx, db, conf.MTG)
