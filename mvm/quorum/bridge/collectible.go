@@ -11,7 +11,7 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/MixinNetwork/nfo/mtg"
+	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/shopspring/decimal"

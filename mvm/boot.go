@@ -11,10 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/MixinNetwork/nfo/mtg"
 	"github.com/MixinNetwork/tip/messenger"
+	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/MixinNetwork/trusted-group/mvm/config"
 	"github.com/MixinNetwork/trusted-group/mvm/machine"
 	"github.com/MixinNetwork/trusted-group/mvm/quorum"
@@ -172,7 +171,7 @@ func removeInvalidCollectibleTransaction(db *badger.DB, traceId string) error {
 			return err
 		}
 		var tx mtg.CollectibleTransaction
-		err = common.MsgpackUnmarshal(val, &tx)
+		err = mtg.MsgpackUnmarshal(val, &tx)
 		if err != nil {
 			return err
 		}

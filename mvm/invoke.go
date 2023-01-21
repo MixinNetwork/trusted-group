@@ -14,7 +14,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
-	"github.com/MixinNetwork/nfo/mtg"
+	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/MixinNetwork/trusted-group/mvm/config"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/fox-one/mixin-sdk-go"
@@ -173,7 +173,7 @@ func doCollectible(ctx context.Context, client *mixin.Client, conf *config.Confi
 }
 
 func buildRawCollectibleTransaction(ctx context.Context, client *mixin.Client, conf *config.Configuration, token *mixin.CollectibleToken, utxo *mixin.CollectibleOutput, extra []byte, traceId string) (*common.VersionedTransaction, error) {
-	ver := common.NewTransaction(crypto.Hash(token.MixinID))
+	ver := common.NewTransactionV3(crypto.Hash(token.MixinID))
 	ver.Extra = mtg.BuildExtraNFO(extra)
 
 	if utxo.Amount.Cmp(decimal.NewFromInt(1)) != 0 {
@@ -192,7 +192,7 @@ func buildRawCollectibleTransaction(ctx context.Context, client *mixin.Client, c
 
 	out := keys[0].DumpOutput(uint8(conf.MTG.Genesis.Threshold), utxo.Amount)
 	ver.Outputs = append(ver.Outputs, newCommonOutput(out))
-	return ver.AsLatestVersion(), nil
+	return ver.AsVersioned(), nil
 }
 
 func newCommonOutput(out *mixin.Output) *common.Output {
