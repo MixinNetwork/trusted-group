@@ -129,6 +129,8 @@ func (grp *Group) processMultisigOutput(out *Output) {
 }
 
 func (grp *Group) writeOutputOrPanic(out *Output, traceId string) {
+	// FIXME some invalid memo could also be randomly decoded
+	// thus result in incorrect group id
 	p := DecodeMixinExtra(out.Memo)
 	if p != nil && p.G != "" {
 		out.GroupId = p.G
