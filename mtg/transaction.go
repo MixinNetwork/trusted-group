@@ -148,7 +148,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 
 func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outputs []*Output) (*common.VersionedTransaction, []*Output, error) {
 	old, _ := decodeTransactionWithExtra(outputs[0].SignedTx)
-	if old != nil {
+	if old != nil && old.AggregatedSignature != nil {
 		return old, nil, nil
 	}
 	ver := common.NewTransactionV2(crypto.NewHash([]byte(tx.AssetId)))
