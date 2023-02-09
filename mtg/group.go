@@ -1,6 +1,7 @@
 package mtg
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
@@ -15,7 +16,8 @@ import (
 )
 
 const (
-	groupGenesisId = "group-genesis-id"
+	groupGenesisId  = "group-genesis-id"
+	groupBootSynced = "group-boot-synced"
 )
 
 type Group struct {
@@ -85,6 +87,11 @@ func BuildGroup(ctx context.Context, store Store, conf *Configuration) (*Group, 
 		return nil, err
 	}
 
+	err = store.WriteProperty([]byte(groupBootSynced), []byte{0})
+	if err != nil {
+		return nil, err
+	}
+
 	for _, id := range conf.Genesis.Members {
 		ts := time.Unix(0, conf.Genesis.Timestamp)
 		err = grp.AddNode(id, conf.Genesis.Threshold, ts)
@@ -118,17 +125,23 @@ func (grp *Group) GetThreshold() int {
 	return grp.threshold
 }
 
+func (grp *Group) Synced() (bool, error) {
+	v, err := grp.store.ReadProperty([]byte(groupBootSynced))
+	return bytes.Equal(v, []byte{1}), err
+}
+
 func (grp *Group) AddWorker(wkr Worker) {
 	grp.workers = append(grp.workers, wkr)
 }
 
 func (grp *Group) Run(ctx context.Context) {
-	logger.Printf("Group(%s, %d, %s).Run(v0.2.2)\n", mixin.HashMembers(grp.members), grp.threshold, grp.GenesisId())
+	logger.Printf("Group(%s, %d, %s).Run(v0.3.1)\n", mixin.HashMembers(grp.members), grp.threshold, grp.GenesisId())
 	filter := make(map[string]bool)
 	for {
 		// drain all the utxos in the order of created time
 		grp.drainOutputsFromNetwork(ctx, filter, 500, "created")
 		grp.drainOutputsFromNetwork(ctx, filter, 500, "updated")
+		grp.store.WriteProperty([]byte(groupBootSynced), []byte{1})
 
 		// handle the utxos queue by created time
 		grp.handleActionsQueue(ctx)
