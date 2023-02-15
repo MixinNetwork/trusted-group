@@ -101,12 +101,12 @@ func (grp *Group) buildTransaction(ctx context.Context, assetId string, receiver
 }
 
 func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte, error) {
-	outputs, err := grp.store.ListOutputsForTransaction(tx.TraceId)
+	outputs, err := grp.ListOutputsForTransaction(tx.TraceId)
 	if err != nil {
 		return nil, err
 	}
 	if len(outputs) == 0 {
-		outputs, err = grp.store.ListOutputsForAsset(tx.GroupId, mixin.UTXOStateUnspent, tx.AssetId, OutputsBatchSize)
+		outputs, err = grp.ListOutputsForAsset(tx.GroupId, mixin.UTXOStateUnspent, tx.AssetId, OutputsBatchSize)
 	}
 	if err != nil {
 		return nil, err

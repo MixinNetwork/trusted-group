@@ -158,7 +158,21 @@ func (grp *Group) Run(ctx context.Context) {
 }
 
 func (grp *Group) ListOutputsForAsset(groupId, assetId, state string, limit int) ([]*Output, error) {
-	return grp.store.ListOutputsForAsset(groupId, state, assetId, limit)
+	outputs, err := grp.store.ListOutputsForAsset(groupId, state, assetId, limit)
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(outputs, func(i, j int) bool { return outputs[i].CreatedAt.Before(outputs[j].CreatedAt) })
+	return outputs, nil
+}
+
+func (grp *Group) ListOutputsForTransaction(traceId string) ([]*Output, error) {
+	outputs, err := grp.store.ListOutputsForTransaction(traceId)
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(outputs, func(i, j int) bool { return outputs[i].CreatedAt.Before(outputs[j].CreatedAt) })
+	return outputs, nil
 }
 
 // FIXME sign one transaction per loop, slow
@@ -172,7 +186,7 @@ func (grp *Group) signTransactions(ctx context.Context) error {
 		// because we rely on the updated time of outputs, then build
 		// transaction can result in different order, so sign the first
 		// signed transaction by others at first
-		outs, err := grp.store.ListOutputsForTransaction(ct.TraceId)
+		outs, err := grp.ListOutputsForTransaction(ct.TraceId)
 		if err != nil {
 			return err
 		}
