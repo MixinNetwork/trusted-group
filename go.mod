@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/MixinNetwork/mixin v0.14.18
-	github.com/MixinNetwork/nfo v0.2.3-0.20230121073907-3989a20a0ecc
+	github.com/MixinNetwork/nfo v0.3.0
 	github.com/MixinNetwork/tip v0.0.0-20220718172842-5937b26d132a
 	github.com/dgraph-io/badger/v3 v3.2103.5
 	github.com/dimfeld/httptreemux v5.0.1+incompatible

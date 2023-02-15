@@ -6,8 +6,8 @@ github.com/MixinNetwork/mixin v0.14.18 h1:/X6NWO0//AjYXqO7YQsReJAjUxKiS+Jm7rpUKx
 github.com/MixinNetwork/mixin v0.14.18/go.mod h1:s+JZ8Dgwo5gHQ34yRBW8YOFQlH2FQcylfFfY0aJuhFI=
 github.com/MixinNetwork/mobilecoin-account v0.0.2 h1:2Ib8UQft6KySAFhGU5kjQNOvVIENlH6QXgW6uC+od0I=
 github.com/MixinNetwork/mobilecoin-account v0.0.2/go.mod h1:53/Dnb+RQttRjnSEK0RKD28A1326P8lpw8Ydl50lk1g=
-github.com/MixinNetwork/nfo v0.2.3-0.20230121073907-3989a20a0ecc h1:rFGuMN6/fnAM2att58zAXdImdiDssemjj9OxcujROXQ=
-github.com/MixinNetwork/nfo v0.2.3-0.20230121073907-3989a20a0ecc/go.mod h1:6xm3g7UC/N5gA7SFCGYUtQ7FRxMDQscMVNu3EhO5yYI=
+github.com/MixinNetwork/nfo v0.3.0 h1:e2tCuEGnFC6imRci055ncmrhTOWa91q2NsLPnS46fAg=
+github.com/MixinNetwork/nfo v0.3.0/go.mod h1:Lq679CsxCs8A9UC69+aCx5QES+k+x8UB/8jSA+5bwlY=
 github.com/MixinNetwork/tip v0.0.0-20220718172842-5937b26d132a h1:7DcBX+UmKA89aJN8huh1aMlnCMLzZDL6lg1DyhLLpak=
 github.com/MixinNetwork/tip v0.0.0-20220718172842-5937b26d132a/go.mod h1:IO3qSvgI/UrWIFdXC1rYOi1dhPJD1LqwFR0VPnZPzto=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
