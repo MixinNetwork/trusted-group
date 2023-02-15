@@ -49,6 +49,7 @@ func bootCmd(c *cli.Context) error {
 	}
 	defer db.Close()
 
+	handleUnifiedOutputCheckpoint(db)
 	handleInvalidCollectibleTransactions(db)
 
 	go func() {
@@ -112,6 +113,21 @@ func bootCmd(c *cli.Context) error {
 	group.Run(ctx)
 
 	return nil
+}
+
+func handleUnifiedOutputCheckpoint(db *store.BadgerStore) error {
+	ckpt, _ := time.Parse(time.RFC3339Nano, "2023-02-15T00:17:05.90874844Z")
+	key := "outputs-draining-checkpoint-by-created"
+
+	val, err := db.ReadProperty([]byte(key))
+	if err != nil {
+		return err
+	}
+	if len(val) > 0 && binary.BigEndian.Uint64(val) > uint64(ckpt.UnixNano()) {
+		return nil
+	}
+
+	return db.WriteProperty([]byte(key), tsToBytes(ckpt))
 }
 
 func handleInvalidCollectibleTransactions(db *store.BadgerStore) {
