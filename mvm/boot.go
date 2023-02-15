@@ -49,7 +49,7 @@ func bootCmd(c *cli.Context) error {
 	}
 	defer db.Close()
 
-	handleUnifiedOutputCheckpoint(db)
+	handleUnifiedOutputCheckpoints(db)
 	handleInvalidCollectibleTransactions(db)
 
 	go func() {
@@ -115,18 +115,53 @@ func bootCmd(c *cli.Context) error {
 	return nil
 }
 
-func handleUnifiedOutputCheckpoint(db *store.BadgerStore) error {
-	ckpt, _ := time.Parse(time.RFC3339Nano, "2023-02-15T00:17:05.90874844Z")
-	key := "outputs-draining-checkpoint-by-created"
+func handleUnifiedOutputCheckpoints(db *store.BadgerStore) {
+	val, err := db.ReadProperty([]byte("outputs-draining-checkpoint"))
+	if err != nil {
+		panic(err)
+	}
+	if len(val) == 0 {
+		return
+	}
+	ckpt := time.Unix(0, int64(binary.BigEndian.Uint64(val)))
+	hack, _ := time.Parse(time.RFC3339Nano, "2023-02-15T00:17:05.90874844Z")
+	if ckpt.Before(hack) {
+		panic(ckpt)
+	}
 
+	err = handleUnifiedOutputCreatedCheckpoint(db, ckpt)
+	if err != nil {
+		panic(err)
+	}
+	err = handleUnifiedOutputUpdatedCheckpoint(db, ckpt)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func handleUnifiedOutputCreatedCheckpoint(db *store.BadgerStore, ckpt time.Time) error {
+	key := "outputs-draining-checkpoint-by-created"
 	val, err := db.ReadProperty([]byte(key))
 	if err != nil {
 		return err
 	}
+
 	if len(val) > 0 && binary.BigEndian.Uint64(val) > uint64(ckpt.UnixNano()) {
 		return nil
 	}
+	return db.WriteProperty([]byte(key), tsToBytes(ckpt))
+}
 
+func handleUnifiedOutputUpdatedCheckpoint(db *store.BadgerStore, ckpt time.Time) error {
+	key := "outputs-draining-checkpoint-by-updated"
+	val, err := db.ReadProperty([]byte(key))
+	if err != nil {
+		return err
+	}
+
+	if len(val) > 0 && binary.BigEndian.Uint64(val) > uint64(ckpt.UnixNano()) {
+		return nil
+	}
 	return db.WriteProperty([]byte(key), tsToBytes(ckpt))
 }
 
