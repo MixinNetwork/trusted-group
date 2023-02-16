@@ -106,7 +106,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 		return nil, err
 	}
 	if len(outputs) == 0 {
-		outputs, err = grp.ListOutputsForAsset(tx.GroupId, mixin.UTXOStateUnspent, tx.AssetId, OutputsBatchSize)
+		outputs, err = grp.ListOutputsForAsset(tx.GroupId, tx.AssetId, mixin.UTXOStateUnspent, OutputsBatchSize)
 	}
 	if err != nil {
 		return nil, err
