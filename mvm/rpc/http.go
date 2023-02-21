@@ -7,12 +7,14 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/trusted-group/mvm/config"
+	"github.com/MixinNetwork/trusted-group/mvm/machine"
 	"github.com/MixinNetwork/trusted-group/mvm/store"
 )
 
 type RPC struct {
-	store *store.BadgerStore
-	conf  *config.Configuration
+	engine machine.Engine
+	store  *store.BadgerStore
+	conf   *config.Configuration
 }
 
 type Call struct {
@@ -89,6 +91,13 @@ func (impl *RPC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			renderer.RenderError(err)
 		} else {
 			renderer.RenderData(keys)
+		}
+	case "getevmevent":
+		tx, err := getEVMEvent(r.Context(), impl, call.Params)
+		if err != nil {
+			renderer.RenderError(err)
+		} else {
+			renderer.RenderData(map[string]string{"hash": tx})
 		}
 	default:
 		renderer.RenderError(fmt.Errorf("invalid method %s", call.Method))

@@ -8,10 +8,11 @@ import (
 )
 
 const (
-	prefixQuorumContractNotifier   = "QUORUM:CONTRACT:NOTIFIER:"
-	prefixQuorumContractLogOffset  = "QUORUM:CONTRACT:LOG:OFFSET:ALL"
-	prefixQuorumContractEventQueue = "QUORUM:CONTRACT:EVENT:QUEUE:"
-	prefixQuorumGroupEventQueue    = "QUORUM:GROUP:EVENT:QUEUE:"
+	prefixQuorumContractNotifier      = "QUORUM:CONTRACT:NOTIFIER:"
+	prefixQuorumContractLogOffset     = "QUORUM:CONTRACT:LOG:OFFSET:ALL"
+	prefixQuorumContractEventQueue    = "QUORUM:CONTRACT:EVENT:QUEUE:"
+	prefixQuorumGroupEventQueue       = "QUORUM:GROUP:EVENT:QUEUE:"
+	prefixQuorumGroupEventTransaction = "QUORUM:GROUP:EVENT:TRANSACTION:"
 )
 
 func (e *Engine) storeWriteContractNotifier(address, notifier string) error {
@@ -213,6 +214,30 @@ func (e *Engine) storeListGroupEvents(address string, offset uint64, limit int) 
 		}
 	}
 	return events, nil
+}
+
+func (e *Engine) storeWriteGroupEventTransaction(address string, nonce uint64, txHash string) error {
+	return e.db.Update(func(txn *badger.Txn) error {
+		key := []byte(prefixQuorumGroupEventTransaction + address)
+		key = append(key, uint64Bytes(nonce)...)
+		return txn.Set(key, []byte(txHash))
+	})
+}
+
+func (e *Engine) storeReadGroupEventTransaction(address string, nonce uint64) (string, error) {
+	txn := e.db.NewTransaction(false)
+	defer txn.Discard()
+
+	key := []byte(prefixQuorumGroupEventTransaction + address)
+	key = append(key, uint64Bytes(nonce)...)
+	item, err := txn.Get(key)
+	if err == badger.ErrKeyNotFound {
+		return "", err
+	} else if err != nil {
+		return "", err
+	}
+	val, err := item.ValueCopy(nil)
+	return string(val), err
 }
 
 func uint64Bytes(i uint64) []byte {

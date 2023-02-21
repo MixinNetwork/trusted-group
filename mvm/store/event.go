@@ -1,7 +1,6 @@
 package store
 
 import (
-	"encoding/binary"
 	"encoding/hex"
 
 	"github.com/MixinNetwork/mixin/common"
@@ -20,8 +19,21 @@ func (bs *BadgerStore) CheckPendingGroupEventIdentifier(id string) (bool, error)
 	txn := bs.Badger().NewTransaction(false)
 	defer txn.Discard()
 
-	ts, err := bs.readPendingGroupEventIdentifier(txn, id)
-	return ts > 0, err
+	old, err := bs.readPendingGroupEventIdentifier(txn, id)
+	return len(old) > 0, err
+}
+
+func (bs *BadgerStore) ReadGroupEvent(id string) (*encoding.Event, error) {
+	txn := bs.Badger().NewTransaction(false)
+	defer txn.Discard()
+
+	old, err := bs.readPendingGroupEventIdentifier(txn, id)
+	if err != nil {
+		return nil, err
+	}
+	var evt encoding.Event
+	err = encoding.JSONUnmarshal(old, &evt)
+	return &evt, err
 }
 
 func (bs *BadgerStore) WritePendingGroupEventAndNonce(event *encoding.Event, id string) error {
@@ -29,13 +41,13 @@ func (bs *BadgerStore) WritePendingGroupEventAndNonce(event *encoding.Event, id 
 		if event.Timestamp <= 0 {
 			panic(event.Timestamp)
 		}
-		ts, err := bs.readPendingGroupEventIdentifier(txn, id)
+		old, err := bs.readPendingGroupEventIdentifier(txn, id)
 		if err != nil {
 			return err
-		} else if ts > 0 {
+		} else if len(old) > 0 {
 			panic(id)
 		}
-		err = bs.writePendingGroupEventIdentifier(txn, id, event.Timestamp)
+		err = bs.writePendingGroupEventIdentifier(txn, id, event)
 		if err != nil {
 			return err
 		}
@@ -236,25 +248,21 @@ func (bs *BadgerStore) checkSignedEvent(txn *badger.Txn, pid string, nonce uint6
 	return checkFullSignature(val), nil
 }
 
-func (bs *BadgerStore) writePendingGroupEventIdentifier(txn *badger.Txn, id string, ts uint64) error {
-	buf := uint64Bytes(ts)
+func (bs *BadgerStore) writePendingGroupEventIdentifier(txn *badger.Txn, id string, event *encoding.Event) error {
+	buf := encoding.JSONMarshalPanic(event)
 	key := append([]byte(prefixPendingEventIdentifier), id...)
 	return txn.Set(key, buf)
 }
 
-func (bs *BadgerStore) readPendingGroupEventIdentifier(txn *badger.Txn, id string) (uint64, error) {
+func (bs *BadgerStore) readPendingGroupEventIdentifier(txn *badger.Txn, id string) ([]byte, error) {
 	key := append([]byte(prefixPendingEventIdentifier), id...)
 	item, err := txn.Get(key)
 	if err == badger.ErrKeyNotFound {
-		return 0, nil
+		return nil, nil
 	} else if err != nil {
-		return 0, err
+		return nil, err
 	}
-	val, err := item.ValueCopy(nil)
-	if err != nil {
-		return 0, err
-	}
-	return binary.BigEndian.Uint64(val), nil
+	return item.ValueCopy(nil)
 }
 
 func buildPendingEventSignaturesKey(pid string, nonce uint64) []byte {
