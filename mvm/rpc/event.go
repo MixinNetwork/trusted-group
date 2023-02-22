@@ -2,9 +2,13 @@ package rpc
 
 import (
 	"context"
+	"crypto/md5"
 	"fmt"
+	"time"
 
+	"github.com/MixinNetwork/bot-api-go-client"
 	"github.com/MixinNetwork/trusted-group/mvm/store"
+	"github.com/gofrs/uuid"
 )
 
 func getEVMEvent(ctx context.Context, impl *RPC, params []any) (string, error) {
@@ -44,15 +48,38 @@ func getEVMEvent(ctx context.Context, impl *RPC, params []any) (string, error) {
 }
 
 func readNetworkSnapshot(id string) (string, error) {
-	panic(0)
+	snapshot, err := bot.NetworkSnapshot(context.Background(), id)
+	if err != nil {
+		return "", err
+	}
+	return snapshot.SnapshotHash, nil
 }
 
 func readSnapshotTransaction(snap string) (string, error) {
-	panic(0)
+	nodes := []string{
+		"http://mixin-node0.exinpool.com:8239",
+		"http://mixin-node-01.b1.run:8239",
+		"http://lehigh.hotot.org:8239",
+	}
+	m := NewMixinNetwork(nodes[time.Now().Unix()%3])
+	snapshot, err := m.GetSnapshot(snap)
+	if err != nil {
+		return "", err
+	}
+	return snapshot.Transaction.Hash, nil
 }
 
 func utxoId(tx string, index int) string {
-	panic(0)
+	h := md5.New()
+	h.Write([]byte(fmt.Sprintf("%s:%d", tx, index)))
+	s := h.Sum(nil)
+	s[6] = (s[6] & 0x0f) | 0x30
+	s[8] = (s[8] & 0x3f) | 0x80
+	sid, err := uuid.FromBytes(s)
+	if err != nil {
+		panic(err)
+	}
+	return sid.String()
 }
 
 func findProcessAddress(store *store.BadgerStore, pid string) (string, error) {
