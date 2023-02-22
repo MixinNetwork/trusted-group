@@ -51,18 +51,6 @@ func bootCmd(c *cli.Context) error {
 
 	handleUnifiedOutputCheckpoints(db)
 	handleInvalidCollectibleTransactions(db)
-
-	go func() {
-		if c.Int("port") < 1000 {
-			return
-		}
-		server := rpc.NewServer(db, conf, c.Int("port"))
-		err := server.ListenAndServe()
-		if err != nil {
-			panic(err)
-		}
-	}()
-
 	go func() {
 		if !c.Bool("profile") {
 			return
@@ -97,13 +85,22 @@ func bootCmd(c *cli.Context) error {
 		return err
 	}
 
-	if conf.Quorum != nil {
-		en, err := quorum.Boot(conf.Quorum)
-		if err != nil {
-			return err
-		}
-		im.AddEngine(machine.ProcessPlatformQuorum, en)
+	en, err := quorum.Boot(conf.Quorum)
+	if err != nil {
+		return err
 	}
+	im.AddEngine(machine.ProcessPlatformQuorum, en)
+
+	go func() {
+		if c.Int("port") < 1000 {
+			return
+		}
+		server := rpc.NewServer(en, db, conf, c.Int("port"))
+		err := server.ListenAndServe()
+		if err != nil {
+			panic(err)
+		}
+	}()
 
 	go im.Loop(ctx)
 	go RunMonitor(ctx, messenger, db)

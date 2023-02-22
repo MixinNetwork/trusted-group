@@ -124,10 +124,11 @@ func handleCORS(handler http.Handler) http.Handler {
 	})
 }
 
-func NewServer(store *store.BadgerStore, conf *config.Configuration, port int) *http.Server {
+func NewServer(engine machine.Engine, store *store.BadgerStore, conf *config.Configuration, port int) *http.Server {
 	rpc := &RPC{
-		store: store,
-		conf:  conf,
+		engine: engine,
+		store:  store,
+		conf:   conf,
 	}
 	handler := handleCORS(rpc)
 
