@@ -11,7 +11,7 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/MixinNetwork/nfo/mtg"
+	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/shopspring/decimal"
@@ -96,7 +96,7 @@ func (p *Proxy) processCollectibleOutputs(ctx context.Context, store *Storage) {
 		panic(err)
 	}
 	if len(outputs) < 100 {
-		time.Sleep(1 * time.Second)
+		time.Sleep(300 * time.Millisecond)
 	}
 }
 
@@ -128,7 +128,7 @@ func (p *Proxy) processCollectibleRawTransactions(ctx context.Context, store *St
 	}
 
 	if len(raws) < 100 {
-		time.Sleep(1 * time.Second)
+		time.Sleep(200 * time.Millisecond)
 	}
 }
 

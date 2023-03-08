@@ -10,10 +10,10 @@ import (
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/MixinNetwork/nfo/mtg"
 	"github.com/MixinNetwork/tip/crypto"
 	"github.com/MixinNetwork/tip/crypto/en256"
 	"github.com/MixinNetwork/tip/messenger"
+	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/drand/kyber"
 	"github.com/drand/kyber/group/mod"

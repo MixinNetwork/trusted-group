@@ -7,18 +7,20 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/trusted-group/mvm/config"
+	"github.com/MixinNetwork/trusted-group/mvm/machine"
 	"github.com/MixinNetwork/trusted-group/mvm/store"
 )
 
 type RPC struct {
-	store *store.BadgerStore
-	conf  *config.Configuration
+	engine machine.Engine
+	store  *store.BadgerStore
+	conf   *config.Configuration
 }
 
 type Call struct {
-	Id     string        `json:"id"`
-	Method string        `json:"method"`
-	Params []interface{} `json:"params"`
+	Id     string `json:"id"`
+	Method string `json:"method"`
+	Params []any  `json:"params"`
 }
 
 func handlePanic(w http.ResponseWriter, r *http.Request) {
@@ -35,17 +37,17 @@ type Render struct {
 	id string
 }
 
-func (r *Render) RenderData(data interface{}) {
-	body := map[string]interface{}{"data": data}
+func (r *Render) RenderData(data any) {
+	body := map[string]any{"data": data}
 	r.render(body)
 }
 
 func (r *Render) RenderError(err error) {
-	body := map[string]interface{}{"error": err.Error()}
+	body := map[string]any{"error": err.Error()}
 	r.render(body)
 }
 
-func (r *Render) render(body map[string]interface{}) {
+func (r *Render) render(body map[string]any) {
 	if r.id != "" {
 		body["id"] = r.id
 	}
@@ -90,6 +92,13 @@ func (impl *RPC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			renderer.RenderData(keys)
 		}
+	case "getevmevent":
+		tx, err := getEVMEvent(r.Context(), impl, call.Params)
+		if err != nil {
+			renderer.RenderError(err)
+		} else {
+			renderer.RenderData(map[string]string{"hash": tx})
+		}
 	default:
 		renderer.RenderError(fmt.Errorf("invalid method %s", call.Method))
 	}
@@ -108,17 +117,18 @@ func handleCORS(handler http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Max-Age", "600")
 		if r.Method == "OPTIONS" {
 			rdr := Render{w: w}
-			rdr.render(map[string]interface{}{})
+			rdr.render(map[string]any{})
 		} else {
 			handler.ServeHTTP(w, r)
 		}
 	})
 }
 
-func NewServer(store *store.BadgerStore, conf *config.Configuration, port int) *http.Server {
+func NewServer(engine machine.Engine, store *store.BadgerStore, conf *config.Configuration, port int) *http.Server {
 	rpc := &RPC{
-		store: store,
-		conf:  conf,
+		engine: engine,
+		store:  store,
+		conf:   conf,
 	}
 	handler := handleCORS(rpc)
 

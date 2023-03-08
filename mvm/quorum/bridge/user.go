@@ -10,6 +10,11 @@ import (
 	"github.com/MixinNetwork/mixin/domains/ethereum"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/fox-one/mixin-sdk-go"
+	"github.com/shopspring/decimal"
+)
+
+const (
+	CurrentUserVersion = 1
 )
 
 type User struct {
@@ -17,6 +22,7 @@ type User struct {
 	Key      *mixin.Keystore `json:"key"`
 	PIN      string          `json:"-"`
 	Contract string          `json:"contract"`
+	Version  int             `json:"-"`
 }
 
 func (p *Proxy) createUser(ctx context.Context, store *Storage, addr, sig string) (*User, error) {
@@ -46,9 +52,15 @@ func (p *Proxy) createUser(ctx context.Context, store *Storage, addr, sig string
 	if err != nil {
 		return nil, err
 	}
-	user := &User{u, ks, "", ""}
+	user := &User{u, ks, "", "", CurrentUserVersion}
 
-	seed = crypto.NewHash(seed[:])
+	err = user.allocate(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+
+	seed = crypto.NewHash([]byte(ProxyUserSecret + u.UserID))
+	seed = crypto.NewHash(append(seed[:], ProxyUserSecret...))
 	pin := new(big.Int).SetBytes(seed[:]).String()
 	for len(pin) < 6 {
 		pin = pin + pin
@@ -64,6 +76,7 @@ func (p *Proxy) createUser(ctx context.Context, store *Storage, addr, sig string
 		if err != nil {
 			return nil, err
 		}
+		user.HasPin = true
 	}
 
 	err = store.writeUser(user)
@@ -131,5 +144,18 @@ func (u *User) send(ctx context.Context, in *mixin.TransferInput) error {
 		_, err = uc.Transfer(ctx, in, u.PIN)
 	}
 	logger.Verbosef("User.send(%v) => %v", *in, err)
+	return err
+}
+
+func (u *User) allocate(ctx context.Context, p *Proxy) error {
+	traceId := mixin.UniqueConversationID(MVMRegistryContract, u.UserID)
+	input := &mixin.TransferInput{
+		OpponentID: u.UserID,
+		AssetID:    "c94ac88f-4671-3976-b60a-09064f1811e8",
+		Amount:     decimal.NewFromFloat(0.0000001),
+		TraceID:    traceId,
+		Memo:       "ALLOCATION DEPOSIT",
+	}
+	_, err := p.Transfer(ctx, input, ProxyPIN)
 	return err
 }

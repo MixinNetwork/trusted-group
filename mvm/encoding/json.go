@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-func JSONMarshalPanic(val interface{}) []byte {
+func JSONMarshalPanic(val any) []byte {
 	b, err := json.Marshal(val)
 	if err != nil {
 		panic(fmt.Errorf("JSONMarshalPanic: %#v %s", val, err.Error()))
@@ -14,7 +14,7 @@ func JSONMarshalPanic(val interface{}) []byte {
 	return b
 }
 
-func JSONUnmarshal(data []byte, val interface{}) error {
+func JSONUnmarshal(data []byte, val any) error {
 	err := json.Unmarshal(data, val)
 	if err == nil {
 		return err

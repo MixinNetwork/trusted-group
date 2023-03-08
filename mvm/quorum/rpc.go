@@ -46,7 +46,7 @@ func NewRPC(host string, base uint64) (*RPC, error) {
 }
 
 func (chain *RPC) GetBlockHeight() (uint64, error) {
-	body, err := chain.call("eth_blockNumber", []interface{}{})
+	body, err := chain.call("eth_blockNumber", []any{})
 	if err != nil {
 		return 0, err
 	}
@@ -65,7 +65,7 @@ func (chain *RPC) GetBlockHeight() (uint64, error) {
 }
 
 func (chain *RPC) GetAddressNonce(address string) (uint64, error) {
-	body, err := chain.call("eth_getTransactionCount", []interface{}{address, "latest"})
+	body, err := chain.call("eth_getTransactionCount", []any{address, "latest"})
 	if err != nil {
 		return 0, err
 	}
@@ -84,7 +84,7 @@ func (chain *RPC) GetAddressNonce(address string) (uint64, error) {
 }
 
 func (chain *RPC) GetAddressBalance(address string) (decimal.Decimal, error) {
-	body, err := chain.call("eth_getBalance", []interface{}{address, "latest"})
+	body, err := chain.call("eth_getBalance", []any{address, "latest"})
 	if err != nil {
 		return decimal.Zero, err
 	}
@@ -108,7 +108,7 @@ type Log struct {
 }
 
 func (chain *RPC) GetLogs(topic string, from, to uint64) ([]*Log, error) {
-	body, err := chain.call("eth_getLogs", []interface{}{map[string]interface{}{
+	body, err := chain.call("eth_getLogs", []any{map[string]any{
 		"topics":    []string{topic},
 		"fromBlock": fmt.Sprintf("0x%x", from),
 		"toBlock":   fmt.Sprintf("0x%x", to),
@@ -147,7 +147,7 @@ func (chain *RPC) GetLogs(topic string, from, to uint64) ([]*Log, error) {
 }
 
 func (chain *RPC) SendRawTransaction(raw string) (string, error) {
-	body, err := chain.call("eth_sendRawTransaction", []interface{}{raw})
+	body, err := chain.call("eth_sendRawTransaction", []any{raw})
 	if err != nil {
 		return "", err
 	}
@@ -165,8 +165,8 @@ func (chain *RPC) SendRawTransaction(raw string) (string, error) {
 	return resp.Result, nil
 }
 
-func (chain *RPC) call(method string, params []interface{}) ([]byte, error) {
-	data := map[string]interface{}{
+func (chain *RPC) call(method string, params []any) ([]byte, error) {
+	data := map[string]any{
 		"method":  method,
 		"params":  params,
 		"id":      time.Now().UnixNano(),

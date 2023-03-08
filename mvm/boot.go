@@ -11,10 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/MixinNetwork/nfo/mtg"
 	"github.com/MixinNetwork/tip/messenger"
+	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/MixinNetwork/trusted-group/mvm/config"
 	"github.com/MixinNetwork/trusted-group/mvm/machine"
 	"github.com/MixinNetwork/trusted-group/mvm/quorum"
@@ -50,25 +49,16 @@ func bootCmd(c *cli.Context) error {
 	}
 	defer db.Close()
 
+	handleUnifiedOutputCheckpoints(db)
 	handleInvalidCollectibleTransactions(db)
-
-	go func() {
-		if c.Int("port") < 1000 {
-			return
-		}
-		server := rpc.NewServer(db, conf, c.Int("port"))
-		err := server.ListenAndServe()
-		if err != nil {
-			panic(err)
-		}
-	}()
-
 	go func() {
 		if !c.Bool("profile") {
 			return
 		}
-
-		go http.ListenAndServe(":9239", http.DefaultServeMux)
+		err := http.ListenAndServe(":9239", http.DefaultServeMux)
+		if err != nil {
+			panic(err)
+		}
 	}()
 
 	group, err := mtg.BuildGroup(ctx, db, conf.MTG)
@@ -95,13 +85,22 @@ func bootCmd(c *cli.Context) error {
 		return err
 	}
 
-	if conf.Quorum != nil {
-		en, err := quorum.Boot(conf.Quorum)
-		if err != nil {
-			return err
-		}
-		im.AddEngine(machine.ProcessPlatformQuorum, en)
+	en, err := quorum.Boot(conf.Quorum)
+	if err != nil {
+		return err
 	}
+	im.AddEngine(machine.ProcessPlatformQuorum, en)
+
+	go func() {
+		if c.Int("port") < 1000 {
+			return
+		}
+		server := rpc.NewServer(en, db, conf, c.Int("port"))
+		err := server.ListenAndServe()
+		if err != nil {
+			panic(err)
+		}
+	}()
 
 	go im.Loop(ctx)
 	go RunMonitor(ctx, messenger, db)
@@ -111,6 +110,56 @@ func bootCmd(c *cli.Context) error {
 	group.Run(ctx)
 
 	return nil
+}
+
+func handleUnifiedOutputCheckpoints(db *store.BadgerStore) {
+	val, err := db.ReadProperty([]byte("outputs-draining-checkpoint"))
+	if err != nil {
+		panic(err)
+	}
+	if len(val) == 0 {
+		return
+	}
+	ckpt := time.Unix(0, int64(binary.BigEndian.Uint64(val)))
+	hack, _ := time.Parse(time.RFC3339Nano, "2023-02-15T00:17:05.90874844Z")
+	if ckpt.Before(hack) {
+		panic(ckpt)
+	}
+
+	err = handleUnifiedOutputCreatedCheckpoint(db, ckpt)
+	if err != nil {
+		panic(err)
+	}
+	err = handleUnifiedOutputUpdatedCheckpoint(db, ckpt)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func handleUnifiedOutputCreatedCheckpoint(db *store.BadgerStore, ckpt time.Time) error {
+	key := "outputs-draining-checkpoint-by-created"
+	val, err := db.ReadProperty([]byte(key))
+	if err != nil {
+		return err
+	}
+
+	if len(val) > 0 && binary.BigEndian.Uint64(val) > uint64(ckpt.UnixNano()) {
+		return nil
+	}
+	return db.WriteProperty([]byte(key), tsToBytes(ckpt))
+}
+
+func handleUnifiedOutputUpdatedCheckpoint(db *store.BadgerStore, ckpt time.Time) error {
+	key := "outputs-draining-checkpoint-by-updated"
+	val, err := db.ReadProperty([]byte(key))
+	if err != nil {
+		return err
+	}
+
+	if len(val) > 0 && binary.BigEndian.Uint64(val) > uint64(ckpt.UnixNano()) {
+		return nil
+	}
+	return db.WriteProperty([]byte(key), tsToBytes(ckpt))
 }
 
 func handleInvalidCollectibleTransactions(db *store.BadgerStore) {
@@ -170,7 +219,7 @@ func removeInvalidCollectibleTransaction(db *badger.DB, traceId string) error {
 			return err
 		}
 		var tx mtg.CollectibleTransaction
-		err = common.MsgpackUnmarshal(val, &tx)
+		err = mtg.MsgpackUnmarshal(val, &tx)
 		if err != nil {
 			return err
 		}

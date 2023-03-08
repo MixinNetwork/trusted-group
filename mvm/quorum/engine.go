@@ -114,6 +114,10 @@ func (e *Engine) ReceiveGroupEvents(address string, offset uint64, limit int) ([
 	return e.storeListContractEvents(address, offset, limit)
 }
 
+func (e *Engine) ReadGroupEventTransaction(address string, nonce uint64) (string, error) {
+	return e.storeReadGroupEventTransaction(address, nonce)
+}
+
 func (e *Engine) IsPublisher() bool {
 	return e.key != ""
 }
@@ -181,6 +185,11 @@ func (e *Engine) loopSendGroupEvents(address string) {
 		}
 		for _, evt := range evts {
 			id, raw := e.signGroupEventTransaction(address, evt, notifier)
+			// TODO should have a thread to index all mixin calls on address
+			err := e.storeWriteGroupEventTransaction(address, evt.Nonce, id)
+			if err != nil {
+				panic(err)
+			}
 			res, err := e.rpc.SendRawTransaction(raw)
 			logger.Verbosef("loopSendGroupEvents(%s) => SendRawTransaction(%s, %s) => %s, %v", address, id, raw, res, err)
 		}
