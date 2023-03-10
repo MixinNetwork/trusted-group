@@ -20,7 +20,7 @@ interface IERC20 {
 }
 
 contract Bridge {
-    uint256 public constant BASE = 10000000000;
+    uint256 public constant BASE = 10**10;
 
     address public immutable FACTORY;
     address public immutable XIN;

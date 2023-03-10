@@ -5,14 +5,22 @@ package main
 // POST /extra
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"log"
+	"math/big"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/dimfeld/httptreemux"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/gofrs/uuid"
+	"github.com/gorilla/handlers"
 	"github.com/unrolled/render"
 )
 
@@ -25,12 +33,36 @@ func StartHTTP(p *Proxy, s *Storage) error {
 	proxy, store = p, s
 	router := httptreemux.New()
 	router.GET("/", index)
+	router.GET("/assets/:id", assetInfo)
 	router.POST("/extra", encodeExtra)
 	router.POST("/users", createUser)
 	router.GET("/collectibles/:collection/:id", getTokenMeta)
 	handler := handleCORS(router)
+	handler = State(handler)
+	handler = handlers.ProxyHeaders(handler)
 	handler = handleLog(handler)
 	return http.ListenAndServe(fmt.Sprintf(":%d", HTTPPort), handler)
+}
+
+func State(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		log.Printf("INFO -- : Started %s '%s'", r.Method, r.URL)
+		defer func() {
+			log.Printf("INFO -- : Completed %s in %fms", r.Method, time.Now().Sub(start).Seconds())
+		}()
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			render.New().JSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err})
+			return
+		}
+		if len(body) > 0 {
+			log.Printf("INFO -- : Paremeters %s", string(body))
+		}
+		r.Body.Close()
+		r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+		handler.ServeHTTP(w, r)
+	})
 }
 
 // TODO make a bridge web interface
@@ -43,10 +75,16 @@ func index(w http.ResponseWriter, r *http.Request, params map[string]string) {
 		"mirror":     "https://scan.mvm.dev/address/" + MVMMirrorContract,
 		"withdrawal": "https://scan.mvm.dev/address/" + MVMWithdrawalContract,
 		"storage":    "https://scan.mvm.dev/address/" + MVMStorageContract,
+
+		"public_key_hex": CurvePublicKey(ServerPublic),
 	})
 }
 
 func createUser(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	if len(store.limiterAvailable(r.RemoteAddr)) > UserCreationLimit {
+		render.New().JSON(w, http.StatusTooManyRequests, map[string]interface{}{"error": "too many request"})
+		return
+	}
 	var body struct {
 		PublicKey string `json:"public_key"`
 		Signature string `json:"signature"`
@@ -54,6 +92,11 @@ func createUser(w http.ResponseWriter, r *http.Request, params map[string]string
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
 		render.New().JSON(w, http.StatusBadRequest, map[string]any{"error": err})
+		return
+	}
+	err = store.writeLimiter(r.RemoteAddr)
+	if err != nil {
+		render.New().JSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err})
 		return
 	}
 	u, err := proxy.createUser(r.Context(), store, body.PublicKey, body.Signature)
@@ -75,14 +118,45 @@ func createUser(w http.ResponseWriter, r *http.Request, params map[string]string
 	}})
 }
 
+func assetInfo(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	id := strings.ToLower(strings.TrimSpace(params["id"]))
+	aid, _ := uuid.FromString(id)
+	var address common.Address
+	var err error
+	if aid.String() == id {
+		k := new(big.Int).SetBytes(aid.Bytes())
+		address, err = proxy.registry.Contracts(nil, k)
+	} else {
+		address = common.HexToAddress(id)
+		var num *big.Int
+		num, err = proxy.registry.Assets(nil, address)
+		if err == nil {
+			aid = uuid.FromBytesOrNil(num.Bytes())
+		}
+	}
+	if err != nil {
+		render.New().JSON(w, http.StatusAccepted, map[string]interface{}{"error": err.Error()})
+		return
+	}
+	render.New().JSON(w, http.StatusOK, map[string]interface{}{"asset_id": aid.String(), "contract": address.String()})
+}
+
 func encodeExtra(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	var body Action
+	var body struct {
+		PublicKey string `json:"public_key"`
+		Action    Action `json:"action"`
+	}
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
 		render.New().JSON(w, http.StatusBadRequest, map[string]any{"error": err})
 		return
 	}
-	extra, err := encodeActionAsExtra(&body)
+	pub, err := hex.DecodeString(body.PublicKey)
+	if err != nil || len(pub) != 32 {
+		render.New().JSON(w, http.StatusBadRequest, map[string]interface{}{"error": fmt.Errorf("invalid public key: %s", body.PublicKey)})
+		return
+	}
+	extra, err := encodeActionAsExtra(pub, &body.Action)
 	if err != nil {
 		render.New().JSON(w, http.StatusInternalServerError, map[string]any{"error": err})
 		return

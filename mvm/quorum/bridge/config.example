@@ -17,9 +17,14 @@ const (
 	MVMMirrorContract     = "0xC193486e6Bf3E8461cb8fcdF178676a5D75c066A"
 	MVMWithdrawalContract = "0xb27C8e0665D2Afa10F50A7CF4D2B9B6B461FD438"
 
+	ServerPrivate = "d61bbd95e593a1acac27e80d5b868c2f93a24f1ee897b0c73c239b3d53225020 <ed25519 private key replace> "
+	ServerPublic  = "eeda555b8144a9776c120b28f1a8605ea040fb494fbf89588ccf31952753c57b <ed25519 public key replace>"
+
 	ProxyPIN = ""
 
 	ProxyUserSecret = ""
+
+	UserCreationLimit = 128
 )
 
 var (

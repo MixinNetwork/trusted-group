@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 	"time"
 
 	"github.com/MixinNetwork/mixin/common"
@@ -22,6 +23,7 @@ const (
 	storePrefixCollectibleOutputCheckpoint = "COLLECTIBLE:OUTPUT:CHECKPOINT"
 	storePrefixCollectibleOutputList       = "COLLECTIBLE:OUTPUT:LIST:"
 	storePrefixCollectibleRawTransaction   = "COLLECTIBLE:RAW:TRANSACTION:"
+	storePrefixLimitUserCreation           = "LIMIT:USER"
 )
 
 type Storage struct {
@@ -316,6 +318,31 @@ func timeToBytes(t time.Time) []byte {
 	return buf
 }
 
+func (s *Storage) writeLimiter(ip string) error {
+	return s.Update(func(txn *badger.Txn) error {
+		key := fmt.Sprintf("%s:%s:%d", storePrefixLimitUserCreation, ip, time.Now().UnixNano())
+		e := badger.NewEntry([]byte(key), []byte("")).WithTTL(24 * time.Hour)
+		return txn.SetEntry(e)
+	})
+}
+
+func (s *Storage) limiterAvailable(ip string) []string {
+	txn := s.NewTransaction(false)
+	defer txn.Discard()
+
+	prefix := fmt.Sprintf("%s:%s", storePrefixLimitUserCreation, ip)
+	opts := badger.DefaultIteratorOptions
+	opts.Prefix = []byte(prefix)
+	it := txn.NewIterator(opts)
+	defer it.Close()
+
+	var keys []string
+	for it.Seek(opts.Prefix); it.Valid(); it.Next() {
+		item := it.Item()
+		keys = append(keys, string(item.Key()))
+	}
+	return keys
+}
 func (s *Storage) readCollectiblesCheckpoint(ctx context.Context) (time.Time, error) {
 	key := []byte(storePrefixCollectibleOutputCheckpoint)
 	return s.readCheckpoint(ctx, key)
