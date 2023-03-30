@@ -46,6 +46,23 @@ func main() {
 				},
 			},
 			{
+				Name:   "unlockrequest",
+				Usage:  "Unlock a MTG transaction request",
+				Action: unlockRequestCmd,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:    "config",
+						Aliases: []string{"c"},
+						Value:   "~/.mixin/mvm/config.toml",
+						Usage:   "The configuration file path",
+					},
+					&cli.StringFlag{
+						Name:  "raw",
+						Usage: "The raw transaction to unlock",
+					},
+				},
+			},
+			{
 				Name:   "publish",
 				Usage:  "Publish a MVM app",
 				Action: publishAppCmd,
