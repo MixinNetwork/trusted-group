@@ -62,7 +62,7 @@ func (grp *Group) BuildCollectibleTransferTransaction(ctx context.Context, recei
 	}
 	extra := EncodeMixinExtra("", traceId, memo)
 	nfo := BuildExtraNFO([]byte(extra))
-	if len(nfo) > common.ExtraSizeLimit {
+	if len(nfo) > common.ExtraSizeGeneralLimit {
 		panic(memo)
 	}
 	return grp.buildCollectibleTransaction(ctx, receivers, threshold, nfo, tokenId, traceId)
