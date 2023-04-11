@@ -6,13 +6,13 @@ require (
 	github.com/MixinNetwork/bot-api-go-client v1.6.1
 	github.com/MixinNetwork/go-number v0.1.0
 	github.com/MixinNetwork/mixin v0.15.0
-	github.com/MixinNetwork/nfo v0.3.0
+	github.com/MixinNetwork/nfo v0.3.1
 	github.com/MixinNetwork/tip v0.0.0-20220718172842-5937b26d132a
 	github.com/dgraph-io/badger/v3 v3.2103.5
 	github.com/dimfeld/httptreemux v5.0.1+incompatible
 	github.com/drand/kyber v1.1.7
 	github.com/ethereum/go-ethereum v1.11.5
-	github.com/fox-one/mixin-sdk-go v1.7.2
+	github.com/fox-one/mixin-sdk-go v1.7.6
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/mdp/qrterminal v1.0.1
 	github.com/pelletier/go-toml v1.9.5
@@ -55,7 +55,7 @@ require (
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/holiman/uint256 v1.2.0 // indirect
 	github.com/jadeydi/mobilecoin-account v1.0.0 // indirect
-	github.com/klauspost/compress v1.16.3 // indirect
+	github.com/klauspost/compress v1.16.4 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.4 // indirect
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
@@ -69,13 +69,13 @@ require (
 	github.com/zeebo/blake3 v0.2.3 // indirect
 	go.dedis.ch/fixbuf v1.0.3 // indirect
 	go.opencensus.io v0.24.0 // indirect
-	golang.org/x/crypto v0.7.0 // indirect
-	golang.org/x/net v0.8.0 // indirect
+	golang.org/x/crypto v0.8.0 // indirect
+	golang.org/x/net v0.9.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
-	golang.org/x/sys v0.6.0 // indirect
-	golang.org/x/text v0.8.0 // indirect
+	golang.org/x/sys v0.7.0 // indirect
+	golang.org/x/text v0.9.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20230331144136-dcfb400f0633 // indirect
+	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
 	google.golang.org/grpc v1.54.0 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
