@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/fox-one/mixin-sdk-go"
 )
@@ -33,7 +34,7 @@ func (grp *Group) drainOutputsFromNetwork(ctx context.Context, filter map[string
 			continue
 		}
 
-		checkpoint = grp.processUnifiedOutputs(filter, checkpoint, outputs, order)
+		checkpoint = grp.processUnifiedOutputs(ctx, filter, checkpoint, outputs, order)
 		grp.writeDrainingCheckpoint(ctx, order, checkpoint)
 		if len(outputs) < batch/2 {
 			break
@@ -41,7 +42,7 @@ func (grp *Group) drainOutputsFromNetwork(ctx context.Context, filter map[string
 	}
 }
 
-func (grp *Group) processUnifiedOutputs(filter map[string]bool, checkpoint time.Time, outputs []*UnifiedOutput, order string) time.Time {
+func (grp *Group) processUnifiedOutputs(ctx context.Context, filter map[string]bool, checkpoint time.Time, outputs []*UnifiedOutput, order string) time.Time {
 	for _, out := range outputs {
 		if order == outputsOrderCreated {
 			checkpoint = out.CreatedAt
@@ -54,7 +55,7 @@ func (grp *Group) processUnifiedOutputs(filter map[string]bool, checkpoint time.
 		}
 		filter[key] = true
 		if out.Type == OutputTypeMultisig {
-			grp.processMultisigOutput(out.AsMultisig())
+			grp.processMultisigOutput(ctx, out.AsMultisig())
 		} else if out.Type == OutputTypeCollectible {
 			grp.processCollectibleOutput(out.AsCollectible())
 		}
@@ -88,16 +89,28 @@ func (grp *Group) readOldTransaction(utxo *UnifiedOutput) (bool, error) {
 	panic(utxo.Type)
 }
 
-func (grp *Group) processMultisigOutput(out *Output) {
+func (grp *Group) processMultisigOutput(ctx context.Context, out *Output) {
 	logger.Verbosef("Group.processMultisigOutput(%v)", out)
 	ver, extra := decodeTransactionWithExtra(out.SignedTx)
 	if out.SignedTx != "" && ver == nil {
 		panic(out.SignedTx)
 	}
+	if ver != nil && ver.Version < common.TxVersionReferences && ver.AggregatedSignature == nil {
+		req, err := grp.mixin.CreateMultisig(ctx, mixin.MultisigActionUnlock, out.SignedTx)
+		if err != nil {
+			panic(err)
+		}
+		err = grp.mixin.UnlockMultisig(ctx, req.RequestID, grp.pin)
+		if err != nil {
+			panic(err)
+		}
+		return
+	}
 	var groupId, traceId string
 	if extra != nil {
 		groupId, traceId = extra.G, extra.T.String()
 	}
+
 	// FIXME get trace id from other members could break the consensus
 	// this in theory won't affect asset security though
 	if out.State == OutputStateUnspent || ver.AggregatedSignature == nil {
