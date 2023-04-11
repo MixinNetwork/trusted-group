@@ -146,6 +146,9 @@ func (grp *Group) Run(ctx context.Context) {
 		// handle the utxos queue by created time
 		grp.handleActionsQueue(ctx)
 
+		// because some utxos are unlocked for these signing transactions
+		grp.unlockExpiredTransactions(ctx)
+
 		// sing any possible transactions from BuildTransaction
 		grp.signTransactions(ctx)
 
@@ -215,6 +218,30 @@ func (grp *Group) signTransactions(ctx context.Context) error {
 	}
 
 	return grp.store.WriteTransaction(tx)
+}
+
+func (grp *Group) unlockExpiredTransactions(ctx context.Context) error {
+	txs, err := grp.store.ListTransactions(TransactionStateSigning, 0)
+	if err != nil || len(txs) == 0 {
+		return err
+	}
+	for _, tx := range txs {
+		outputs, err := grp.ListOutputsForTransaction(tx.TraceId)
+		if err != nil {
+			return err
+		}
+		if len(outputs) > 0 && outputs[0].SignedBy != "" {
+			continue
+		}
+		tx.State = TransactionStateInitial
+		tx.Hash = crypto.Hash{}
+		tx.Raw = nil
+		err = grp.store.WriteTransaction(tx)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (grp *Group) publishTransactions(ctx context.Context) error {
