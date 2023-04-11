@@ -152,12 +152,6 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 		return old, nil, nil
 	}
 	ver := common.NewTransactionV4(crypto.NewHash([]byte(tx.AssetId)))
-	// FIXME remove those old transaction versions
-	if old != nil && old.Version == 2 {
-		ver = common.NewTransactionV2(crypto.NewHash([]byte(tx.AssetId)))
-	} else if outputs[0].CreatedAt.Before(time.Unix(0, 1681113064517518511)) {
-		ver = common.NewTransactionV2(crypto.NewHash([]byte(tx.AssetId)))
-	}
 	ver.Extra = []byte(EncodeMixinExtra(tx.GroupId, tx.TraceId, tx.Memo))
 	target := common.NewIntegerFromString(tx.Amount)
 
