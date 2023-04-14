@@ -188,7 +188,7 @@ func (grp *Group) signTransactions(ctx context.Context) error {
 		raw, err := grp.signTransaction(ctx, tx)
 		logger.Verbosef("Group.signTransaction(%v) => %s %v", *tx, hex.EncodeToString(raw), err)
 		if err != nil {
-			return err
+			continue
 		}
 		ver, _ := common.UnmarshalVersionedTransaction(raw)
 		tx.Raw = raw

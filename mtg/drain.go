@@ -113,6 +113,10 @@ func (grp *Group) processMultisigOutput(ctx context.Context, out *Output) {
 		if err != nil {
 			panic(err)
 		}
+		err = grp.store.WriteOutputTraceId(out, extra.T.String())
+		if err != nil {
+			panic(err)
+		}
 	}
 	var groupId, traceId string
 	if extra != nil {

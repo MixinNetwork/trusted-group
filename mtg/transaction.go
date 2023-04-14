@@ -120,13 +120,13 @@ func (grp *Group) checkCompactTransactionRequest(ctx context.Context, ver *commo
 func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte, error) {
 	outputs, err := grp.ListOutputsForTransaction(tx.TraceId)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 	if len(outputs) == 0 {
 		outputs, err = grp.ListOutputsForAsset(tx.GroupId, tx.AssetId, mixin.UTXOStateUnspent, OutputsBatchSize)
 	}
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 	if len(outputs) == 0 {
 		return nil, fmt.Errorf("empty outputs %s", tx.Amount)
@@ -148,7 +148,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 
 	req, err = grp.mixin.SignMultisig(ctx, req.RequestID, grp.pin)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
 	for _, out := range outputs {
@@ -158,7 +158,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	}
 	err = grp.store.WriteOutputs(outputs, tx.TraceId)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 	return hex.DecodeString(req.RawTransaction)
 }
