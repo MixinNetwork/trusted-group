@@ -178,48 +178,39 @@ func (grp *Group) ListOutputsForTransaction(traceId string) ([]*Output, error) {
 	return outputs, nil
 }
 
-// FIXME sign one transaction per loop, slow
 func (grp *Group) signTransactions(ctx context.Context) error {
 	txs, err := grp.store.ListTransactions(TransactionStateInitial, 0)
-	if err != nil || len(txs) == 0 {
-		return err
-	}
-	tx := txs[0]
-
-	for _, ct := range txs {
-		// FIXME because we rely on the updated time of outputs, then build
-		// transaction can result in different order, so sign the first
-		// signed transaction by others at first
-		outs, err := grp.ListOutputsForTransaction(ct.TraceId)
-		if err != nil {
-			return err
-		}
-		if len(outs) > 0 {
-			tx = ct
-			break
-		}
-	}
-
-	raw, err := grp.signTransaction(ctx, tx)
-	logger.Verbosef("Group.signTransaction(%v) => %s %v", *tx, hex.EncodeToString(raw), err)
 	if err != nil {
 		return err
 	}
-	ver, _ := common.UnmarshalVersionedTransaction(raw)
-	tx.Raw = raw
-	tx.Hash = ver.PayloadHash()
-	tx.UpdatedAt = grp.clock.Now()
-	tx.State = TransactionStateSigning
 
-	p := DecodeMixinExtra(string(ver.Extra))
-	if p.T.String() != tx.TraceId {
-		panic(hex.EncodeToString(raw))
-	}
-	if p.G != tx.GroupId {
-		panic(hex.EncodeToString(raw))
+	for _, tx := range txs {
+		raw, err := grp.signTransaction(ctx, tx)
+		logger.Verbosef("Group.signTransaction(%v) => %s %v", *tx, hex.EncodeToString(raw), err)
+		if err != nil {
+			return err
+		}
+		ver, _ := common.UnmarshalVersionedTransaction(raw)
+		tx.Raw = raw
+		tx.Hash = ver.PayloadHash()
+		tx.UpdatedAt = grp.clock.Now()
+		tx.State = TransactionStateSigning
+
+		p := DecodeMixinExtra(string(ver.Extra))
+		if p.T.String() != tx.TraceId {
+			panic(hex.EncodeToString(raw))
+		}
+		if p.G != tx.GroupId {
+			panic(hex.EncodeToString(raw))
+		}
+
+		err = grp.store.WriteTransaction(tx)
+		if err != nil {
+			panic(err)
+		}
 	}
 
-	return grp.store.WriteTransaction(tx)
+	return nil
 }
 
 func (grp *Group) unlockExpiredTransactions(ctx context.Context) error {
