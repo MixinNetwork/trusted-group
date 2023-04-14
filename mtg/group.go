@@ -185,6 +185,21 @@ func (grp *Group) signTransactions(ctx context.Context) error {
 		return err
 	}
 	tx := txs[0]
+
+	for _, ct := range txs {
+		// FIXME because we rely on the updated time of outputs, then build
+		// transaction can result in different order, so sign the first
+		// signed transaction by others at first
+		outs, err := grp.ListOutputsForTransaction(ct.TraceId)
+		if err != nil {
+			return err
+		}
+		if len(outs) > 0 {
+			tx = ct
+			break
+		}
+	}
+
 	raw, err := grp.signTransaction(ctx, tx)
 	logger.Verbosef("Group.signTransaction(%v) => %s %v", *tx, hex.EncodeToString(raw), err)
 	if err != nil {

@@ -21,7 +21,8 @@ const (
 	TransactionStateSigned   = 12
 	TransactionStateSnapshot = 13
 
-	OutputsBatchSize = 36
+	OutputsBatchSize          = 36
+	CompactionTransactionMemo = "COMPACTION"
 )
 
 type Transaction struct {
@@ -43,9 +44,17 @@ func (grp *Group) BuildTransaction(ctx context.Context, assetId string, receiver
 	return grp.buildTransaction(ctx, assetId, receivers, threshold, amount, memo, traceId, groupId, grp.clock.Now())
 }
 
+func (grp *Group) BuildTransactionWithStorage(ctx context.Context, assetId string, receivers []string, threshold int, amount, memo string, traceId, groupId string) error {
+	// write a storage transaction, with the data hash as trace id
+	// write the real transaction with reference to the storage transaction trace id
+	// sign the storage transaction at first
+	// the real transaction can only be signed when the storage transaction is fully signed with threshold
+	return grp.buildTransaction(ctx, assetId, receivers, threshold, amount, memo, traceId, groupId, grp.clock.Now())
+}
+
 func (grp *Group) buildCompactTransaction(ctx context.Context, source *Transaction, outputs []*Output) error {
 	var total common.Integer
-	traceId := mixin.UniqueConversationID("COMPACTION", source.TraceId)
+	traceId := mixin.UniqueConversationID(CompactionTransactionMemo, source.TraceId)
 	for _, out := range outputs {
 		if out.GroupId != source.GroupId {
 			panic(source)
@@ -54,7 +63,7 @@ func (grp *Group) buildCompactTransaction(ctx context.Context, source *Transacti
 		traceId = mixin.UniqueConversationID(traceId, out.UTXOID)
 	}
 	logger.Printf("Group.buildCompactTransaction(%s, %s, %s) => %s\n", source.GroupId, source.TraceId, total, traceId)
-	return grp.buildTransaction(ctx, source.AssetId, grp.GetMembers(), grp.GetThreshold(), total.String(), "COMPACTION", traceId, source.GroupId, time.Unix(0, 0))
+	return grp.buildTransaction(ctx, source.AssetId, grp.GetMembers(), grp.GetThreshold(), total.String(), CompactionTransactionMemo, traceId, source.GroupId, time.Unix(0, 0))
 }
 
 func (grp *Group) buildTransaction(ctx context.Context, assetId string, receivers []string, threshold int, amount, memo string, traceId, groupId string, ts time.Time) error {
@@ -98,6 +107,14 @@ func (grp *Group) buildTransaction(ctx context.Context, assetId string, receiver
 		panic(err)
 	}
 	return nil
+}
+
+func (grp *Group) checkCompactTransactionRequest(ctx context.Context, ver *common.VersionedTransaction, extra *mixinExtraPack) bool {
+	// FIXME should check the keys with messenger api
+	return ver != nil && ver.AggregatedSignature == nil &&
+		extra.M == CompactionTransactionMemo && len(ver.Inputs) == OutputsBatchSize &&
+		len(ver.Outputs) == 1 && len(ver.Outputs[0].Keys) == len(grp.GetMembers()) &&
+		ver.Outputs[0].Script.String() == common.NewThresholdScript(uint8(grp.GetThreshold())).String()
 }
 
 func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte, error) {

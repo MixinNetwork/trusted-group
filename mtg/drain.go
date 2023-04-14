@@ -106,6 +106,14 @@ func (grp *Group) processMultisigOutput(ctx context.Context, out *Output) {
 		}
 		return
 	}
+	if grp.checkCompactTransactionRequest(ctx, ver, extra) {
+		amount := ver.Outputs[0].Amount.String()
+		receivers, threshold := grp.GetMembers(), grp.GetThreshold()
+		err := grp.buildTransaction(ctx, out.AssetID, receivers, threshold, amount, CompactionTransactionMemo, extra.T.String(), extra.G, time.Unix(0, 0))
+		if err != nil {
+			panic(err)
+		}
+	}
 	var groupId, traceId string
 	if extra != nil {
 		groupId, traceId = extra.G, extra.T.String()
