@@ -11,7 +11,7 @@ func main() {
 	app := &cli.App{
 		Name:                 "mvm",
 		Usage:                "MVM (Mixin Virtual Machine) is a smart contract platform built with MTG.",
-		Version:              "0.0.1",
+		Version:              "0.4.7",
 		EnableBashCompletion: true,
 		Commands: []*cli.Command{
 			{
