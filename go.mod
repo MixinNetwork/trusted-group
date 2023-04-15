@@ -6,13 +6,13 @@ require (
 	github.com/MixinNetwork/bot-api-go-client v1.6.1
 	github.com/MixinNetwork/go-number v0.1.0
 	github.com/MixinNetwork/mixin v0.15.0
-	github.com/MixinNetwork/nfo v0.3.2
+	github.com/MixinNetwork/nfo v0.3.3
 	github.com/MixinNetwork/tip v0.0.0-20220718172842-5937b26d132a
 	github.com/dgraph-io/badger/v3 v3.2103.5
 	github.com/dimfeld/httptreemux v5.0.1+incompatible
 	github.com/drand/kyber v1.1.7
 	github.com/ethereum/go-ethereum v1.11.5
-	github.com/fox-one/mixin-sdk-go v1.7.6
+	github.com/fox-one/mixin-sdk-go v1.7.8
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/mdp/qrterminal v1.0.1
 	github.com/pelletier/go-toml v1.9.5
@@ -26,9 +26,7 @@ require (
 	filippo.io/edwards25519 v1.0.0 // indirect
 	github.com/MixinNetwork/mobilecoin-account v0.0.3 // indirect
 	github.com/StackExchange/wmi v0.0.0-20180116203802-5d049714c4a6 // indirect
-	github.com/btcsuite/btcd v0.22.0-beta // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.2.0 // indirect
-	github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f // indirect
 	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce // indirect
 	github.com/bwesterb/go-ristretto v1.2.3 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
@@ -54,14 +52,12 @@ require (
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/holiman/uint256 v1.2.0 // indirect
-	github.com/jadeydi/mobilecoin-account v1.0.0 // indirect
 	github.com/klauspost/compress v1.16.4 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.4 // indirect
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/shirou/gopsutil v3.21.4-0.20210419000835-c7a38de76ee5+incompatible // indirect
-	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.5 // indirect
 	github.com/tklauser/numcpus v0.2.2 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
