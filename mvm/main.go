@@ -7,11 +7,13 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+const AppVersion = "0.4.8"
+
 func main() {
 	app := &cli.App{
 		Name:                 "mvm",
 		Usage:                "MVM (Mixin Virtual Machine) is a smart contract platform built with MTG.",
-		Version:              "0.4.7",
+		Version:              AppVersion,
 		EnableBashCompletion: true,
 		Commands: []*cli.Command{
 			{

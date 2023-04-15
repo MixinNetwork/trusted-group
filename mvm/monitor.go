@@ -36,6 +36,7 @@ func bundleMachineState(ctx context.Context, store machine.Store, startedAt time
 	if err != nil {
 		return "", err
 	}
-	state = state + fmt.Sprintf("🚴 Pending group events count: %d", len(events))
+	state = state + fmt.Sprintf("🚴 Pending group events count: %d\n", len(events))
+	state = state + fmt.Sprintf("🦷 Binary version: %s", AppVersion)
 	return state, nil
 }
