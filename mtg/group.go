@@ -196,12 +196,16 @@ func (grp *Group) signTransactions(ctx context.Context) error {
 		tx.UpdatedAt = grp.clock.Now()
 		tx.State = TransactionStateSigning
 
-		p := DecodeMixinExtra(string(ver.Extra))
-		if p.T.String() != tx.TraceId {
-			panic(hex.EncodeToString(raw))
-		}
-		if p.G != tx.GroupId {
-			panic(hex.EncodeToString(raw))
+		if ver.AggregatedSignature != nil {
+			tx.State = TransactionStateSigned
+		} else {
+			p := DecodeMixinExtra(string(ver.Extra))
+			if p.T.String() != tx.TraceId {
+				panic(hex.EncodeToString(raw))
+			}
+			if p.G != tx.GroupId {
+				panic(hex.EncodeToString(raw))
+			}
 		}
 
 		err = grp.store.WriteTransaction(tx)
