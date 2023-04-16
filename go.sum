@@ -12,6 +12,8 @@ github.com/MixinNetwork/mobilecoin-account v0.0.3 h1:EtEMjwm8YaYu/urGBEf0wjyB7IE
 github.com/MixinNetwork/mobilecoin-account v0.0.3/go.mod h1:53/Dnb+RQttRjnSEK0RKD28A1326P8lpw8Ydl50lk1g=
 github.com/MixinNetwork/nfo v0.3.3 h1:CCAfbqYWfWGCjGFmm7j4sPzcM4zf+C6IQ0kFVoBmFLg=
 github.com/MixinNetwork/nfo v0.3.3/go.mod h1:f9wSjpXsIbphmipIR4PuqSHgcFBj0a/y+eybkHXqqWE=
+github.com/MixinNetwork/nfo v0.3.4-0.20230416161707-2d828d09d6ca h1:SfYrXG53LFnTBGPPeFKnz/qzZrIEJqm/lcLzURwk6zY=
+github.com/MixinNetwork/nfo v0.3.4-0.20230416161707-2d828d09d6ca/go.mod h1:f9wSjpXsIbphmipIR4PuqSHgcFBj0a/y+eybkHXqqWE=
 github.com/MixinNetwork/tip v0.0.0-20220718172842-5937b26d132a h1:7DcBX+UmKA89aJN8huh1aMlnCMLzZDL6lg1DyhLLpak=
 github.com/MixinNetwork/tip v0.0.0-20220718172842-5937b26d132a/go.mod h1:IO3qSvgI/UrWIFdXC1rYOi1dhPJD1LqwFR0VPnZPzto=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
