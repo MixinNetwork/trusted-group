@@ -223,7 +223,7 @@ func (grp *Group) unlockExpiredTransactions(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		if len(outputs) > 0 && outputs[0].SignedBy != "" {
+		if len(outputs) > 0 && outputs[0].SignedBy == tx.Hash.String() {
 			continue
 		}
 		tx.State = TransactionStateInitial
