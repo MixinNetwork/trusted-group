@@ -230,6 +230,15 @@ func (grp *Group) unlockExpiredTransactions(ctx context.Context) error {
 		if len(outputs) > 0 && outputs[0].SignedBy == tx.Hash.String() {
 			continue
 		}
+		// FIXME do more check about compaction transaction
+		if tx.Memo == CompactionTransactionMemo {
+			err := grp.store.DeleteTransaction(tx)
+			logger.Verbosef("Group.deleteTransaction(%v) => %v", *tx, err)
+			if err != nil {
+				return err
+			}
+			continue
+		}
 		tx.State = TransactionStateInitial
 		tx.Hash = crypto.Hash{}
 		tx.Raw = nil

@@ -6,7 +6,7 @@ require (
 	github.com/MixinNetwork/bot-api-go-client v1.6.1
 	github.com/MixinNetwork/go-number v0.1.0
 	github.com/MixinNetwork/mixin v0.15.0
-	github.com/MixinNetwork/nfo v0.3.4-0.20230416161707-2d828d09d6ca
+	github.com/MixinNetwork/nfo v0.3.4-0.20230417080136-a86ba29fe4ad
 	github.com/MixinNetwork/tip v0.0.0-20220718172842-5937b26d132a
 	github.com/dgraph-io/badger/v3 v3.2103.5
 	github.com/dimfeld/httptreemux v5.0.1+incompatible

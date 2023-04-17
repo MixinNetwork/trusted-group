@@ -14,6 +14,8 @@ github.com/MixinNetwork/nfo v0.3.3 h1:CCAfbqYWfWGCjGFmm7j4sPzcM4zf+C6IQ0kFVoBmFL
 github.com/MixinNetwork/nfo v0.3.3/go.mod h1:f9wSjpXsIbphmipIR4PuqSHgcFBj0a/y+eybkHXqqWE=
 github.com/MixinNetwork/nfo v0.3.4-0.20230416161707-2d828d09d6ca h1:SfYrXG53LFnTBGPPeFKnz/qzZrIEJqm/lcLzURwk6zY=
 github.com/MixinNetwork/nfo v0.3.4-0.20230416161707-2d828d09d6ca/go.mod h1:f9wSjpXsIbphmipIR4PuqSHgcFBj0a/y+eybkHXqqWE=
+github.com/MixinNetwork/nfo v0.3.4-0.20230417080136-a86ba29fe4ad h1:05ZG0Mj5YjpDF7uk/4qXarq3PDGzkTyTkTiCX1zl3n0=
+github.com/MixinNetwork/nfo v0.3.4-0.20230417080136-a86ba29fe4ad/go.mod h1:LRvUs87wXIC1acFS3vjdJs7xXcNldMhTeIMsomWYYIo=
 github.com/MixinNetwork/tip v0.0.0-20220718172842-5937b26d132a h1:7DcBX+UmKA89aJN8huh1aMlnCMLzZDL6lg1DyhLLpak=
 github.com/MixinNetwork/tip v0.0.0-20220718172842-5937b26d132a/go.mod h1:IO3qSvgI/UrWIFdXC1rYOi1dhPJD1LqwFR0VPnZPzto=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=

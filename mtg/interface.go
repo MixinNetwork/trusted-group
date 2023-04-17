@@ -26,6 +26,7 @@ type Store interface {
 	ReadTransactionByTraceId(traceId string) (*Transaction, error)
 	ReadTransactionByHash(hash crypto.Hash) (*Transaction, error)
 	ListTransactions(state int, limit int) ([]*Transaction, error)
+	DeleteTransaction(tx *Transaction) error
 
 	WriteCollectibleOutput(utxo *CollectibleOutput, traceId string) error
 	WriteCollectibleOutputs(utxos []*CollectibleOutput, traceId string) error
