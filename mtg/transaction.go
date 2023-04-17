@@ -131,6 +131,10 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	if len(outputs) == 0 {
 		return nil, fmt.Errorf("empty outputs %s", tx.Amount)
 	}
+	// FIXME do more compatcion transaction check
+	if len(outputs) < OutputsBatchSize && tx.Memo == CompactionTransactionMemo {
+		return nil, fmt.Errorf("insufficient compaction transaction outputs %v", tx)
+	}
 
 	ver, outputs, err := grp.buildRawTransaction(ctx, tx, outputs)
 	if err != nil {
