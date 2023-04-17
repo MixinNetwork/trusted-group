@@ -136,6 +136,10 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	if err != nil {
 		return nil, err
 	}
+	// FIXME do more compatcion transaction check
+	if len(ver.Outputs) != 1 && tx.Memo == CompactionTransactionMemo {
+		return nil, fmt.Errorf("expired compaction transaction %v", tx)
+	}
 	if ver.AggregatedSignature != nil {
 		return ver.Marshal(), nil
 	}
