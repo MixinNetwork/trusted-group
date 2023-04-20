@@ -46,17 +46,30 @@ func (grp *Group) BuildTransaction(ctx context.Context, assetId string, receiver
 	return grp.buildTransaction(ctx, assetId, receivers, threshold, amount, memo, traceId, groupId, grp.clock.Now())
 }
 
-func (grp *Group) BuildTransactionWithStorage(ctx context.Context, assetId string, receivers []string, threshold int, amount, memo string, traceId, groupId string) error {
-	sTraceId := crypto.Blake3Hash([]byte(memo)).String()
+func (grp *Group) BuildStorageTransaction(ctx context.Context, data []byte, groupId string) (*Transaction, error) {
+	sTraceId := crypto.Blake3Hash(data).String()
 	sTraceId = mixin.UniqueConversationID(sTraceId, sTraceId)
+	old, err := grp.store.ReadTransactionByTraceId(sTraceId)
+	if err != nil || old != nil {
+		return old, err
+	}
+
 	sReceivers := []string{StorageReceiverId}
 	sAmount := decimal.RequireFromString(common.ExtraStoragePriceStep)
-	sAmount = sAmount.Mul(decimal.NewFromInt(int64(len(memo))/common.ExtraSizeStorageStep + 1))
-	err := grp.buildTransaction(ctx, StorageAssetId, sReceivers, 64, sAmount.String(), memo, sTraceId, groupId, grp.clock.Now())
+	sAmount = sAmount.Mul(decimal.NewFromInt(int64(len(data))/common.ExtraSizeStorageStep + 1))
+	err = grp.buildTransaction(ctx, StorageAssetId, sReceivers, 64, sAmount.String(), string(data), sTraceId, groupId, grp.clock.Now())
 	if err != nil {
-		return fmt.Errorf("Group.buildStorageTransaction(%s, %d) => %s %v", traceId, len(memo), sTraceId, err)
+		return nil, fmt.Errorf("Group.buildStorageTransaction(%d) => %s %v", len(data), sTraceId, err)
 	}
-	return grp.buildTransaction(ctx, assetId, receivers, threshold, amount, sTraceId, traceId, groupId, grp.clock.Now())
+	return grp.store.ReadTransactionByTraceId(sTraceId)
+}
+
+func (grp *Group) BuildTransactionWithStorage(ctx context.Context, assetId string, receivers []string, threshold int, amount, memo string, traceId, groupId string) error {
+	stx, err := grp.BuildStorageTransaction(ctx, []byte(memo), groupId)
+	if err != nil {
+		return err
+	}
+	return grp.buildTransaction(ctx, assetId, receivers, threshold, amount, stx.TraceId, traceId, groupId, grp.clock.Now())
 }
 
 func (grp *Group) buildCompactTransaction(ctx context.Context, source *Transaction, outputs []*Output) error {
