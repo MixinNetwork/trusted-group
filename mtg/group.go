@@ -257,7 +257,7 @@ func (grp *Group) publishTransactions(ctx context.Context) error {
 		return err
 	}
 	for _, tx := range txs {
-		snapshot, err := grp.snapshotTransaction(ctx, tx.Raw)
+		snapshot, err := grp.snapshotTransaction(ctx, tx.Hash, tx.Raw)
 		if err != nil {
 			return err
 		} else if !snapshot {
@@ -305,7 +305,7 @@ func (grp *Group) publishCollectibleTransactions(ctx context.Context) error {
 		return err
 	}
 	for _, tx := range txs {
-		snapshot, err := grp.snapshotTransaction(ctx, tx.Raw)
+		snapshot, err := grp.snapshotTransaction(ctx, tx.Hash, tx.Raw)
 		if err != nil {
 			return err
 		} else if !snapshot {
@@ -320,7 +320,11 @@ func (grp *Group) publishCollectibleTransactions(ctx context.Context) error {
 	return nil
 }
 
-func (grp *Group) snapshotTransaction(ctx context.Context, b []byte) (bool, error) {
+func (grp *Group) snapshotTransaction(ctx context.Context, tx crypto.Hash, b []byte) (bool, error) {
+	// FIXME remove this storage transaction hack
+	if tx.String() == "5b4ce1833fffd87b837e67dfffc38d5bcce93266da74756763bcf873845071ae" {
+		return true, nil
+	}
 	raw := hex.EncodeToString(b)
 	h, err := grp.mixin.SendRawTransaction(ctx, raw)
 	logger.Verbosef("Group.snapshotTransaction(%s) => %s, %v", raw, h, err)
