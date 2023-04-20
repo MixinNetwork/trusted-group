@@ -115,15 +115,16 @@ func (grp *Group) buildTransaction(ctx context.Context, assetId string, receiver
 		return nil
 	}
 	tx := &Transaction{
-		GroupId:   groupId,
-		TraceId:   traceId,
-		State:     TransactionStateInitial,
-		AssetId:   assetId,
-		Receivers: receivers,
-		Threshold: threshold,
-		Amount:    amount,
-		Memo:      memo,
-		UpdatedAt: ts,
+		GroupId:    groupId,
+		TraceId:    traceId,
+		State:      TransactionStateInitial,
+		AssetId:    assetId,
+		Receivers:  receivers,
+		Threshold:  threshold,
+		Amount:     amount,
+		Memo:       memo,
+		References: references,
+		UpdatedAt:  ts,
 	}
 
 	// TODO ensure valid memo and trace id
@@ -266,7 +267,9 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 		ver.Outputs = append(ver.Outputs, newCommonOutput(out))
 	}
 
-	ver.References = tx.References
+	if ver.Version >= common.TxVersionReferences {
+		ver.References = tx.References
+	}
 	return ver.AsVersioned(), consumed, nil
 }
 
