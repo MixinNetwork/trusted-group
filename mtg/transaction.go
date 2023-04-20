@@ -56,8 +56,9 @@ func (grp *Group) BuildStorageTransaction(ctx context.Context, data []byte, grou
 	}
 
 	sReceivers := []string{StorageReceiverId}
+	extra := int64(len(encodeMixinExtra(groupId, sTraceId, string(data))))
 	sAmount := decimal.RequireFromString(common.ExtraStoragePriceStep)
-	sAmount = sAmount.Mul(decimal.NewFromInt(int64(len(data))/common.ExtraSizeStorageStep + 1))
+	sAmount = sAmount.Mul(decimal.NewFromInt(extra/common.ExtraSizeStorageStep + 1))
 	err = grp.buildTransaction(ctx, StorageAssetId, sReceivers, 64, sAmount.String(), string(data), sTraceId, groupId, grp.clock.Now(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("Group.buildStorageTransaction(%d) => %s %v", len(data), sTraceId, err)
@@ -66,9 +67,6 @@ func (grp *Group) BuildStorageTransaction(ctx context.Context, data []byte, grou
 }
 
 func (grp *Group) BuildTransactionWithReferences(ctx context.Context, assetId string, receivers []string, threshold int, amount, memo string, traceId, groupId string, references []crypto.Hash) error {
-	if len(references) > 2 {
-		panic(len(references))
-	}
 	return grp.buildTransaction(ctx, assetId, receivers, threshold, amount, memo, traceId, groupId, grp.clock.Now(), references)
 }
 
@@ -87,6 +85,14 @@ func (grp *Group) buildCompactTransaction(ctx context.Context, source *Transacti
 }
 
 func (grp *Group) buildTransaction(ctx context.Context, assetId string, receivers []string, threshold int, amount, memo string, traceId, groupId string, ts time.Time, references []crypto.Hash) error {
+	if len(references) > 2 {
+		panic(len(references))
+	}
+	for _, r := range references {
+		if !r.HasValue() {
+			panic(traceId)
+		}
+	}
 	if threshold < 1 || threshold > 128 {
 		return fmt.Errorf("invalid receivers threshold %d/%d", threshold, len(receivers))
 	}
