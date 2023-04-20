@@ -4,8 +4,8 @@ import (
 	"context"
 	"math/big"
 
-	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
+	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/dgraph-io/badger/v3"
 	"github.com/fox-one/mixin-sdk-go"
 )
@@ -66,7 +66,7 @@ func (s *Storage) listAllUsers() ([]*User, error) {
 		}
 
 		var user User
-		err = common.MsgpackUnmarshal(v, &user)
+		err = mtg.MsgpackUnmarshal(v, &user)
 		users = append(users, &user)
 	}
 

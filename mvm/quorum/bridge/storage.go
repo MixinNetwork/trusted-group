@@ -8,6 +8,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/trusted-group/mtg"
 	"github.com/dgraph-io/badger/v3"
 	"github.com/fox-one/mixin-sdk-go"
 )
@@ -44,7 +45,7 @@ func (s *Storage) writeAsset(a *mixin.Asset) error {
 	logger.Verbosef("Storage.writeAsset(%v)", *a)
 	return s.Update(func(txn *badger.Txn) error {
 		key := []byte(storePrefixAsset + a.AssetID)
-		val := common.MsgpackMarshalPanic(a)
+		val := mtg.MsgpackMarshalPanic(a)
 		return txn.Set(key, val)
 	})
 }
@@ -65,7 +66,7 @@ func (s *Storage) readAsset(id string) (*mixin.Asset, error) {
 		return nil, err
 	}
 	var a mixin.Asset
-	err = common.MsgpackUnmarshal(val, &a)
+	err = mtg.MsgpackUnmarshal(val, &a)
 	return &a, err
 }
 
@@ -142,7 +143,7 @@ func (s *Storage) readUser(txn *badger.Txn, id string) (*User, error) {
 		return nil, err
 	}
 	var user User
-	err = common.MsgpackUnmarshal(val, &user)
+	err = mtg.MsgpackUnmarshal(val, &user)
 	return &user, err
 }
 
@@ -150,7 +151,7 @@ func (s *Storage) writeUser(u *User) error {
 	logger.Verbosef("Storage.writeUser(%s, %t, %s)", u.UserID, u.HasPin, u.Contract)
 	return s.Update(func(txn *badger.Txn) error {
 		key := []byte(storePrefixUser + u.UserID)
-		val := common.MsgpackMarshalPanic(u)
+		val := mtg.MsgpackMarshalPanic(u)
 		err := txn.Set(key, val)
 		if err != nil {
 			return err
@@ -165,7 +166,7 @@ func (s *Storage) writeSnapshot(snap *mixin.Snapshot) error {
 	logger.Verbosef("Storage.writeSnapshot(%v)", *s)
 	return s.Update(func(txn *badger.Txn) error {
 		key := snapshotKey(snap)
-		val := common.CompressMsgpackMarshalPanic(snap)
+		val := mtg.CompressMsgpackMarshalPanic(snap)
 		return txn.Set(key, val)
 	})
 }
@@ -188,7 +189,7 @@ func (s *Storage) listSnapshots(limit int) ([]*mixin.Snapshot, error) {
 			return snapshots, err
 		}
 		var snap mixin.Snapshot
-		err = common.DecompressMsgpackUnmarshal(v, &snap)
+		err = mtg.DecompressMsgpackUnmarshal(v, &snap)
 		if err != nil {
 			return snapshots, err
 		}
@@ -229,7 +230,7 @@ func (s *Storage) listWithdrawals(limit int) ([]*Withdrawal, error) {
 			return withdrawals, err
 		}
 		var w Withdrawal
-		err = common.DecompressMsgpackUnmarshal(v, &w)
+		err = mtg.DecompressMsgpackUnmarshal(v, &w)
 		if err != nil {
 			return withdrawals, err
 		}
@@ -272,7 +273,7 @@ func (s *Storage) writeWithdrawal(w *Withdrawal) error {
 			panic(old.UserId)
 		}
 		key := []byte(storePrefixWithdrawalPair + w.TraceId)
-		val := common.CompressMsgpackMarshalPanic(w)
+		val := mtg.CompressMsgpackMarshalPanic(w)
 		return txn.Set(key, val)
 	})
 }
@@ -297,7 +298,7 @@ func (s *Storage) readWithdrawal(txn *badger.Txn, id string) (*Withdrawal, error
 		return nil, err
 	}
 	var w Withdrawal
-	err = common.DecompressMsgpackUnmarshal(val, &w)
+	err = mtg.DecompressMsgpackUnmarshal(val, &w)
 	return &w, err
 }
 
@@ -330,7 +331,7 @@ func (s *Storage) writeCollectibleOutput(out *CollectibleOutput) error {
 	logger.Verbosef("Storage.writeCollectibleOutput(%v)", *out)
 	return s.Update(func(txn *badger.Txn) error {
 		key := collectibleOutputKey(out)
-		val := common.CompressMsgpackMarshalPanic(out)
+		val := mtg.CompressMsgpackMarshalPanic(out)
 		return txn.Set(key, val)
 	})
 }
@@ -353,7 +354,7 @@ func (s *Storage) listCollectibleOutputs(limit int) ([]*CollectibleOutput, error
 			return outputs, err
 		}
 		var out CollectibleOutput
-		err = common.DecompressMsgpackUnmarshal(v, &out)
+		err = mtg.DecompressMsgpackUnmarshal(v, &out)
 		if err != nil {
 			return outputs, err
 		}

@@ -215,7 +215,7 @@ func (u *User) sendRawCollectibleTransaction(ctx context.Context, utxo *Collecti
 	if err != nil {
 		panic(err)
 	}
-	ver := common.NewTransaction(assetId)
+	ver := common.NewTransactionV2(assetId)
 	ver.Extra = mtg.BuildExtraNFO(extra)
 
 	if utxo.Amount.Cmp(decimal.NewFromInt(1)) != 0 {
@@ -238,7 +238,7 @@ func (u *User) sendRawCollectibleTransaction(ctx context.Context, utxo *Collecti
 
 	out := keys[0].DumpOutput(threshold, utxo.Amount)
 	ver.Outputs = append(ver.Outputs, newCommonOutput(out))
-	req, err := uc.CreateCollectibleRequest(ctx, "SIGN", hex.EncodeToString(ver.AsLatestVersion().PayloadMarshal()))
+	req, err := uc.CreateCollectibleRequest(ctx, "SIGN", hex.EncodeToString(ver.AsVersioned().PayloadMarshal()))
 	if err != nil {
 		return err
 	}
