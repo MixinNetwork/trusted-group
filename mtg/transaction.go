@@ -23,6 +23,8 @@ const (
 
 	OutputsBatchSize          = 36
 	CompactionTransactionMemo = "COMPACTION"
+	StorageAssetId            = "c94ac88f-4671-3976-b60a-09064f1811e8"
+	StorageReceiverId         = "773e5e77-4107-45c2-b648-8fc722ed77f5"
 )
 
 type Transaction struct {
@@ -45,11 +47,16 @@ func (grp *Group) BuildTransaction(ctx context.Context, assetId string, receiver
 }
 
 func (grp *Group) BuildTransactionWithStorage(ctx context.Context, assetId string, receivers []string, threshold int, amount, memo string, traceId, groupId string) error {
-	// write a storage transaction, with the data hash as trace id
-	// write the real transaction with reference to the storage transaction trace id
-	// sign the storage transaction at first
-	// the real transaction can only be signed when the storage transaction is fully signed with threshold
-	return grp.buildTransaction(ctx, assetId, receivers, threshold, amount, memo, traceId, groupId, grp.clock.Now())
+	sTraceId := crypto.Blake3Hash([]byte(memo)).String()
+	sTraceId = mixin.UniqueConversationID(sTraceId, sTraceId)
+	sReceivers := []string{StorageReceiverId}
+	sAmount := decimal.RequireFromString(common.ExtraStoragePriceStep)
+	sAmount = sAmount.Mul(decimal.NewFromInt(int64(len(memo))/common.ExtraSizeStorageStep + 1))
+	err := grp.buildTransaction(ctx, StorageAssetId, sReceivers, 64, sAmount.String(), memo, sTraceId, groupId, grp.clock.Now())
+	if err != nil {
+		return fmt.Errorf("Group.buildStorageTransaction(%s, %d) => %s %v", traceId, len(memo), sTraceId, err)
+	}
+	return grp.buildTransaction(ctx, assetId, receivers, threshold, amount, sTraceId, traceId, groupId, grp.clock.Now())
 }
 
 func (grp *Group) buildCompactTransaction(ctx context.Context, source *Transaction, outputs []*Output) error {
@@ -67,7 +74,7 @@ func (grp *Group) buildCompactTransaction(ctx context.Context, source *Transacti
 }
 
 func (grp *Group) buildTransaction(ctx context.Context, assetId string, receivers []string, threshold int, amount, memo string, traceId, groupId string, ts time.Time) error {
-	if threshold <= 0 || threshold > len(receivers) {
+	if threshold < 1 || threshold > 128 {
 		return fmt.Errorf("invalid receivers threshold %d/%d", threshold, len(receivers))
 	}
 	amt, err := decimal.NewFromString(amount)
@@ -75,9 +82,6 @@ func (grp *Group) buildTransaction(ctx context.Context, assetId string, receiver
 	if err != nil || amt.Cmp(min) < 0 {
 		return fmt.Errorf("invalid amount %s", amount)
 	}
-
-	// TODO ensure valid memo and trace id
-	EncodeMixinExtra(groupId, traceId, memo)
 
 	for _, r := range receivers {
 		id, _ := uuid.FromString(r)
@@ -102,11 +106,25 @@ func (grp *Group) buildTransaction(ctx context.Context, assetId string, receiver
 		Memo:      memo,
 		UpdatedAt: ts,
 	}
+
+	// TODO ensure valid memo and trace id
+	if grp.checkStorageTransaction(tx) {
+		if len(tx.Memo) > common.ExtraSizeStorageCapacity/2 {
+			panic(len(tx.Memo))
+		}
+	} else {
+		EncodeMixinExtra(groupId, tx.TraceId, tx.Memo)
+	}
+
 	err = grp.store.WriteTransaction(tx)
 	if err != nil {
 		panic(err)
 	}
 	return nil
+}
+
+func (grp *Group) checkStorageTransaction(tx *Transaction) bool {
+	return len(tx.Receivers) == 1 && tx.Threshold == 64 && tx.AssetId == StorageAssetId && tx.Receivers[0] == StorageReceiverId
 }
 
 func (grp *Group) checkCompactTransactionRequest(ctx context.Context, ver *common.VersionedTransaction, extra *mixinExtraPack) bool {
@@ -118,6 +136,13 @@ func (grp *Group) checkCompactTransactionRequest(ctx context.Context, ver *commo
 }
 
 func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte, error) {
+	stx, err := grp.store.ReadTransactionByTraceId(tx.Memo)
+	if err != nil {
+		panic(err)
+	}
+	if stx != nil && stx.State < TransactionStateSnapshot {
+		return nil, fmt.Errorf("storage transaction not snapshot yet %s %s", tx.TraceId, stx.TraceId)
+	}
 	outputs, err := grp.ListOutputsForTransaction(tx.TraceId)
 	if err != nil {
 		panic(err)
@@ -136,7 +161,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 		return nil, fmt.Errorf("insufficient compaction transaction outputs %v", tx)
 	}
 
-	ver, outputs, err := grp.buildRawTransaction(ctx, tx, outputs)
+	ver, outputs, err := grp.buildRawTransaction(ctx, tx, outputs, stx)
 	if err != nil {
 		return nil, err
 	}
@@ -171,13 +196,13 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	return hex.DecodeString(req.RawTransaction)
 }
 
-func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outputs []*Output) (*common.VersionedTransaction, []*Output, error) {
+func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outputs []*Output, stx *Transaction) (*common.VersionedTransaction, []*Output, error) {
 	old, _ := decodeTransactionWithExtra(outputs[0].SignedTx)
 	if old != nil && old.AggregatedSignature != nil {
 		return old, nil, nil
 	}
 	ver := common.NewTransactionV4(crypto.NewHash([]byte(tx.AssetId)))
-	ver.Extra = []byte(EncodeMixinExtra(tx.GroupId, tx.TraceId, tx.Memo))
+	ver.Extra = []byte(encodeMixinExtra(tx.GroupId, tx.TraceId, tx.Memo))
 	target := common.NewIntegerFromString(tx.Amount)
 
 	var total common.Integer
@@ -229,6 +254,20 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 		ver.Outputs = append(ver.Outputs, newCommonOutput(out))
 	}
 
+	if stx != nil {
+		old, _ := decodeTransactionWithExtra(hex.EncodeToString(stx.Raw))
+		if old.AggregatedSignature == nil {
+			panic(stx.Hash)
+		}
+		if !old.PayloadHash().HasValue() {
+			panic(stx.Hash)
+		}
+		if old.PayloadHash() != stx.Hash {
+			panic(stx.Hash)
+		}
+		ver.References = []crypto.Hash{stx.Hash}
+	}
+
 	return ver.AsVersioned(), consumed, nil
 }
 
@@ -268,7 +307,7 @@ func DecodeMixinExtra(memo string) *mixinExtraPack {
 	return &p
 }
 
-func EncodeMixinExtra(groupId, traceId, memo string) string {
+func encodeMixinExtra(groupId, traceId, memo string) string {
 	id, err := uuid.FromString(traceId)
 	if err != nil {
 		panic(err)
@@ -276,6 +315,11 @@ func EncodeMixinExtra(groupId, traceId, memo string) string {
 	p := &mixinExtraPack{T: id, G: groupId, M: memo}
 	b := MsgpackMarshalPanic(p)
 	s := base64.RawURLEncoding.EncodeToString(b)
+	return s
+}
+
+func EncodeMixinExtra(groupId, traceId, memo string) string {
+	s := encodeMixinExtra(groupId, traceId, memo)
 	if len(s) >= common.ExtraSizeGeneralLimit {
 		panic(memo)
 	}
