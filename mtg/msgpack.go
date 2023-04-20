@@ -11,8 +11,6 @@ import (
 )
 
 func init() {
-	msgpack.RegisterExt(0, (*common.Integer)(nil))
-
 	zstdEncoder = common.NewZstdEncoder(2)
 	zstdDecoder = common.NewZstdDecoder(2)
 }

@@ -130,6 +130,8 @@ func (u *User) send(ctx context.Context, in *mixin.TransferInput) error {
 	switch in.AssetID {
 	case "05891083-63d2-4f3d-bfbe-d14d7fb9b25a": // BTS
 		return nil
+	case "c3b9153a-7fab-4138-a3a4-99849cadc073a": // VCash
+		return nil
 	}
 	uc, err := mixin.NewFromKeystore(u.Key)
 	if err != nil {
