@@ -132,6 +132,14 @@ func (u *User) send(ctx context.Context, in *mixin.TransferInput) error {
 		return nil
 	case "c3b9153a-7fab-4138-a3a4-99849cadc073": // VCash
 		return nil
+	case "443e1ef5-bc9b-47d3-be77-07f328876c50": // Bytom
+		return nil
+	case "71a0e8b5-a289-4845-b661-2b70ff9968aa": // Bytom
+		return nil
+	case "1351e6bd-66cf-40c1-8105-8a8fe518a222": // Grin
+		return nil
+	case "27921032-f73e-434e-955f-43d55672ee31": // NEM
+		return nil
 	}
 	uc, err := mixin.NewFromKeystore(u.Key)
 	if err != nil {
