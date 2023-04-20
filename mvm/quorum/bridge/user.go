@@ -127,6 +127,10 @@ func (u *User) pass(ctx context.Context, p *Proxy, s *mixin.Snapshot) error {
 }
 
 func (u *User) send(ctx context.Context, in *mixin.TransferInput) error {
+	switch in.AssetID {
+	case "05891083-63d2-4f3d-bfbe-d14d7fb9b25a": // BTS
+		return nil
+	}
 	uc, err := mixin.NewFromKeystore(u.Key)
 	if err != nil {
 		panic(err)
