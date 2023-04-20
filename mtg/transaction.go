@@ -28,22 +28,23 @@ const (
 )
 
 type Transaction struct {
-	GroupId   string
-	TraceId   string
-	State     int
-	AssetId   string
-	Receivers []string
-	Threshold int
-	Amount    string
-	Memo      string
-	Raw       []byte
-	Hash      crypto.Hash
-	UpdatedAt time.Time
+	GroupId    string
+	TraceId    string
+	State      int
+	AssetId    string
+	Receivers  []string
+	Threshold  int
+	Amount     string
+	Memo       string
+	Raw        []byte
+	Hash       crypto.Hash
+	References []crypto.Hash
+	UpdatedAt  time.Time
 }
 
 // the app should decide a unique trace id so that the MTG will not double spend
 func (grp *Group) BuildTransaction(ctx context.Context, assetId string, receivers []string, threshold int, amount, memo string, traceId, groupId string) error {
-	return grp.buildTransaction(ctx, assetId, receivers, threshold, amount, memo, traceId, groupId, grp.clock.Now())
+	return grp.buildTransaction(ctx, assetId, receivers, threshold, amount, memo, traceId, groupId, grp.clock.Now(), nil)
 }
 
 func (grp *Group) BuildStorageTransaction(ctx context.Context, data []byte, groupId string) (*Transaction, error) {
@@ -57,19 +58,18 @@ func (grp *Group) BuildStorageTransaction(ctx context.Context, data []byte, grou
 	sReceivers := []string{StorageReceiverId}
 	sAmount := decimal.RequireFromString(common.ExtraStoragePriceStep)
 	sAmount = sAmount.Mul(decimal.NewFromInt(int64(len(data))/common.ExtraSizeStorageStep + 1))
-	err = grp.buildTransaction(ctx, StorageAssetId, sReceivers, 64, sAmount.String(), string(data), sTraceId, groupId, grp.clock.Now())
+	err = grp.buildTransaction(ctx, StorageAssetId, sReceivers, 64, sAmount.String(), string(data), sTraceId, groupId, grp.clock.Now(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("Group.buildStorageTransaction(%d) => %s %v", len(data), sTraceId, err)
 	}
 	return grp.store.ReadTransactionByTraceId(sTraceId)
 }
 
-func (grp *Group) BuildTransactionWithStorage(ctx context.Context, assetId string, receivers []string, threshold int, amount, memo string, traceId, groupId string) error {
-	stx, err := grp.BuildStorageTransaction(ctx, []byte(memo), groupId)
-	if err != nil {
-		return err
+func (grp *Group) BuildTransactionWithReferences(ctx context.Context, assetId string, receivers []string, threshold int, amount, memo string, traceId, groupId string, references []crypto.Hash) error {
+	if len(references) > 2 {
+		panic(len(references))
 	}
-	return grp.buildTransaction(ctx, assetId, receivers, threshold, amount, stx.TraceId, traceId, groupId, grp.clock.Now())
+	return grp.buildTransaction(ctx, assetId, receivers, threshold, amount, memo, traceId, groupId, grp.clock.Now(), references)
 }
 
 func (grp *Group) buildCompactTransaction(ctx context.Context, source *Transaction, outputs []*Output) error {
@@ -83,10 +83,10 @@ func (grp *Group) buildCompactTransaction(ctx context.Context, source *Transacti
 		traceId = mixin.UniqueConversationID(traceId, out.UTXOID)
 	}
 	logger.Printf("Group.buildCompactTransaction(%s, %s, %s) => %s\n", source.GroupId, source.TraceId, total, traceId)
-	return grp.buildTransaction(ctx, source.AssetId, grp.GetMembers(), grp.GetThreshold(), total.String(), CompactionTransactionMemo, traceId, source.GroupId, time.Unix(0, 0))
+	return grp.buildTransaction(ctx, source.AssetId, grp.GetMembers(), grp.GetThreshold(), total.String(), CompactionTransactionMemo, traceId, source.GroupId, time.Unix(0, 0), nil)
 }
 
-func (grp *Group) buildTransaction(ctx context.Context, assetId string, receivers []string, threshold int, amount, memo string, traceId, groupId string, ts time.Time) error {
+func (grp *Group) buildTransaction(ctx context.Context, assetId string, receivers []string, threshold int, amount, memo string, traceId, groupId string, ts time.Time, references []crypto.Hash) error {
 	if threshold < 1 || threshold > 128 {
 		return fmt.Errorf("invalid receivers threshold %d/%d", threshold, len(receivers))
 	}
@@ -149,13 +149,6 @@ func (grp *Group) checkCompactTransactionRequest(ctx context.Context, ver *commo
 }
 
 func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte, error) {
-	stx, err := grp.store.ReadTransactionByTraceId(tx.Memo)
-	if err != nil {
-		panic(err)
-	}
-	if stx != nil && stx.State < TransactionStateSnapshot {
-		return nil, fmt.Errorf("storage transaction not snapshot yet %s %s", tx.TraceId, stx.TraceId)
-	}
 	outputs, err := grp.ListOutputsForTransaction(tx.TraceId)
 	if err != nil {
 		panic(err)
@@ -174,7 +167,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 		return nil, fmt.Errorf("insufficient compaction transaction outputs %v", tx)
 	}
 
-	ver, outputs, err := grp.buildRawTransaction(ctx, tx, outputs, stx)
+	ver, outputs, err := grp.buildRawTransaction(ctx, tx, outputs)
 	if err != nil {
 		return nil, err
 	}
@@ -209,7 +202,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	return hex.DecodeString(req.RawTransaction)
 }
 
-func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outputs []*Output, stx *Transaction) (*common.VersionedTransaction, []*Output, error) {
+func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outputs []*Output) (*common.VersionedTransaction, []*Output, error) {
 	old, _ := decodeTransactionWithExtra(outputs[0].SignedTx)
 	if old != nil && old.AggregatedSignature != nil {
 		return old, nil, nil
@@ -267,20 +260,7 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 		ver.Outputs = append(ver.Outputs, newCommonOutput(out))
 	}
 
-	if stx != nil {
-		old, _ := decodeTransactionWithExtra(hex.EncodeToString(stx.Raw))
-		if old.AggregatedSignature == nil {
-			panic(stx.Hash)
-		}
-		if !old.PayloadHash().HasValue() {
-			panic(stx.Hash)
-		}
-		if old.PayloadHash() != stx.Hash {
-			panic(stx.Hash)
-		}
-		ver.References = []crypto.Hash{stx.Hash}
-	}
-
+	ver.References = tx.References
 	return ver.AsVersioned(), consumed, nil
 }
 
