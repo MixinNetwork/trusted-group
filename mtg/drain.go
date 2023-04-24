@@ -96,7 +96,8 @@ func (grp *Group) processMultisigOutput(ctx context.Context, out *Output) {
 		panic(out.SignedTx)
 	}
 	// FIXME do more consensus check to unlock transactions
-	if ver != nil && ver.Version < common.TxVersionReferences && ver.AggregatedSignature == nil {
+	if ver != nil && ver.Version < common.TxVersionReferences &&
+		ver.AggregatedSignature == nil && len(ver.SignaturesMap) == 0 {
 		req, err := grp.mixin.CreateMultisig(ctx, mixin.MultisigActionUnlock, out.SignedTx)
 		if err != nil {
 			panic(err)
@@ -123,7 +124,7 @@ func (grp *Group) processMultisigOutput(ctx context.Context, out *Output) {
 
 	// FIXME get trace id from other members could break the consensus
 	// this in theory won't affect asset security though
-	if out.State == OutputStateUnspent || ver.AggregatedSignature == nil {
+	if out.State == OutputStateUnspent || (ver.AggregatedSignature == nil && len(ver.SignaturesMap) == 0) {
 		grp.writeOutputOrPanic(out, traceId)
 		return
 	}
@@ -184,7 +185,7 @@ func (grp *Group) processCollectibleOutput(out *CollectibleOutput) {
 		Hash:    ver.PayloadHash(),
 		NFO:     ver.Extra,
 	}
-	if ver.AggregatedSignature != nil {
+	if ver.AggregatedSignature != nil || len(ver.SignaturesMap) > 0 {
 		out.State = OutputStateSpent
 		tx.State = TransactionStateSigned
 	}

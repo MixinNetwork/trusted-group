@@ -196,7 +196,7 @@ func (grp *Group) signTransactions(ctx context.Context) error {
 		tx.UpdatedAt = grp.clock.Now()
 		tx.State = TransactionStateSigning
 
-		if ver.AggregatedSignature != nil {
+		if ver.AggregatedSignature != nil || len(ver.SignaturesMap) > 0 {
 			tx.State = TransactionStateSigned
 		} else {
 			p := DecodeMixinExtra(string(ver.Extra))

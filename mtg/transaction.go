@@ -149,7 +149,7 @@ func (grp *Group) checkStorageTransaction(tx *Transaction) bool {
 
 func (grp *Group) checkCompactTransactionRequest(ctx context.Context, ver *common.VersionedTransaction, extra *mixinExtraPack) bool {
 	// FIXME should check the keys with messenger api
-	return ver != nil && ver.AggregatedSignature == nil &&
+	return ver != nil && ver.AggregatedSignature == nil && len(ver.SignaturesMap) == 0 &&
 		extra.M == CompactionTransactionMemo && len(ver.Inputs) == OutputsBatchSize &&
 		len(ver.Outputs) == 1 && len(ver.Outputs[0].Keys) == len(grp.GetMembers()) &&
 		ver.Outputs[0].Script.String() == common.NewThresholdScript(uint8(grp.GetThreshold())).String()
@@ -182,7 +182,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	if len(ver.Outputs) != 1 && tx.Memo == CompactionTransactionMemo {
 		return nil, fmt.Errorf("expired compaction transaction %v", tx)
 	}
-	if ver.AggregatedSignature != nil {
+	if ver.AggregatedSignature != nil || len(ver.SignaturesMap) > 0 {
 		return ver.Marshal(), nil
 	}
 
@@ -211,7 +211,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 
 func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outputs []*Output) (*common.VersionedTransaction, []*Output, error) {
 	old, _ := decodeTransactionWithExtra(outputs[0].SignedTx)
-	if old != nil && old.AggregatedSignature != nil {
+	if old != nil && (old.AggregatedSignature != nil || len(old.SignaturesMap) > 0) {
 		return old, nil, nil
 	}
 	ver := common.NewTransactionV4(crypto.NewHash([]byte(tx.AssetId)))

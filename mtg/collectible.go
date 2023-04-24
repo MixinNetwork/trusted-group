@@ -162,7 +162,7 @@ func (grp *Group) signCollectibleTransaction(ctx context.Context, tx *Collectibl
 	if err != nil {
 		return nil, err
 	}
-	if ver.AggregatedSignature != nil {
+	if ver.AggregatedSignature != nil || len(ver.SignaturesMap) > 0 {
 		return ver.Marshal(), nil
 	}
 
