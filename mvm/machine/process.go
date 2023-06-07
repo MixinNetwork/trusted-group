@@ -96,7 +96,7 @@ func (m *Machine) loopReceiveEvents(ctx context.Context, p *Process) {
 			if err != nil {
 				panic(err)
 			} else if !enough {
-				logger.Verbosef("Process(%s, %d) => balance %s %s", p.Identifier, p.Nonce, e.Asset, e.Amount)
+				logger.Verbosef("Process(%s, %d) => balance %s %s", p.Identifier, e.Nonce, e.Asset, e.Amount)
 				time.Sleep(1 * time.Minute)
 				break
 			}

@@ -128,6 +128,8 @@ func (u *User) pass(ctx context.Context, p *Proxy, s *mixin.Snapshot) error {
 
 func (u *User) send(ctx context.Context, in *mixin.TransferInput) error {
 	switch in.AssetID {
+	case "b207bce9-c248-4b8e-b6e3-e357146f3f4c": // MGD
+		return nil
 	case "05891083-63d2-4f3d-bfbe-d14d7fb9b25a": // BTS
 		return nil
 	case "c3b9153a-7fab-4138-a3a4-99849cadc073": // VCash
