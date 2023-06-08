@@ -2,6 +2,7 @@ package quorum
 
 import (
 	"encoding/binary"
+	"errors"
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
@@ -242,7 +243,7 @@ func (e *Engine) storeReadGroupEventTransaction(address string, nonce uint64) (s
 }
 
 func (e *Engine) FlushDataByOffset(address string, offset uint64) error {
-	events, err := e.storeListContractEvents(address, offset, 100)
+	events, err := e.storeListContractEvents(address, offset, 500)
 	if err != nil {
 		return err
 	}
@@ -257,9 +258,12 @@ func (e *Engine) FlushDataByOffset(address string, offset uint64) error {
 			return err
 		}
 	}
-
+	if len(events) >= 500 {
+		return errors.New("Too Many Events")
+	}
+	err = e.storeWriteContractLogsOffset(offset)
 	logger.Verbosef("storeReadContractLogsOffset() => %d", e.storeReadContractLogsOffset())
-	return e.storeWriteContractLogsOffset(offset)
+	return err
 }
 
 func uint64Bytes(i uint64) []byte {
