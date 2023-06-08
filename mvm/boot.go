@@ -38,7 +38,7 @@ func bootCmd(c *cli.Context) error {
 		return err
 	}
 
-	if c.Int64("offset") > 0 {
+	if c.Int64("offset") > 0 && strings.TrimSpace(c.String("address")) != "" {
 		en := quorum.Build(conf.Quorum)
 		return en.FlushDataByOffset(c.String("address"), uint64(c.Int64("offset")))
 	}
