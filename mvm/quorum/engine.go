@@ -42,6 +42,11 @@ type Engine struct {
 	key     string
 }
 
+func Build(conf *Configuration) *Engine {
+	db := openBadger(conf.Store)
+	return &Engine{db: db}
+}
+
 func Boot(conf *Configuration) (*Engine, error) {
 	db := openBadger(conf.Store)
 	rpc, err := NewRPC(conf.RPC, conf.Base)

@@ -38,6 +38,11 @@ func bootCmd(c *cli.Context) error {
 		return err
 	}
 
+	if c.Int64("offset") > 0 {
+		en := quorum.Build(conf.Quorum)
+		return en.FlushDataByOffset(c.String("address"), uint64(c.Int64("offset")))
+	}
+
 	bp := c.String("dir")
 	if strings.HasPrefix(bp, "~/") {
 		usr, _ := user.Current()

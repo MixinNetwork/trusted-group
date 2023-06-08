@@ -45,6 +45,17 @@ func main() {
 						Value:   false,
 						Usage:   "Enable profile",
 					},
+					&cli.StringFlag{
+						Name:    "address",
+						Aliases: []string{"a"},
+						Value:   "0x3c84B6C98FBeB813e05a7A7813F0442883450B1F",
+						Usage:   "The address for flush data",
+					},
+					&cli.Int64Flag{
+						Name:    "offset",
+						Aliases: []string{"o"},
+						Usage:   "The beginning index for flush data",
+					},
 				},
 			},
 			{

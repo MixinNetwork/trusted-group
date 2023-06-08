@@ -3,6 +3,7 @@ package quorum
 import (
 	"encoding/binary"
 
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/dgraph-io/badger/v3"
 )
@@ -238,6 +239,27 @@ func (e *Engine) storeReadGroupEventTransaction(address string, nonce uint64) (s
 	}
 	val, err := item.ValueCopy(nil)
 	return string(val), err
+}
+
+func (e *Engine) FlushDataByOffset(address string, offset uint64) error {
+	events, err := e.storeListContractEvents(address, offset, 100)
+	if err != nil {
+		return err
+	}
+	key := []byte(prefixQuorumContractEventQueue + address)
+	for _, evt := range events {
+		err = e.db.Update(func(txn *badger.Txn) error {
+			key = append(key, uint64Bytes(evt.Nonce)...)
+			return txn.Delete(key)
+		})
+		logger.Verbosef("FlushDataByOffset(%s, %d) => %v", address, evt.Nonce, err)
+		if err != nil {
+			return err
+		}
+	}
+
+	logger.Verbosef("storeReadContractLogsOffset() => %d", e.storeReadContractLogsOffset())
+	return e.storeWriteContractLogsOffset(offset)
 }
 
 func uint64Bytes(i uint64) []byte {
