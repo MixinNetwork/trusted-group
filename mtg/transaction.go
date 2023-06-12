@@ -171,7 +171,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	}
 	// FIXME do more compatcion transaction check
 	if len(outputs) < OutputsBatchSize && tx.Memo == CompactionTransactionMemo {
-		return nil, fmt.Errorf("insufficient compaction transaction outputs %v", tx)
+		return nil, fmt.Errorf("insufficient compaction transaction outputs %v %d", tx, len(outputs))
 	}
 
 	ver, outputs, err := grp.buildRawTransaction(ctx, tx, outputs)
