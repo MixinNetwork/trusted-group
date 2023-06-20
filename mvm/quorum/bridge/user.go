@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/ed25519"
 	"math/big"
+	"strings"
+	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/domains/ethereum"
@@ -118,12 +120,27 @@ func (u *User) handle(ctx context.Context, store *Storage, s *mixin.Snapshot, ac
 		input.OpponentMultisig.Receivers = act.Receivers
 		input.OpponentMultisig.Threshold = uint8(act.Threshold)
 	}
-	return u.send(ctx, input)
+	return u.sendUntilSufficient(ctx, input)
 }
 
 func (u *User) pass(ctx context.Context, p *Proxy, s *mixin.Snapshot) error {
 	logger.Verbosef("User.pass(%v)", *s)
 	return u.bindAndPass(ctx, p, s.SnapshotID, u.FullName, s.AssetID, s.Amount)
+}
+
+func (u *User) sendUntilSufficient(ctx context.Context, in *mixin.TransferInput) error {
+	for {
+		err := u.send(ctx, in)
+		if mixin.IsErrorCodes(err, 30103) {
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		if err != nil && strings.Contains(err.Error(), "Client.Timeout exceeded") {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		return err
+	}
 }
 
 func (u *User) send(ctx context.Context, in *mixin.TransferInput) error {

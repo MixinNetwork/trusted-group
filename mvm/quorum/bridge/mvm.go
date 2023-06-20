@@ -34,7 +34,7 @@ func (u *User) bindAndPass(ctx context.Context, p *Proxy, snapshotId, addr, asse
 	input.OpponentMultisig.Receivers = MVMMembers
 	input.OpponentMultisig.Threshold = uint8(MVMThreshold)
 	input.Memo = base64.RawURLEncoding.EncodeToString(op.Encode())
-	return u.send(ctx, &input)
+	return u.sendUntilSufficient(ctx, &input)
 }
 
 func (u *User) buildExtra(p *Proxy, addr, asset string, amt decimal.Decimal) []byte {
