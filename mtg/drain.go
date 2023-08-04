@@ -9,6 +9,7 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/fox-one/mixin-sdk-go"
+	"github.com/gofrs/uuid"
 )
 
 const (
@@ -120,6 +121,9 @@ func (grp *Group) processMultisigOutput(ctx context.Context, out *Output) {
 	var groupId, traceId string
 	if extra != nil {
 		groupId, traceId = extra.G, extra.T.String()
+	} else {
+		groupId = uuid.Nil.String()
+		traceId = mixin.UniqueConversationID(out.UTXOID, out.SignedBy)
 	}
 
 	// FIXME get trace id from other members could break the consensus

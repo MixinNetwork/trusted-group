@@ -150,7 +150,7 @@ func (grp *Group) checkStorageTransaction(tx *Transaction) bool {
 func (grp *Group) checkCompactTransactionRequest(ctx context.Context, ver *common.VersionedTransaction, extra *mixinExtraPack) bool {
 	// FIXME should check the keys with messenger api
 	return ver != nil && ver.AggregatedSignature == nil && len(ver.SignaturesMap) == 0 &&
-		extra.M == CompactionTransactionMemo && len(ver.Inputs) == OutputsBatchSize &&
+		extra != nil && extra.M == CompactionTransactionMemo && len(ver.Inputs) == OutputsBatchSize &&
 		len(ver.Outputs) == 1 && len(ver.Outputs[0].Keys) == len(grp.GetMembers()) &&
 		ver.Outputs[0].Script.String() == common.NewThresholdScript(uint8(grp.GetThreshold())).String()
 }
@@ -290,9 +290,6 @@ func decodeTransactionWithExtra(s string) (*common.VersionedTransaction, *mixinE
 		return nil, nil
 	}
 	p := DecodeMixinExtra(string(tx.Extra))
-	if p == nil {
-		return nil, nil
-	}
 	return tx, p
 }
 
