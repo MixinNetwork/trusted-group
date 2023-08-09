@@ -150,10 +150,7 @@ func (grp *Group) processMultisigOutput(ctx context.Context, out *Output) {
 	if old != nil && old.State >= TransactionStateSigned {
 		return
 	}
-	err = grp.store.WriteTransaction(tx)
-	if err != nil {
-		panic(err)
-	}
+	grp.writeTansactionOrPanic(tx)
 }
 
 func (grp *Group) writeOutputOrPanic(out *Output, traceId string) {

@@ -136,11 +136,16 @@ func (grp *Group) buildTransaction(ctx context.Context, assetId string, receiver
 		EncodeMixinExtra(groupId, tx.TraceId, tx.Memo)
 	}
 
-	err = grp.store.WriteTransaction(tx)
+	grp.writeTansactionOrPanic(tx)
+	return nil
+}
+
+func (grp *Group) writeTansactionOrPanic(tx *Transaction) {
+	err := grp.store.WriteTransaction(tx)
+	logger.Printf("Group.writeTansactionOrPanic(%v) => %v", *tx, err)
 	if err != nil {
 		panic(err)
 	}
-	return nil
 }
 
 func (grp *Group) checkStorageTransaction(tx *Transaction) bool {

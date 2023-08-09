@@ -208,10 +208,7 @@ func (grp *Group) signTransactions(ctx context.Context) error {
 			}
 		}
 
-		err = grp.store.WriteTransaction(tx)
-		if err != nil {
-			panic(err)
-		}
+		grp.writeTansactionOrPanic(tx)
 	}
 
 	return nil
@@ -242,11 +239,8 @@ func (grp *Group) unlockExpiredTransactions(ctx context.Context) error {
 		tx.State = TransactionStateInitial
 		tx.Hash = crypto.Hash{}
 		tx.Raw = nil
-		err = grp.store.WriteTransaction(tx)
-		logger.Verbosef("Group.unlockTransaction(%v) => %v", *tx, err)
-		if err != nil {
-			return err
-		}
+		grp.writeTansactionOrPanic(tx)
+		logger.Verbosef("Group.unlockTransaction(%v)", *tx)
 	}
 	return nil
 }
@@ -264,10 +258,7 @@ func (grp *Group) publishTransactions(ctx context.Context) error {
 			continue
 		}
 		tx.State = TransactionStateSnapshot
-		err = grp.store.WriteTransaction(tx)
-		if err != nil {
-			return err
-		}
+		grp.writeTansactionOrPanic(tx)
 	}
 	return nil
 }
