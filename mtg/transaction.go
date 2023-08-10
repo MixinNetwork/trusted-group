@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/common"
@@ -197,7 +198,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 		return nil, err
 	}
 
-	req, err = grp.mixin.SignMultisig(ctx, req.RequestID, grp.pin)
+	req, err = grp.signMultisigUntilSufficient(ctx, req.RequestID)
 	if err != nil {
 		panic(err)
 	}
@@ -212,6 +213,17 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 		panic(err)
 	}
 	return hex.DecodeString(req.RawTransaction)
+}
+
+func (grp *Group) signMultisigUntilSufficient(ctx context.Context, requestID string) (*mixin.MultisigRequest, error) {
+	for {
+		req, err := grp.mixin.SignMultisig(ctx, requestID, grp.pin)
+		if err != nil && strings.Contains(err.Error(), "Client.Timeout exceeded") {
+			time.Sleep(7 * time.Second)
+			continue
+		}
+		return req, err
+	}
 }
 
 func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outputs []*Output) (*common.VersionedTransaction, []*Output, error) {
