@@ -99,7 +99,7 @@ func (grp *Group) processMultisigOutput(ctx context.Context, out *Output) {
 	// FIXME do more consensus check to unlock transactions
 	if ver != nil && ver.Version < common.TxVersionReferences &&
 		ver.AggregatedSignature == nil && len(ver.SignaturesMap) == 0 {
-		req, err := grp.mixin.CreateMultisig(ctx, mixin.MultisigActionUnlock, out.SignedTx)
+		req, err := grp.createMultisigUntilSufficient(ctx, mixin.MultisigActionUnlock, out.SignedTx)
 		if err != nil {
 			panic(err)
 		}

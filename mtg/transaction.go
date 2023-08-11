@@ -193,7 +193,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	}
 
 	raw := hex.EncodeToString(ver.Marshal())
-	req, err := grp.mixin.CreateMultisig(ctx, mixin.MultisigActionSign, raw)
+	req, err := grp.createMultisigUntilSufficient(ctx, mixin.MultisigActionSign, raw)
 	if err != nil {
 		return nil, err
 	}
@@ -213,6 +213,17 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 		panic(err)
 	}
 	return hex.DecodeString(req.RawTransaction)
+}
+
+func (grp *Group) createMultisigUntilSufficient(ctx context.Context, action, raw string) (*mixin.MultisigRequest, error) {
+	for {
+		req, err := grp.mixin.CreateMultisig(ctx, action, raw)
+		if err != nil && checkRetryableError(err) {
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		return req, err
+	}
 }
 
 func (grp *Group) signMultisigUntilSufficient(ctx context.Context, requestID string) (*mixin.MultisigRequest, error) {
