@@ -8,12 +8,12 @@ require (
 	github.com/MixinNetwork/bot-api-go-client v1.8.0
 	github.com/MixinNetwork/go-number v0.1.0
 	github.com/MixinNetwork/mixin v0.16.1
-	github.com/MixinNetwork/nfo v0.3.5-0.20230811044821-9277d6d11bd3
+	github.com/MixinNetwork/nfo v0.3.5
 	github.com/MixinNetwork/tip v0.0.0-20220718172842-5937b26d132a
 	github.com/dgraph-io/badger/v4 v4.2.0
 	github.com/dimfeld/httptreemux v5.0.1+incompatible
 	github.com/drand/kyber v1.1.7
-	github.com/ethereum/go-ethereum v1.12.1
+	github.com/ethereum/go-ethereum v1.12.0
 	github.com/fox-one/mixin-sdk-go v1.7.11
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/klauspost/compress v1.16.7
@@ -53,7 +53,7 @@ require (
 	github.com/google/flatbuffers v23.5.26+incompatible // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
-	github.com/holiman/uint256 v1.2.3 // indirect
+	github.com/holiman/uint256 v1.2.2-0.20230321075855-87b91420868c // indirect
 	github.com/klauspost/cpuid/v2 v2.2.5 // indirect
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
@@ -66,7 +66,6 @@ require (
 	github.com/zeebo/blake3 v0.2.3 // indirect
 	go.dedis.ch/fixbuf v1.0.3 // indirect
 	golang.org/x/crypto v0.12.0 // indirect
-	golang.org/x/exp v0.0.0-20230809150735-7b3493d9a819 // indirect
 	golang.org/x/net v0.14.0 // indirect
 	golang.org/x/sync v0.3.0 // indirect
 	golang.org/x/sys v0.11.0 // indirect
