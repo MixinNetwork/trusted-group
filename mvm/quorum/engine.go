@@ -8,7 +8,7 @@ import (
 	"github.com/MixinNetwork/mixin/domains/ethereum"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
-	"github.com/dgraph-io/badger/v3"
+	"github.com/dgraph-io/badger/v4"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/shopspring/decimal"
 )

@@ -218,12 +218,24 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 func (grp *Group) signMultisigUntilSufficient(ctx context.Context, requestID string) (*mixin.MultisigRequest, error) {
 	for {
 		req, err := grp.mixin.SignMultisig(ctx, requestID, grp.pin)
-		if err != nil && strings.Contains(err.Error(), "Client.Timeout exceeded") {
-			time.Sleep(7 * time.Second)
+		if err != nil && checkRetryableError(err) {
+			time.Sleep(3 * time.Second)
 			continue
 		}
 		return req, err
 	}
+}
+
+func checkRetryableError(err error) bool {
+	es := err.Error()
+	switch {
+	case strings.Contains(es, "Client.Timeout exceeded"):
+	case strings.Contains(es, "Bad Gateway"):
+	case strings.Contains(es, "Internal Server Error"):
+	default:
+		return false
+	}
+	return true
 }
 
 func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outputs []*Output) (*common.VersionedTransaction, []*Output, error) {

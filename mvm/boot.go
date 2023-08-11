@@ -19,7 +19,7 @@ import (
 	"github.com/MixinNetwork/trusted-group/mvm/quorum"
 	"github.com/MixinNetwork/trusted-group/mvm/rpc"
 	"github.com/MixinNetwork/trusted-group/mvm/store"
-	"github.com/dgraph-io/badger/v3"
+	"github.com/dgraph-io/badger/v4"
 	"github.com/fox-one/mixin-sdk-go"
 	"github.com/urfave/cli/v2"
 )

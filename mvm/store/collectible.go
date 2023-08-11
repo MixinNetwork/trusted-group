@@ -3,7 +3,7 @@ package store
 import (
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/MixinNetwork/trusted-group/mvm/machine"
-	"github.com/dgraph-io/badger/v3"
+	"github.com/dgraph-io/badger/v4"
 )
 
 const (

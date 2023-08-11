@@ -9,7 +9,7 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/trusted-group/mtg"
-	"github.com/dgraph-io/badger/v3"
+	"github.com/dgraph-io/badger/v4"
 	"github.com/fox-one/mixin-sdk-go"
 )
 
