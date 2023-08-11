@@ -200,7 +200,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 
 	req, err = grp.signMultisigUntilSufficient(ctx, req.RequestID)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	for _, out := range outputs {
