@@ -11,7 +11,7 @@ import (
 	"net/http"
 
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/dimfeld/httptreemux"
+	"github.com/dimfeld/httptreemux/v5"
 	"github.com/gofrs/uuid"
 	"github.com/unrolled/render"
 )
