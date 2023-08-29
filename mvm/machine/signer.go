@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/MixinNetwork/tip/crypto"
-	"github.com/MixinNetwork/tip/crypto/en256"
+	"github.com/MixinNetwork/trusted-group/mvm/crypto"
+	"github.com/MixinNetwork/trusted-group/mvm/crypto/en256"
 	"github.com/MixinNetwork/trusted-group/mvm/encoding"
 	"github.com/drand/kyber/sign/tbls"
 )

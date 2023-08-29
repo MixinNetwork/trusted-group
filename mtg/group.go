@@ -139,23 +139,31 @@ func (grp *Group) Run(ctx context.Context) {
 	filter := make(map[string]bool)
 	for {
 		// drain all the utxos in the order of created time
+		logger.Verbosef("Group.Run(drainOutputsFromNetwork) created\n")
 		grp.drainOutputsFromNetwork(ctx, filter, 500, "created")
+		logger.Verbosef("Group.Run(drainOutputsFromNetwork) updated\n")
 		grp.drainOutputsFromNetwork(ctx, filter, 500, "updated")
 		grp.store.WriteProperty([]byte(groupBootSynced), []byte{1})
 
 		// handle the utxos queue by created time
+		logger.Verbosef("Group.Run(handleActionsQueue)\n")
 		grp.handleActionsQueue(ctx)
 
 		// because some utxos are unlocked for these signing transactions
+		logger.Verbosef("Group.Run(unlockExpiredTransactions)\n")
 		grp.unlockExpiredTransactions(ctx)
 
 		// sing any possible transactions from BuildTransaction
+		logger.Verbosef("Group.Run(signTransactions)\n")
 		grp.signTransactions(ctx)
 
 		// publish all signed transactions to the mainnet
+		logger.Verbosef("Group.Run(publishTransactions)\n")
 		grp.publishTransactions(ctx)
 
+		logger.Verbosef("Group.Run(signCollectibleTransaction)\n")
 		grp.signCollectibleTransactions(ctx)
+		logger.Verbosef("Group.Run(publishCollectibleTransactions)\n")
 		grp.publishCollectibleTransactions(ctx)
 	}
 }

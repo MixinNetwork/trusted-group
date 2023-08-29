@@ -49,7 +49,7 @@ func (e *Engine) signTransaction(to string, key string, amount decimal.Decimal, 
 	tx := types.NewTransaction(nonce, address, amt, GasLimit, gasPrice, data)
 	params := params.MainnetChainConfig
 	params.ChainID = big.NewInt(e.chainId)
-	signer := types.MakeSigner(params, params.EIP155Block)
+	signer := types.MakeSigner(params, params.EIP155Block, 0)
 	tx, err = types.SignTx(tx, signer, ecdsaPriv)
 	if err != nil {
 		panic(err)

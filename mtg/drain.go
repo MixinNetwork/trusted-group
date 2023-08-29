@@ -19,6 +19,7 @@ const (
 )
 
 func (grp *Group) drainOutputsFromNetwork(ctx context.Context, filter map[string]bool, batch int, order string) {
+	logger.Verbosef("Group.drainOutputsFromNetwork(%d, %s)\n", batch, order)
 	if order != outputsOrderCreated && order != outputsOrderUpdated {
 		panic(order)
 	}
@@ -30,6 +31,7 @@ func (grp *Group) drainOutputsFromNetwork(ctx context.Context, filter map[string
 			continue
 		}
 		outputs, err := grp.readUnifiedOutputs(ctx, grp.members, uint8(grp.threshold), checkpoint, batch, order)
+		logger.Verbosef("Group.readUnifiedOutputs(%s, %s) => %d %v\n", checkpoint, order, len(outputs), err)
 		if err != nil {
 			time.Sleep(3 * time.Second)
 			continue

@@ -6,9 +6,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/MixinNetwork/tip/crypto"
-	"github.com/MixinNetwork/tip/crypto/en256"
 	"github.com/MixinNetwork/trusted-group/mvm/config"
+	"github.com/MixinNetwork/trusted-group/mvm/crypto"
+	"github.com/MixinNetwork/trusted-group/mvm/crypto/en256"
 	"github.com/MixinNetwork/trusted-group/mvm/store"
 	"github.com/drand/kyber"
 	"github.com/drand/kyber/share"
