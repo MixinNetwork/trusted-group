@@ -172,6 +172,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	if err != nil {
 		panic(err)
 	}
+	logger.Verbosef("group.ListOutputsForTransaction(%s) => %d %v\n", tx.TraceId, len(outputs), err)
 	if len(outputs) == 0 {
 		return nil, fmt.Errorf("empty outputs %s", tx.Amount)
 	}
@@ -181,6 +182,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	}
 
 	ver, outputs, err := grp.buildRawTransaction(ctx, tx, outputs)
+	logger.Verbosef("group.buildRawTransaction(%v) => %v %d %v\n", tx, ver, len(outputs), err)
 	if err != nil {
 		return nil, err
 	}
@@ -218,6 +220,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 func (grp *Group) createMultisigUntilSufficient(ctx context.Context, action, raw string) (*mixin.MultisigRequest, error) {
 	for {
 		req, err := grp.mixin.CreateMultisig(ctx, action, raw)
+		logger.Verbosef("group.CreateMultisig(%s, %s) => %v %v\n", action, raw, req, err)
 		if err != nil && checkRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
@@ -229,6 +232,7 @@ func (grp *Group) createMultisigUntilSufficient(ctx context.Context, action, raw
 func (grp *Group) signMultisigUntilSufficient(ctx context.Context, requestID string) (*mixin.MultisigRequest, error) {
 	for {
 		req, err := grp.mixin.SignMultisig(ctx, requestID, grp.pin)
+		logger.Verbosef("group.CreateMultisig(%s) => %v %v\n", requestID, req, err)
 		if err != nil && checkRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
