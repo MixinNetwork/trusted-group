@@ -27,11 +27,11 @@ var (
 	}
 )
 
-func (m *Machine) ProcessOutput(ctx context.Context, out *mtg.Output) {
+func (m *Machine) ProcessOutput(ctx context.Context, out *mtg.Output) bool {
 	op, err := parseOperation(out.Memo)
 	logger.Verbosef("Machine.ProcessOutput(%v) => %v %v", out, op, err)
 	if err != nil {
-		return
+		return false
 	}
 	switch op.Purpose {
 	case encoding.OperationPurposeAddProcess:
@@ -39,21 +39,23 @@ func (m *Machine) ProcessOutput(ctx context.Context, out *mtg.Output) {
 	case encoding.OperationPurposeGroupEvent:
 		m.WriteGroupEvent(ctx, op.Process, out, op.Extra)
 	}
+	return false
 }
 
-func (m *Machine) ProcessCollectibleOutput(ctx context.Context, out *mtg.CollectibleOutput) {
+func (m *Machine) ProcessCollectibleOutput(ctx context.Context, out *mtg.CollectibleOutput) bool {
 	if InvalidCollectibleOutputHackMap[out.OutputId] {
-		return
+		return false
 	}
 	op, err := parseOperation(out.Memo)
 	logger.Verbosef("Machine.ProcessCollectibleOutput(%v) => %v %v", out, op, err)
 	if err != nil {
-		return
+		return false
 	}
 	switch op.Purpose {
 	case encoding.OperationPurposeGroupEvent:
 		m.WriteNFOGroupEvent(ctx, op.Process, out, op.Extra)
 	}
+	return false
 }
 
 func parseOperation(memo string) (*encoding.Operation, error) {
