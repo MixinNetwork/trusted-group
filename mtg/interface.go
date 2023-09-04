@@ -40,6 +40,7 @@ type Store interface {
 }
 
 type Worker interface {
-	ProcessOutput(context.Context, *Output)
-	ProcessCollectibleOutput(context.Context, *CollectibleOutput)
+	// handle the output and a true return value interrupts workers loop
+	ProcessOutput(context.Context, *Output) bool
+	ProcessCollectibleOutput(context.Context, *CollectibleOutput) bool
 }

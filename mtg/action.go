@@ -27,13 +27,17 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 	}
 	for _, out := range outputs {
 		for _, wkr := range grp.workers {
+			var handled bool
 			switch out.Type {
 			case OutputTypeMultisig:
-				wkr.ProcessOutput(ctx, out.AsMultisig())
+				handled = wkr.ProcessOutput(ctx, out.AsMultisig())
 			case OutputTypeCollectible:
-				wkr.ProcessCollectibleOutput(ctx, out.AsCollectible())
+				handled = wkr.ProcessCollectibleOutput(ctx, out.AsCollectible())
 			default:
 				panic(out.Type)
+			}
+			if handled {
+				break
 			}
 		}
 		grp.writeAction(out, ActionStateDone)
