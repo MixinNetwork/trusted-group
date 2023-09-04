@@ -5,9 +5,9 @@ go 1.21
 replace github.com/dgraph-io/badger/v4 => github.com/MixinNetwork/badger/v4 v4.2.0-F1
 
 require (
-	github.com/MixinNetwork/bot-api-go-client v1.8.4
+	github.com/MixinNetwork/bot-api-go-client v1.8.6
 	github.com/MixinNetwork/go-number v0.1.0
-	github.com/MixinNetwork/mixin v0.16.5
+	github.com/MixinNetwork/mixin v0.16.7
 	github.com/MixinNetwork/nfo v0.3.5
 	github.com/MixinNetwork/tip v0.2.5
 	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce
@@ -27,7 +27,7 @@ require (
 	github.com/vmihailenco/msgpack/v4 v4.3.12
 	go.dedis.ch/fixbuf v1.0.3
 	golang.org/x/crypto v0.12.0
-	golang.org/x/sys v0.11.0
+	golang.org/x/sys v0.12.0
 )
 
 require (
@@ -75,7 +75,7 @@ require (
 	golang.org/x/exp v0.0.0-20230817173708-d852ddb80c63 // indirect
 	golang.org/x/net v0.14.0 // indirect
 	golang.org/x/sync v0.3.0 // indirect
-	golang.org/x/text v0.12.0 // indirect
+	golang.org/x/text v0.13.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230822172742-b8732ec3820d // indirect
 	google.golang.org/grpc v1.57.0 // indirect
