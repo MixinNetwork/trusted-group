@@ -1,0 +1,46 @@
+[mtg.genesis]
+members = [
+  "d5a3a450-5619-47af-a3b1-aad08e6e10dd",
+  "9d4a18aa-9b0a-40ed-ba57-ce8fbbbc6deb",
+  "2f82a56a-7fae-4bdd-bc4d-aad5005c5041",
+  "f7f33be1-399a-4d29-b50c-44e5f01cbb1b",
+  "23a070df-6b87-4b66-bdd4-f009702770c9",
+  "2385639c-eac1-4a38-a7f6-597b3f0f5b59",
+  "ab357ad7-8828-4173-b3bb-0600c518eab2"
+]
+# now the threshold can only be members.length * 2 / 3 + 1
+threshold = 5
+timestamp = 1638267095017464529
+
+[mtg.app]
+client-id = ""
+session-id = ""
+private-key = ""
+pin-token = ""
+pin = ""
+
+[machine]
+# the HEX encoded BLS public poly commitments
+poly = "00a4398f2222cca7c31cd56b4557249bf9f3c538b30b06e3a9a4c830a9b48feb1b0b73f760f5a1fc2d3b14b18a1fb5f7d8e93366ac283423c7b6413dd869bf13030e7999862a645112eefee572b4f930a8c66b4141d0f8d76558364ed539c03e25fc87924ed7906607d59b6e9555230e73b46378252923ac719a328c7235cb031d22a1a9683f97af2a7cc16ce332ed9430e14800e5d38e3be218e951fe29c49f2de8f963610e0cdc03394defbd8215b339baae5b3deca49eb19857f57daa01e32dec6ac7f763b0845ebe288cedf28f708d63e7dde316abe1ff4f9dca73c3fa1c13f870886b21afaeae0f79d1a92247441ba99f11ae44cebd3bf5ef51a4277f161e84c65491c71d832f670d036aabd95feec5c7228b8c732fd837e01b8a9ca3581774c7c8a2bd281f4ee181116a8d787604b50eb75da502ebc73661ee17c49de612bf2f19f2f3f0d8451273581584a3846336804b082ff1f6bf3267ed58453fa117381541be2adb66cbf645ede01157e1774e2e1ee3967140b28145548669fdf1156315b4992f161358254bdc1b8f4f630a162fcfeafae26f81218aaa067db2702277cedc7b8ea5c2294c217be1df28a4f5d482bc106166558387e4705093a955161172d978b301fb2f72705ff6a3ad6dd82b131e667003a689b8fca63b5263271c2a4a6d3aa7f8d6f7abdd4c464602c3b163f8e91218b46427bf41013808d1a5203681cd7c58739456da16c48004c3583a160ed2b72b04073b4f03aa296197f11733f1bfd4956358af7d3f54de2f34a3911c68abbda42e3a871650a38076b2ef00499b8a3b48cbaec5d311de2377ff2d5c6e98d0d2bf07ed3f7a0b64bfc9520e23b0e179f4d19500b9b1a1a2c4b599d9eeb147521a65c615a6a9374b6b86e057"
+# the threshold BLS private share
+share = ""
+# the fee asset id to register a process
+process-fee-asset = "c94ac88f-4671-3976-b60a-09064f1811e8"
+# the fee amount to register a process
+process-fee-amount = "0.01"
+
+[quorum]
+store = "/mvm/quorum"
+rpc = "http://127.0.0.1:8545"
+chain = 73927
+# the base block height to scan logs
+base = 1342687
+# only the publisher need to set this private key with enough ether balance
+key = ""
+
+[messenger]
+user = ""
+session = ""
+key = ""
+buffer = 64
+conversation = ""
