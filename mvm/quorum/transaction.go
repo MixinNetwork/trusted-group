@@ -19,9 +19,10 @@ func (e *Engine) signContractNotifierDepositTransaction(pub string, key string, 
 
 func (e *Engine) signGroupEventTransaction(contract string, evt *encoding.Event, notifier string) (string, string) {
 	data := EventMethod + fmt.Sprintf("%064x", 0x20)
-	data = data + fmt.Sprintf("%064x", len(evt.Encode()))
-	data = data + hex.EncodeToString(evt.Encode())
-	for p := len(evt.Encode()) % 32; p > 0 && p < 32; p++ {
+	raw := evt.Encode()
+	data = data + fmt.Sprintf("%064x", len(raw))
+	data = data + hex.EncodeToString(raw)
+	for p := len(raw) % 32; p > 0 && p < 32; p++ {
 		data = data + "00"
 	}
 	db, err := hex.DecodeString(data[2:])
