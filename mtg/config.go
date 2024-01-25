@@ -19,7 +19,8 @@ type Configuration struct {
 		Threshold int      `toml:"threshold"`
 		Timestamp int64    `toml:"timestamp"`
 	} `toml:"genesis"`
-	GroupSize int `toml:"group-size"`
+	GroupSize        int   `toml:"group-size"`
+	LoopWaitDuration int64 `toml:"loop-wait-duration"`
 }
 
 func Setup(path string) (*Configuration, error) {

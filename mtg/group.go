@@ -21,11 +21,12 @@ const (
 )
 
 type Group struct {
-	mixin     *mixin.Client
-	store     Store
-	workers   []Worker
-	grouper   func(*Output) string
-	groupSize int
+	mixin        *mixin.Client
+	store        Store
+	workers      []Worker
+	grouper      func(*Output) string
+	groupSize    int
+	waitDuration time.Duration
 
 	clock     *Clock
 	id        string
@@ -59,11 +60,12 @@ func BuildGroup(ctx context.Context, store Store, conf *Configuration) (*Group, 
 	}
 
 	grp := &Group{
-		mixin:     client,
-		store:     store,
-		pin:       conf.App.PIN,
-		id:        generateGenesisId(conf),
-		groupSize: conf.GroupSize,
+		mixin:        client,
+		store:        store,
+		pin:          conf.App.PIN,
+		id:           generateGenesisId(conf),
+		groupSize:    conf.GroupSize,
+		waitDuration: time.Duration(conf.LoopWaitDuration),
 	}
 	if grp.groupSize <= 0 {
 		grp.groupSize = OutputsBatchSize
@@ -135,10 +137,10 @@ func (grp *Group) AddWorker(wkr Worker) {
 }
 
 func (grp *Group) Run(ctx context.Context) {
-	logger.Printf("Group(%s, %d, %s).Run(v0.6.0)\n", mixin.HashMembers(grp.members), grp.threshold, grp.GenesisId())
+	logger.Printf("Group(%s, %d, %s).Run(v0.6.1)\n", mixin.HashMembers(grp.members), grp.threshold, grp.GenesisId())
 	filter := make(map[string]bool)
 	for {
-		time.Sleep(time.Second)
+		time.Sleep(grp.waitDuration)
 		// drain all the utxos in the order of created time
 		logger.Verbosef("Group.Run(drainOutputsFromNetwork) created\n")
 		grp.drainOutputsFromNetwork(ctx, filter, 500, "created")
