@@ -8,7 +8,7 @@ import (
 	"math/big"
 
 	"github.com/MixinNetwork/mixin/crypto"
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 )
 
 // MTG node boots should sync all the nfos from begining, and then it knows

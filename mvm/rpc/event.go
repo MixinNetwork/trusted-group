@@ -8,7 +8,7 @@ import (
 
 	"github.com/MixinNetwork/bot-api-go-client"
 	"github.com/MixinNetwork/trusted-group/mvm/store"
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 )
 
 func getEVMEvent(ctx context.Context, impl *RPC, params []any) (string, error) {

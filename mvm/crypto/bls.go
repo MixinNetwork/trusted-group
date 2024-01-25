@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/MixinNetwork/trusted-group/mvm/crypto/en256"
-	"github.com/btcsuite/btcutil/base58"
+	"github.com/btcsuite/btcd/btcutil/base58"
 	"github.com/drand/kyber"
 	"github.com/drand/kyber/sign/bls"
 )

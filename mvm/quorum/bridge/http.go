@@ -12,7 +12,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/dimfeld/httptreemux/v5"
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/unrolled/render"
 )
 

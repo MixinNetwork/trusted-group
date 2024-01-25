@@ -11,7 +11,7 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/MixinNetwork/trusted-group/mtg"
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 )
 
 type Action struct {

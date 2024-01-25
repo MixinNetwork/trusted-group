@@ -4,20 +4,18 @@ import (
 	"fmt"
 
 	"github.com/MixinNetwork/mixin/common"
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 )
 
 const (
 	EventExtraMaxSize = 256
 )
 
-//
 // MTG => VM
 // process || nonce || asset || amount || extra || timestamp || members || threshold || sig
 //
 // VM => MTG
 // process || nonce || asset || amount || extra || timestamp || members || threshold
-//
 type Event struct {
 	Process   string
 	Asset     string
