@@ -138,6 +138,7 @@ func (grp *Group) Run(ctx context.Context) {
 	logger.Printf("Group(%s, %d, %s).Run(v0.6.0)\n", mixin.HashMembers(grp.members), grp.threshold, grp.GenesisId())
 	filter := make(map[string]bool)
 	for {
+		time.Sleep(time.Second)
 		// drain all the utxos in the order of created time
 		logger.Verbosef("Group.Run(drainOutputsFromNetwork) created\n")
 		grp.drainOutputsFromNetwork(ctx, filter, 500, "created")
