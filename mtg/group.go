@@ -12,7 +12,7 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/fox-one/mixin-sdk-go"
+	"github.com/fox-one/mixin-sdk-go/v2"
 )
 
 const (
@@ -28,44 +28,43 @@ type Group struct {
 	groupSize    int
 	waitDuration time.Duration
 
-	clock     *Clock
-	id        string
-	members   []string
-	epoch     time.Time
-	threshold int
-	pin       string
+	clock           *Clock
+	id              string
+	members         []string
+	epoch           time.Time
+	threshold       int
+	SpendPrivateKey string
 }
 
 func BuildGroup(ctx context.Context, store Store, conf *Configuration) (*Group, error) {
 	if cg := conf.Genesis; len(cg.Members) < cg.Threshold || cg.Threshold < 1 {
 		return nil, fmt.Errorf("invalid group threshold %d %d", len(cg.Members), cg.Threshold)
 	}
-	if !strings.Contains(strings.Join(conf.Genesis.Members, ","), conf.App.ClientId) {
-		return nil, fmt.Errorf("app %s not belongs to the group", conf.App.ClientId)
+	if !strings.Contains(strings.Join(conf.Genesis.Members, ","), conf.App.AppId) {
+		return nil, fmt.Errorf("app %s not belongs to the group", conf.App.AppId)
 	}
 
-	s := &mixin.Keystore{
-		ClientID:   conf.App.ClientId,
-		SessionID:  conf.App.SessionId,
-		PrivateKey: conf.App.PrivateKey,
-		PinToken:   conf.App.PinToken,
-	}
-	client, err := mixin.NewFromKeystore(s)
+	client, err := mixin.NewFromKeystore(&mixin.Keystore{
+		AppID:             conf.App.AppId,
+		SessionID:         conf.App.SessionId,
+		SessionPrivateKey: conf.App.SessionPrivateKey,
+		ServerPublicKey:   conf.App.ServerPublicKey,
+	})
 	if err != nil {
 		return nil, err
 	}
-	err = client.VerifyPin(ctx, conf.App.PIN)
+	_, err = client.UserMe(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	grp := &Group{
-		mixin:        client,
-		store:        store,
-		pin:          conf.App.PIN,
-		id:           generateGenesisId(conf),
-		groupSize:    conf.GroupSize,
-		waitDuration: time.Duration(conf.LoopWaitDuration),
+		mixin:           client,
+		store:           store,
+		SpendPrivateKey: conf.App.SpendPrivateKey,
+		id:              generateGenesisId(conf),
+		groupSize:       conf.GroupSize,
+		waitDuration:    time.Duration(conf.LoopWaitDuration),
 	}
 	if grp.groupSize <= 0 {
 		grp.groupSize = OutputsBatchSize
@@ -137,7 +136,7 @@ func (grp *Group) AddWorker(wkr Worker) {
 }
 
 func (grp *Group) Run(ctx context.Context) {
-	logger.Printf("Group(%s, %d, %s).Run(v0.6.1)\n", mixin.HashMembers(grp.members), grp.threshold, grp.GenesisId())
+	logger.Printf("Group(%s, %d, %s).Run(v0.6.1)\n", strings.Join(grp.members, ","), grp.threshold, grp.GenesisId())
 	filter := make(map[string]bool)
 	for {
 		time.Sleep(grp.waitDuration)
@@ -346,5 +345,5 @@ func generateGenesisId(conf *Configuration) string {
 	})
 	id := strings.Join(conf.Genesis.Members, "")
 	id = fmt.Sprintf("%s:%d:%d", id, conf.Genesis.Threshold, conf.Genesis.Timestamp)
-	return crypto.NewHash([]byte(id)).String()
+	return crypto.Sha256Hash([]byte(id)).String()
 }
