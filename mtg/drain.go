@@ -149,28 +149,6 @@ func (grp *Group) writeOutputOrPanic(out *Output, traceId string) {
 	}
 }
 
-func (grp *Group) writeCollectibleOutputOrPanic(out *CollectibleOutput, traceId string, tx *CollectibleTransaction) {
-	logger.Verbosef("Group.writeCollectibleOutputOrPanic(%v, %s, %v)", out, traceId, tx)
-	err := grp.store.WriteCollectibleOutput(out, traceId)
-	if err != nil {
-		panic(err)
-	}
-	if traceId == "" {
-		return
-	}
-	old, err := grp.store.ReadCollectibleTransaction(traceId)
-	if err != nil {
-		panic(err)
-	}
-	if old != nil && old.State >= TransactionStateSigned {
-		return
-	}
-	err = grp.store.WriteCollectibleTransaction(traceId, tx)
-	if err != nil {
-		panic(err)
-	}
-}
-
 func (grp *Group) readDrainingCheckpoint(ctx context.Context) (uint64, error) {
 	val, err := grp.store.ReadProperty([]byte(outputsDrainingKey))
 	if err != nil || len(val) == 0 {

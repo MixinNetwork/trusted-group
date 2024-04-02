@@ -265,54 +265,6 @@ func (grp *Group) publishTransactions(ctx context.Context) error {
 	return nil
 }
 
-func (grp *Group) signCollectibleTransactions(ctx context.Context) error {
-	txs, err := grp.store.ListCollectibleTransactions(TransactionStateInitial, 1)
-	if err != nil || len(txs) != 1 {
-		return err
-	}
-	tx := txs[0]
-	raw, err := grp.signCollectibleTransaction(ctx, tx)
-	logger.Verbosef("Group.signCollectibleTransaction(%v) => %s %v", *tx, hex.EncodeToString(raw), err)
-	if err != nil {
-		return err
-	}
-	ver, _ := common.UnmarshalVersionedTransaction(raw)
-	tx.Raw = raw
-	tx.Hash = ver.PayloadHash()
-	tx.UpdatedAt = grp.clock.Now()
-	tx.State = TransactionStateSigning
-
-	nfm, err := DecodeNFOMemo(ver.Extra)
-	if err != nil {
-		panic(hex.EncodeToString(raw))
-	} else if nfm.WillMint() && nfoTraceId(ver.Extra) != tx.TraceId {
-		panic(hex.EncodeToString(raw))
-	}
-
-	return grp.store.WriteCollectibleTransaction(tx.TraceId, tx)
-}
-
-func (grp *Group) publishCollectibleTransactions(ctx context.Context) error {
-	txs, err := grp.store.ListCollectibleTransactions(TransactionStateSigned, 0)
-	if err != nil || len(txs) == 0 {
-		return err
-	}
-	for _, tx := range txs {
-		snapshot, err := grp.snapshotTransaction(ctx, tx.Hash, tx.Raw)
-		if err != nil {
-			return err
-		} else if !snapshot {
-			continue
-		}
-		tx.State = TransactionStateSnapshot
-		err = grp.store.WriteCollectibleTransaction(tx.TraceId, tx)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (grp *Group) snapshotTransaction(ctx context.Context, tx crypto.Hash, b []byte) (bool, error) {
 	// FIXME remove this storage transaction hack
 	if tx.String() == "5b4ce1833fffd87b837e67dfffc38d5bcce93266da74756763bcf873845071ae" {
