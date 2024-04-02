@@ -29,10 +29,8 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 		for _, wkr := range grp.workers {
 			var handled bool
 			switch out.Type {
-			case OutputTypeMultisig:
-				handled = wkr.ProcessOutput(ctx, out.AsMultisig())
-			case OutputTypeCollectible:
-				handled = wkr.ProcessCollectibleOutput(ctx, out.AsCollectible())
+			case OutputTypeSafeOutput:
+				handled = wkr.ProcessOutput(ctx, out.Output())
 			default:
 				panic(out.Type)
 			}
@@ -48,7 +46,7 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 func (grp *Group) writeAction(out *UnifiedOutput, state int) {
 	logger.Verbosef("Group.writeAction(%v, %d)", out, state)
 	err := grp.store.WriteAction(&Action{
-		UTXOID:    out.UniqueId(),
+		UTXOID:    out.OutputId,
 		CreatedAt: out.CreatedAt,
 		State:     state,
 	})

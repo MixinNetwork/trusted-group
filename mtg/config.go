@@ -17,7 +17,7 @@ type Configuration struct {
 	Genesis struct {
 		Members   []string `toml:"members"`
 		Threshold int      `toml:"threshold"`
-		Timestamp int64    `toml:"timestamp"`
+		Epoch     uint64   `toml:"epoch"`
 	} `toml:"genesis"`
 	GroupSize        int   `toml:"group-size"`
 	LoopWaitDuration int64 `toml:"loop-wait-duration"`

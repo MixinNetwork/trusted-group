@@ -3,70 +3,58 @@ package mtg
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
-	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/fox-one/mixin-sdk-go"
+	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/gofrs/uuid/v5"
 )
 
 const (
-	outputsOrderCreated = "created"
-	outputsOrderUpdated = "updated"
-	outputsDrainingKey  = "outputs-draining-checkpoint"
+	outputsDrainingKey = "outputs-draining-checkpoint"
 )
 
-func (grp *Group) drainOutputsFromNetwork(ctx context.Context, filter map[string]bool, batch int, order string) {
-	logger.Verbosef("Group.drainOutputsFromNetwork(%d, %s)\n", batch, order)
-	if order != outputsOrderCreated && order != outputsOrderUpdated {
-		panic(order)
-	}
+func (grp *Group) drainOutputsFromNetwork(ctx context.Context, filter map[string]bool, batch int) {
+	logger.Verbosef("Group.drainOutputsFromNetwork(%d, %s)\n", batch)
 
 	for {
-		checkpoint, err := grp.readDrainingCheckpoint(ctx, order)
+		checkpoint, err := grp.readDrainingCheckpoint(ctx)
 		if err != nil {
 			time.Sleep(3 * time.Second)
 			continue
 		}
-		outputs, err := grp.readUnifiedOutputs(ctx, grp.members, uint8(grp.threshold), checkpoint, batch, order)
-		logger.Verbosef("Group.readUnifiedOutputs(%s, %s) => %d %v\n", checkpoint, order, len(outputs), err)
+		outputs, err := grp.readSafeOutputs(ctx, grp.members, uint8(grp.threshold), checkpoint, batch)
+		logger.Verbosef("Group.readSafeOutputs(%s, %s) => %d %v\n", checkpoint, len(outputs), err)
 		if err != nil {
 			time.Sleep(3 * time.Second)
 			continue
 		}
 
-		checkpoint = grp.processUnifiedOutputs(ctx, filter, checkpoint, outputs, order)
-		grp.writeDrainingCheckpoint(ctx, order, checkpoint)
+		checkpoint = grp.processSafeOutputs(ctx, filter, checkpoint, outputs)
+		grp.writeDrainingCheckpoint(ctx, checkpoint)
 		if len(outputs) < batch/2 {
 			break
 		}
 	}
 }
 
-func (grp *Group) processUnifiedOutputs(ctx context.Context, filter map[string]bool, checkpoint time.Time, outputs []*UnifiedOutput, order string) time.Time {
+func (grp *Group) processSafeOutputs(ctx context.Context, filter map[string]bool, checkpoint uint64, outputs []*UnifiedOutput) uint64 {
 	for _, out := range outputs {
-		if order == outputsOrderCreated {
-			checkpoint = out.CreatedAt
-		} else {
-			checkpoint = out.UpdatedAt
-		}
-		key := fmt.Sprintf("OUT:%s:%d", out.UniqueId(), out.UpdatedAt.UnixNano())
-		if filter[key] || out.UpdatedAt.Before(grp.epoch) {
+		checkpoint = out.Sequence
+		key := fmt.Sprintf("OUT:%s:%d", out.OutputId, out.Sequence)
+		if filter[key] || out.Sequence < grp.epoch {
 			continue
 		}
 		filter[key] = true
-		if out.Type == OutputTypeMultisig {
-			grp.processMultisigOutput(ctx, out.AsMultisig())
-		} else if out.Type == OutputTypeCollectible {
-			grp.processCollectibleOutput(out.AsCollectible())
-		}
+		grp.processSafeOutput(ctx, out.Output())
 	}
 
 	for _, utxo := range outputs {
-		key := fmt.Sprintf("ACT:%s:%d", utxo.UniqueId(), utxo.UpdatedAt.UnixNano())
-		if filter[key] || utxo.UpdatedAt.Before(grp.epoch) {
+		key := fmt.Sprintf("ACT:%s:%d", utxo.OutputId, utxo.Sequence)
+		if filter[key] || utxo.Sequence < grp.epoch {
 			continue
 		}
 		filter[key] = true
@@ -82,34 +70,24 @@ func (grp *Group) processUnifiedOutputs(ctx context.Context, filter map[string]b
 }
 
 func (grp *Group) readOldTransaction(utxo *UnifiedOutput) (bool, error) {
-	if utxo.Type == OutputTypeMultisig {
+	switch utxo.Type {
+	case OutputTypeSafeOutput:
 		tx, err := grp.store.ReadTransactionByHash(utxo.TransactionHash)
 		return tx != nil, err
-	} else if utxo.Type == OutputTypeCollectible {
-		tx, err := grp.store.ReadCollectibleTransactionByHash(utxo.TransactionHash)
-		return tx != nil, err
+	default:
+		panic(utxo.Type)
 	}
-	panic(utxo.Type)
 }
 
-func (grp *Group) processMultisigOutput(ctx context.Context, out *Output) {
-	logger.Verbosef("Group.processMultisigOutput(%v)", out)
-	ver, extra := decodeTransactionWithExtra(out.SignedTx)
-	if out.SignedTx != "" && ver == nil {
-		panic(out.SignedTx)
+func (grp *Group) processSafeOutput(ctx context.Context, out *Output) {
+	logger.Verbosef("Group.processSafeOutput(%v)", out)
+	t, err := grp.mixin.SafeReadTransactionRequest(ctx, out.TraceID)
+	if err != nil {
+		panic(err)
 	}
-	// FIXME do more consensus check to unlock transactions
-	if ver != nil && ver.Version < common.TxVersionReferences &&
-		ver.AggregatedSignature == nil && len(ver.SignaturesMap) == 0 {
-		req, err := grp.createMultisigUntilSufficient(ctx, mixin.MultisigActionUnlock, out.SignedTx)
-		if err != nil {
-			panic(err)
-		}
-		err = grp.mixin.UnlockMultisig(ctx, req.RequestID, grp.pin)
-		if err != nil {
-			panic(err)
-		}
-		return
+	ver, extra := decodeTransactionWithExtra(t.RawTransaction)
+	if ver == nil {
+		panic(t.RawTransaction)
 	}
 	if grp.checkCompactTransactionRequest(ctx, ver, extra) {
 		amount := ver.Outputs[0].Amount.String()
@@ -125,7 +103,7 @@ func (grp *Group) processMultisigOutput(ctx context.Context, out *Output) {
 		groupId, traceId = extra.G, extra.T.String()
 	} else {
 		groupId = uuid.Nil.String()
-		traceId = mixin.UniqueConversationID(out.UTXOID, out.SignedBy)
+		traceId = out.TraceID
 	}
 
 	// FIXME get trace id from other members could break the consensus
@@ -171,30 +149,6 @@ func (grp *Group) writeOutputOrPanic(out *Output, traceId string) {
 	}
 }
 
-func (grp *Group) processCollectibleOutput(out *CollectibleOutput) {
-	logger.Verbosef("Group.processCollectibleOutput(%v)", out)
-	ver, extra := decodeCollectibleTransactionWithExtra(out.SignedTx)
-	if out.SignedTx != "" && ver == nil {
-		panic(out.SignedTx)
-	}
-	if out.State == OutputStateUnspent {
-		grp.writeCollectibleOutputOrPanic(out, "", nil)
-		return
-	}
-	tx := &CollectibleTransaction{
-		TraceId: extra.T.String(),
-		State:   TransactionStateInitial,
-		Raw:     ver.Marshal(),
-		Hash:    ver.PayloadHash(),
-		NFO:     ver.Extra,
-	}
-	if ver.AggregatedSignature != nil || len(ver.SignaturesMap) > 0 {
-		out.State = OutputStateSpent
-		tx.State = TransactionStateSigned
-	}
-	grp.writeCollectibleOutputOrPanic(out, tx.TraceId, tx)
-}
-
 func (grp *Group) writeCollectibleOutputOrPanic(out *CollectibleOutput, traceId string, tx *CollectibleTransaction) {
 	logger.Verbosef("Group.writeCollectibleOutputOrPanic(%v, %s, %v)", out, traceId, tx)
 	err := grp.store.WriteCollectibleOutput(out, traceId)
@@ -217,45 +171,41 @@ func (grp *Group) writeCollectibleOutputOrPanic(out *CollectibleOutput, traceId 
 	}
 }
 
-func (grp *Group) readDrainingCheckpoint(ctx context.Context, order string) (time.Time, error) {
-	key := fmt.Sprintf("%s-by-%s", outputsDrainingKey, order)
-	val, err := grp.store.ReadProperty([]byte(key))
+func (grp *Group) readDrainingCheckpoint(ctx context.Context) (uint64, error) {
+	val, err := grp.store.ReadProperty([]byte(outputsDrainingKey))
 	if err != nil || len(val) == 0 {
-		return grp.epoch, err
+		return 0, err
 	}
-	ts := int64(binary.BigEndian.Uint64(val))
-	return time.Unix(0, ts), nil
+	return uint64(binary.BigEndian.Uint64(val)), nil
 }
 
-func (grp *Group) writeDrainingCheckpoint(ctx context.Context, order string, ckpt time.Time) error {
+func (grp *Group) writeDrainingCheckpoint(ctx context.Context, ckpt uint64) error {
 	val := make([]byte, 8)
-	ts := uint64(ckpt.UnixNano())
-	binary.BigEndian.PutUint64(val, ts)
-	key := fmt.Sprintf("%s-by-%s", outputsDrainingKey, order)
-	return grp.store.WriteProperty([]byte(key), val)
+	binary.BigEndian.PutUint64(val, ckpt)
+	return grp.store.WriteProperty([]byte(outputsDrainingKey), val)
 }
 
-func (grp *Group) readUnifiedOutputs(ctx context.Context, members []string, threshold uint8, offset time.Time, limit int, order string) ([]*UnifiedOutput, error) {
+func (grp *Group) readSafeOutputs(ctx context.Context, members []string, threshold uint8, offset uint64, limit int) ([]*UnifiedOutput, error) {
 	params := make(map[string]string)
-	if !offset.IsZero() {
-		params["offset"] = offset.UTC().Format(time.RFC3339Nano)
+	if offset > 0 {
+		params["offset"] = fmt.Sprint(offset)
 	}
 	if limit > 0 {
-		params["limit"] = fmt.Sprint(limit)
+		params["limit"] = strconv.Itoa(limit)
 	}
-	if order == outputsOrderCreated || order == outputsOrderUpdated {
-		params["order"] = order
+	if threshold < 1 {
+		threshold = 1
 	}
-	if threshold < 1 || int(threshold) > len(members) {
-		return nil, fmt.Errorf("invalid members %v %d", members, threshold)
+	if int(threshold) > len(members) {
+		return nil, errors.New("invalid members")
 	}
-	params["members"] = mixin.HashMembers(members)
+	params["members"] = mixinnet.HashMembers(members)
 	params["threshold"] = fmt.Sprint(threshold)
+	params["order"] = "ASC"
 
-	var outputs []*UnifiedOutput
-	err := grp.mixin.Get(ctx, "/outputs", params, &outputs)
-	if err != nil {
+	var utxos []*UnifiedOutput
+	if err := grp.mixin.Get(ctx, "/safe/outputs", params, &utxos); err != nil {
 		return nil, err
 	}
-	return outputs, nil
+	return utxos, nil
 }
