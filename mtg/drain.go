@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/fox-one/mixin-sdk-go"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/gofrs/uuid/v5"
 )
@@ -81,7 +82,7 @@ func (grp *Group) readOldTransaction(utxo *UnifiedOutput) (bool, error) {
 
 func (grp *Group) processSafeOutput(ctx context.Context, out *Output) {
 	logger.Verbosef("Group.processSafeOutput(%v)", out)
-	t, err := grp.mixin.SafeReadTransactionRequest(ctx, out.TraceID)
+	t, err := grp.mixin.SafeReadMultisigRequests(ctx, out.SignedBy)
 	if err != nil {
 		panic(err)
 	}
@@ -89,6 +90,7 @@ func (grp *Group) processSafeOutput(ctx context.Context, out *Output) {
 	if ver == nil {
 		panic(t.RawTransaction)
 	}
+	out.SignedTx = t.RawTransaction
 	if grp.checkCompactTransactionRequest(ctx, ver, extra) {
 		amount := ver.Outputs[0].Amount.String()
 		receivers, threshold := grp.GetMembers(), grp.GetThreshold()
@@ -103,7 +105,7 @@ func (grp *Group) processSafeOutput(ctx context.Context, out *Output) {
 		groupId, traceId = extra.G, extra.T.String()
 	} else {
 		groupId = uuid.Nil.String()
-		traceId = out.TraceID
+		traceId = mixin.UniqueConversationID(out.UTXOID, out.SignedBy)
 	}
 
 	// FIXME get trace id from other members could break the consensus

@@ -99,6 +99,7 @@ type Output struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	SignedBy         string
+	SignedTx         string
 }
 
 func (out *Output) StateName() SafeUtxoState {

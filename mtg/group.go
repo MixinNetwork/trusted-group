@@ -134,6 +134,15 @@ func (grp *Group) AddWorker(wkr Worker) {
 	grp.workers = append(grp.workers, wkr)
 }
 
+func (node *Group) Index() int {
+	for i, id := range node.members {
+		if node.mixin.ClientID == id {
+			return i
+		}
+	}
+	panic(node.mixin.ClientID)
+}
+
 func (grp *Group) Run(ctx context.Context) {
 	logger.Printf("Group(%s, %d, %s).Run(v0.6.1)\n", strings.Join(grp.members, ","), grp.threshold, grp.GenesisId())
 	filter := make(map[string]bool)
@@ -155,10 +164,6 @@ func (grp *Group) Run(ctx context.Context) {
 		// sign any possible transactions from BuildTransaction
 		logger.Verbosef("Group.Run(signTransactions)\n")
 		grp.signTransactions(ctx)
-
-		// publish all signed transactions to the mainnet
-		logger.Verbosef("Group.Run(publishTransactions)\n")
-		grp.publishTransactions(ctx)
 	}
 }
 

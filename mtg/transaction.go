@@ -11,7 +11,8 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/fox-one/mixin-sdk-go"
+	"github.com/fox-one/mixin-sdk-go/v2"
+	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
@@ -195,12 +196,13 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	}
 
 	raw := hex.EncodeToString(ver.Marshal())
-	req, err := grp.createMultisigUntilSufficient(ctx, mixin.MultisigActionSign, raw)
+	id := mixin.UniqueConversationID(raw, ver.PayloadHash().String())
+	req, err := grp.createMultisigUntilSufficient(ctx, id, raw)
 	if err != nil {
 		return nil, err
 	}
 
-	req, err = grp.signMultisigUntilSufficient(ctx, req.RequestID)
+	req, err = grp.signMultisigUntilSufficient(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -217,10 +219,13 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	return hex.DecodeString(req.RawTransaction)
 }
 
-func (grp *Group) createMultisigUntilSufficient(ctx context.Context, action, raw string) (*mixin.MultisigRequest, error) {
+func (grp *Group) createMultisigUntilSufficient(ctx context.Context, id, raw string) (*mixin.SafeTransactionRequest, error) {
 	for {
-		req, err := grp.mixin.CreateMultisig(ctx, action, raw)
-		logger.Verbosef("group.CreateMultisig(%s, %s) => %v %v\n", action, raw, req, err)
+		req, err := grp.mixin.SafeCreateTransactionRequest(ctx, &mixin.SafeTransactionRequestInput{
+			RequestID:      id,
+			RawTransaction: raw,
+		})
+		logger.Verbosef("group.SafeCreateTransactionRequest(%s, %s) => %v %v\n", id, raw, req, err)
 		if err != nil && checkRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
@@ -229,10 +234,29 @@ func (grp *Group) createMultisigUntilSufficient(ctx context.Context, action, raw
 	}
 }
 
-func (grp *Group) signMultisigUntilSufficient(ctx context.Context, requestID string) (*mixin.MultisigRequest, error) {
+func (grp *Group) signMultisigUntilSufficient(ctx context.Context, input *mixin.SafeTransactionRequest) (*mixin.SafeTransactionRequest, error) {
+	key, err := mixinnet.KeyFromString(grp.SpendPrivateKey)
+	if err != nil {
+		return nil, err
+	}
+	ver, err := mixinnet.TransactionFromRaw(input.RawTransaction)
+	if err != nil {
+		return nil, err
+	}
+	err = mixin.SafeSignTransaction(ver, key, input.Views, uint16(grp.Index()))
+	if err != nil {
+		return nil, err
+	}
+	signedRaw, err := ver.Dump()
+	if err != nil {
+		return nil, err
+	}
 	for {
-		req, err := grp.mixin.SignMultisig(ctx, requestID, grp.pin)
-		logger.Verbosef("group.CreateMultisig(%s) => %v %v\n", requestID, req, err)
+		req, err := grp.mixin.SafeSubmitTransactionRequest(ctx, &mixin.SafeTransactionRequestInput{
+			RequestID:      input.RequestID,
+			RawTransaction: signedRaw,
+		})
+		logger.Verbosef("group.SafeSignMultisigRequest(%s %s) => %v %v\n", input.RequestID, signedRaw, req, err)
 		if err != nil && checkRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
@@ -258,7 +282,7 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 	if old != nil && (old.AggregatedSignature != nil || len(old.SignaturesMap) > 0) {
 		return old, nil, nil
 	}
-	ver := common.NewTransactionV4(crypto.NewHash([]byte(tx.AssetId)))
+	ver := common.NewTransactionV5(crypto.Sha256Hash([]byte(tx.AssetId)))
 	ver.Extra = []byte(encodeMixinExtra(tx.GroupId, tx.TraceId, tx.Memo))
 	target := common.NewIntegerFromString(tx.Amount)
 
@@ -266,7 +290,7 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 	var consumed []*Output
 	for _, out := range outputs {
 		total = total.Add(common.NewIntegerFromString(out.Amount.String()))
-		ver.AddInput(crypto.Hash(out.TransactionHash), out.OutputIndex)
+		ver.AddInput(crypto.Hash(out.TransactionHash), uint(out.OutputIndex))
 		consumed = append(consumed, out)
 		if total.Cmp(target) >= 0 && len(consumed) >= grp.groupSize {
 			break
@@ -282,7 +306,7 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 		return nil, nil, fmt.Errorf("insufficient %d %s %s", len(outputs), total, tx.Amount)
 	}
 
-	keys, err := grp.mixin.BatchReadGhostKeys(ctx, []*mixin.GhostInput{{
+	keys, err := grp.mixin.SafeCreateGhostKeys(ctx, []*mixin.GhostInput{{
 		Receivers: tx.Receivers,
 		Index:     0,
 		Hint:      tx.TraceId,
@@ -299,7 +323,12 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 	if err != nil {
 		return nil, nil, err
 	}
-	out := keys[0].DumpOutput(uint8(tx.Threshold), amount)
+	out := &mixinnet.Output{
+		Mask:   keys[0].Mask,
+		Keys:   keys[0].Keys,
+		Amount: mixinnet.IntegerFromDecimal(amount),
+		Script: mixinnet.NewThresholdScript(uint8(tx.Threshold)),
+	}
 	ver.Outputs = append(ver.Outputs, newCommonOutput(out))
 
 	if diff := total.Sub(common.NewIntegerFromString(tx.Amount)); diff.Sign() > 0 {
@@ -307,13 +336,16 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 		if err != nil {
 			return nil, nil, err
 		}
-		out := keys[1].DumpOutput(uint8(grp.threshold), amount)
+		out := &mixinnet.Output{
+			Mask:   keys[1].Mask,
+			Keys:   keys[1].Keys,
+			Amount: mixinnet.IntegerFromDecimal(amount),
+			Script: mixinnet.NewThresholdScript(uint8(grp.threshold)),
+		}
 		ver.Outputs = append(ver.Outputs, newCommonOutput(out))
 	}
 
-	if ver.Version >= common.TxVersionReferences {
-		ver.References = tx.References
-	}
+	ver.References = tx.References
 	return ver.AsVersioned(), consumed, nil
 }
 
@@ -338,7 +370,7 @@ func decodeTransactionWithExtra(s string) (*common.VersionedTransaction, *mixinE
 }
 
 func DecodeMixinExtra(memo string) *mixinExtraPack {
-	extra, err := base64.RawURLEncoding.DecodeString(memo)
+	extra, err := hex.DecodeString(memo)
 	if err != nil {
 		return nil
 	}
@@ -369,7 +401,7 @@ func EncodeMixinExtra(groupId, traceId, memo string) string {
 	return s
 }
 
-func newCommonOutput(out *mixin.Output) *common.Output {
+func newCommonOutput(out *mixinnet.Output) *common.Output {
 	cout := &common.Output{
 		Type:   common.OutputTypeScript,
 		Amount: common.NewIntegerFromString(out.Amount.String()),
