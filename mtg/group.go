@@ -13,6 +13,7 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/fox-one/mixin-sdk-go/v2"
+	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 )
 
 const (
@@ -164,6 +165,10 @@ func (grp *Group) Run(ctx context.Context) {
 		// sign any possible transactions from BuildTransaction
 		logger.Verbosef("Group.Run(signTransactions)\n")
 		grp.signTransactions(ctx)
+
+		// verify all transactions
+		logger.Verbosef("Group.Run(publishTransactions)\n")
+		grp.verifyTransactions(ctx)
 	}
 }
 
@@ -252,13 +257,13 @@ func (grp *Group) unlockExpiredTransactions(ctx context.Context) error {
 	return nil
 }
 
-func (grp *Group) publishTransactions(ctx context.Context) error {
+func (grp *Group) verifyTransactions(ctx context.Context) error {
 	txs, err := grp.store.ListTransactions(TransactionStateSigned, 0)
 	if err != nil || len(txs) == 0 {
 		return err
 	}
 	for _, tx := range txs {
-		snapshot, err := grp.snapshotTransaction(ctx, tx.Hash, tx.Raw)
+		snapshot, err := grp.snapshotTransaction(ctx, tx.Hash)
 		if err != nil {
 			return err
 		} else if !snapshot {
@@ -270,22 +275,16 @@ func (grp *Group) publishTransactions(ctx context.Context) error {
 	return nil
 }
 
-func (grp *Group) snapshotTransaction(ctx context.Context, tx crypto.Hash, b []byte) (bool, error) {
-	// FIXME remove this storage transaction hack
-	if tx.String() == "5b4ce1833fffd87b837e67dfffc38d5bcce93266da74756763bcf873845071ae" {
-		return true, nil
-	}
-	raw := hex.EncodeToString(b)
-	h, err := grp.mixin.SendRawTransaction(ctx, raw)
-	logger.Verbosef("Group.snapshotTransaction(%s) => %s, %v", raw, h, err)
+func (grp *Group) snapshotTransaction(ctx context.Context, tx crypto.Hash) (bool, error) {
+	c := mixinnet.NewClient(mixinnet.Config{
+		Safe: true,
+	})
+	_, err := c.GetTransaction(ctx, mixinnet.Hash(tx))
+	logger.Verbosef("Group.GetTransaction(%s) => %v", tx.String(), err)
 	if err != nil {
 		return false, err
 	}
-	s, err := grp.mixin.GetRawTransaction(ctx, *h)
-	if err != nil {
-		return false, err
-	}
-	return s.Snapshot != nil && s.Snapshot.HasValue(), nil
+	return true, nil
 }
 
 func generateGenesisId(conf *Configuration) string {
@@ -293,6 +292,6 @@ func generateGenesisId(conf *Configuration) string {
 		return conf.Genesis.Members[i] < conf.Genesis.Members[j]
 	})
 	id := strings.Join(conf.Genesis.Members, "")
-	id = fmt.Sprintf("%s:%d:%d", id, conf.Genesis.Threshold, conf.Genesis.Timestamp)
+	id = fmt.Sprintf("%s:%d:%d", id, conf.Genesis.Threshold, conf.Genesis.Epoch)
 	return crypto.Sha256Hash([]byte(id)).String()
 }
