@@ -8,8 +8,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/fox-one/mixin-sdk-go"
+	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/gofrs/uuid/v5"
 )
@@ -19,7 +20,7 @@ const (
 )
 
 func (grp *Group) drainOutputsFromNetwork(ctx context.Context, filter map[string]bool, batch int) {
-	logger.Verbosef("Group.drainOutputsFromNetwork(%d, %s)\n", batch)
+	logger.Verbosef("Group.drainOutputsFromNetwork(%d)\n", batch)
 
 	for {
 		checkpoint, err := grp.readDrainingCheckpoint(ctx)
@@ -28,7 +29,7 @@ func (grp *Group) drainOutputsFromNetwork(ctx context.Context, filter map[string
 			continue
 		}
 		outputs, err := grp.readSafeOutputs(ctx, grp.members, uint8(grp.threshold), checkpoint, batch)
-		logger.Verbosef("Group.readSafeOutputs(%s, %s) => %d %v\n", checkpoint, len(outputs), err)
+		logger.Verbosef("Group.readSafeOutputs(%d) => %d %v\n", checkpoint, len(outputs), err)
 		if err != nil {
 			time.Sleep(3 * time.Second)
 			continue
@@ -82,15 +83,24 @@ func (grp *Group) readOldTransaction(utxo *UnifiedOutput) (bool, error) {
 
 func (grp *Group) processSafeOutput(ctx context.Context, out *Output) {
 	logger.Verbosef("Group.processSafeOutput(%v)", out)
-	t, err := grp.mixin.SafeReadMultisigRequests(ctx, out.SignedBy)
-	if err != nil {
-		panic(err)
+
+	var ver *common.VersionedTransaction
+	var extra *mixinExtraPack
+	if out.SignedBy != "" {
+		t, err := grp.mixin.SafeReadMultisigRequests(ctx, out.SignedBy)
+		if err != nil {
+			panic(err)
+		}
+		ver, extra = decodeTransactionWithExtra(t.RawTransaction)
+		if ver == nil {
+			panic(t.RawTransaction)
+		}
+		out.SignedTx = t.RawTransaction
+	} else {
+		if out.State != OutputStateUnspent {
+			panic(out.State)
+		}
 	}
-	ver, extra := decodeTransactionWithExtra(t.RawTransaction)
-	if ver == nil {
-		panic(t.RawTransaction)
-	}
-	out.SignedTx = t.RawTransaction
 	if grp.checkCompactTransactionRequest(ctx, ver, extra) {
 		amount := ver.Outputs[0].Amount.String()
 		receivers, threshold := grp.GetMembers(), grp.GetThreshold()

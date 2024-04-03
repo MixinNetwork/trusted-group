@@ -2,7 +2,6 @@ package mtg
 
 import (
 	"context"
-	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
 )
@@ -14,7 +13,7 @@ const (
 
 type Action struct {
 	UTXOID    string
-	CreatedAt time.Time
+	CreatedAt uint64
 	State     int
 }
 
@@ -47,7 +46,7 @@ func (grp *Group) writeAction(out *UnifiedOutput, state int) {
 	logger.Verbosef("Group.writeAction(%v, %d)", out, state)
 	err := grp.store.WriteAction(&Action{
 		UTXOID:    out.OutputId,
-		CreatedAt: out.CreatedAt,
+		CreatedAt: out.Sequence,
 		State:     state,
 	})
 	if err != nil {

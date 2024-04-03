@@ -49,6 +49,7 @@ func (grp *Group) BuildTransaction(ctx context.Context, assetId string, receiver
 	return grp.buildTransaction(ctx, assetId, receivers, threshold, amount, memo, traceId, groupId, grp.clock.Now(), nil)
 }
 
+// FIXME exists in new system?
 func (grp *Group) BuildStorageTransaction(ctx context.Context, data []byte, groupId string) (*Transaction, error) {
 	sTraceId := crypto.Blake3Hash(data).String()
 	sTraceId = mixin.UniqueConversationID(sTraceId, sTraceId)
