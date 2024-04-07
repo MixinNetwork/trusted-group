@@ -1,6 +1,7 @@
 package mtg
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -100,6 +101,21 @@ type Output struct {
 	UpdatedAt        time.Time
 	SignedBy         string
 	SignedTx         string
+}
+
+var outputCols = []string{"group_id", "utxo_id", "trace_id", "asset_id", "transaction_hash", "output_index", "amount", "senders_threshold", "senders", "threshold", "members", "memo", "state", "sequence", "created_at", "updated_at", "signed_by", "signed_tx"}
+
+func (o *Output) values() []any {
+	return []any{o.GroupId, o.UTXOID, o.TraceID, o.AssetID, o.TransactionHash, o.OutputIndex, o.Amount, o.SendersThreshold, o.Senders, o.Threshold, o.Members, o.Memo, o.State, o.Sequence, o.CreatedAt, o.UpdatedAt, o.SignedBy, o.SignedTx}
+}
+
+func outputFromRow(row *sql.Row) (*Output, error) {
+	var o Output
+	err := row.Scan(&o.GroupId, &o.UTXOID, &o.TraceID, &o.AssetID, &o.TransactionHash, &o.OutputIndex, &o.Amount, &o.SendersThreshold, &o.Senders, &o.Threshold, &o.Members, &o.Memo, &o.State, &o.Sequence, &o.CreatedAt, &o.UpdatedAt, &o.SignedBy, &o.SignedTx)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return &o, err
 }
 
 func (out *Output) StateName() SafeUtxoState {

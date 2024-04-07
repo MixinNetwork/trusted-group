@@ -1,7 +1,7 @@
 package mtg
 
 import (
-	"encoding/binary"
+	"context"
 	"sync"
 	"time"
 )
@@ -10,12 +10,12 @@ const clockStorePropertyKey = "MTG:GROUP:CLOCK:MONOTONIC"
 
 type Clock struct {
 	sync.RWMutex
-	store Store
+	store *SQLite3Store
 	now   time.Time
 }
 
-func NewClock(store Store) (*Clock, error) {
-	ts, err := readPropertyAsTime(store)
+func NewClock(ctx context.Context, store *SQLite3Store) (*Clock, error) {
+	ts, err := readPropertyAsTime(ctx, store)
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +28,7 @@ func NewClock(store Store) (*Clock, error) {
 	return clock, nil
 }
 
-func (c *Clock) Now() time.Time {
+func (c *Clock) Now(ctx context.Context) time.Time {
 	c.Lock()
 	defer c.Unlock()
 
@@ -41,9 +41,8 @@ func (c *Clock) Now() time.Time {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	val := binary.BigEndian.AppendUint64(nil, uint64(c.now.UnixNano()))
 	for {
-		err := c.store.WriteProperty([]byte(clockStorePropertyKey), val)
+		err := c.store.WriteProperty(ctx, clockStorePropertyKey, c.now.Format(time.RFC3339Nano))
 		if err == nil {
 			break
 		}
@@ -53,10 +52,10 @@ func (c *Clock) Now() time.Time {
 	return c.now
 }
 
-func readPropertyAsTime(store Store) (time.Time, error) {
-	bs, err := store.ReadProperty([]byte(clockStorePropertyKey))
-	if err != nil || bs == nil {
+func readPropertyAsTime(ctx context.Context, store *SQLite3Store) (time.Time, error) {
+	bs, err := store.ReadProperty(ctx, clockStorePropertyKey)
+	if err != nil || bs == "" {
 		return time.Now(), err
 	}
-	return time.Unix(0, int64(binary.BigEndian.Uint64(bs))), nil
+	return time.Parse(time.RFC3339Nano, bs)
 }

@@ -19,8 +19,9 @@ type Configuration struct {
 		Threshold int      `toml:"threshold"`
 		Epoch     uint64   `toml:"epoch"`
 	} `toml:"genesis"`
-	GroupSize        int   `toml:"group-size"`
-	LoopWaitDuration int64 `toml:"loop-wait-duration"`
+	StoreDir         string `toml:"store-dir"`
+	GroupSize        int    `toml:"group-size"`
+	LoopWaitDuration int64  `toml:"loop-wait-duration"`
 }
 
 func Setup(path string) (*Configuration, error) {

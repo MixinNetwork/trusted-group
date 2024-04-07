@@ -2,7 +2,6 @@ package mtg
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"strconv"
@@ -60,21 +59,21 @@ func (grp *Group) processSafeOutputs(ctx context.Context, filter map[string]bool
 			continue
 		}
 		filter[key] = true
-		exist, err := grp.readOldTransaction(utxo)
+		exist, err := grp.readOldTransaction(ctx, utxo)
 		if err != nil {
 			panic(utxo.TransactionHash)
 		} else if exist {
 			continue
 		}
-		grp.writeAction(utxo, ActionStateInitial)
+		grp.writeAction(ctx, utxo, ActionStateInitial)
 	}
 	return checkpoint
 }
 
-func (grp *Group) readOldTransaction(utxo *UnifiedOutput) (bool, error) {
+func (grp *Group) readOldTransaction(ctx context.Context, utxo *UnifiedOutput) (bool, error) {
 	switch utxo.Type {
 	case OutputTypeSafeOutput:
-		tx, err := grp.store.ReadTransactionByHash(utxo.TransactionHash)
+		tx, err := grp.store.ReadTransactionByHash(ctx, utxo.TransactionHash)
 		return tx != nil, err
 	default:
 		panic(utxo.Type)
@@ -121,7 +120,7 @@ func (grp *Group) processSafeOutput(ctx context.Context, out *Output) {
 	// FIXME get trace id from other members could break the consensus
 	// this in theory won't affect asset security though
 	if out.State == OutputStateUnspent || (ver.AggregatedSignature == nil && len(ver.SignaturesMap) == 0) {
-		grp.writeOutputOrPanic(out, traceId)
+		grp.writeOutputOrPanic(ctx, out, traceId)
 		return
 	}
 	tx := &Transaction{
@@ -133,19 +132,19 @@ func (grp *Group) processSafeOutput(ctx context.Context, out *Output) {
 	}
 
 	out.State = OutputStateSpent
-	grp.writeOutputOrPanic(out, tx.TraceId)
+	grp.writeOutputOrPanic(ctx, out, tx.TraceId)
 
-	old, err := grp.store.ReadTransactionByTraceId(tx.TraceId)
+	old, err := grp.store.ReadTransactionByTraceId(ctx, tx.TraceId)
 	if err != nil {
 		panic(err)
 	}
 	if old != nil && old.State >= TransactionStateSigned {
 		return
 	}
-	grp.writeTansactionOrPanic(tx)
+	grp.writeTansactionOrPanic(ctx, tx)
 }
 
-func (grp *Group) writeOutputOrPanic(out *Output, traceId string) {
+func (grp *Group) writeOutputOrPanic(ctx context.Context, out *Output, traceId string) {
 	// FIXME some invalid memo could also be randomly decoded
 	// thus result in incorrect group id
 	p := DecodeMixinExtra(out.Memo)
@@ -155,24 +154,22 @@ func (grp *Group) writeOutputOrPanic(out *Output, traceId string) {
 		out.GroupId = grp.grouper(out)
 	}
 	logger.Verbosef("Group.writeOutputOrPanic(%v, %s)", out, traceId)
-	err := grp.store.WriteOutput(out, traceId)
+	err := grp.store.WriteOutput(ctx, out, traceId)
 	if err != nil {
 		panic(err)
 	}
 }
 
 func (grp *Group) readDrainingCheckpoint(ctx context.Context) (uint64, error) {
-	val, err := grp.store.ReadProperty([]byte(outputsDrainingKey))
+	val, err := grp.store.ReadProperty(ctx, outputsDrainingKey)
 	if err != nil || len(val) == 0 {
 		return 0, err
 	}
-	return uint64(binary.BigEndian.Uint64(val)), nil
+	return strconv.ParseUint(val, 10, 64)
 }
 
 func (grp *Group) writeDrainingCheckpoint(ctx context.Context, ckpt uint64) error {
-	val := make([]byte, 8)
-	binary.BigEndian.PutUint64(val, ckpt)
-	return grp.store.WriteProperty([]byte(outputsDrainingKey), val)
+	return grp.store.WriteProperty(ctx, outputsDrainingKey, fmt.Sprint(ckpt))
 }
 
 func (grp *Group) readSafeOutputs(ctx context.Context, members []string, threshold uint8, offset uint64, limit int) ([]*UnifiedOutput, error) {

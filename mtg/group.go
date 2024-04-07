@@ -1,7 +1,6 @@
 package mtg
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
@@ -21,9 +20,14 @@ const (
 	groupBootSynced = "group-boot-synced"
 )
 
+type Worker interface {
+	// handle the output and a true return value interrupts workers loop
+	ProcessOutput(context.Context, *Output) bool
+}
+
 type Group struct {
 	mixin        *mixin.Client
-	store        Store
+	store        *SQLite3Store
 	workers      []Worker
 	grouper      func(*Output) string
 	groupSize    int
@@ -37,7 +41,7 @@ type Group struct {
 	SpendPrivateKey string
 }
 
-func BuildGroup(ctx context.Context, store Store, conf *Configuration) (*Group, error) {
+func BuildGroup(ctx context.Context, conf *Configuration) (*Group, error) {
 	if cg := conf.Genesis; len(cg.Members) < cg.Threshold || cg.Threshold < 1 {
 		return nil, fmt.Errorf("invalid group threshold %d %d", len(cg.Members), cg.Threshold)
 	}
@@ -59,6 +63,12 @@ func BuildGroup(ctx context.Context, store Store, conf *Configuration) (*Group, 
 		return nil, err
 	}
 
+	store, err := OpenSQLite3Store(conf.StoreDir + "/mtg.sqlite3")
+	if err != nil {
+		return nil, err
+	}
+	defer store.Close()
+
 	grp := &Group{
 		mixin:           client,
 		store:           store,
@@ -71,36 +81,36 @@ func BuildGroup(ctx context.Context, store Store, conf *Configuration) (*Group, 
 		grp.groupSize = OutputsBatchSize
 	}
 
-	clock, err := NewClock(store)
+	clock, err := NewClock(ctx, store)
 	if err != nil {
 		return nil, err
 	}
 	grp.clock = clock
 
-	oid, err := store.ReadProperty([]byte(groupGenesisId))
+	oid, err := store.ReadProperty(ctx, groupGenesisId)
 	if err != nil {
 		return nil, err
 	}
 	if len(oid) > 0 && string(oid) != grp.id {
 		return nil, fmt.Errorf("malformed group genesis id %s %s", string(oid), grp.id)
 	}
-	err = store.WriteProperty([]byte(groupGenesisId), []byte(grp.id))
+	err = store.WriteProperty(ctx, groupGenesisId, grp.id)
 	if err != nil {
 		return nil, err
 	}
 
-	err = store.WriteProperty([]byte(groupBootSynced), []byte{0})
+	err = store.WriteProperty(ctx, groupBootSynced, "0")
 	if err != nil {
 		return nil, err
 	}
 
 	for _, id := range conf.Genesis.Members {
-		err = grp.AddNode(id, conf.Genesis.Threshold, conf.Genesis.Epoch)
+		err = grp.AddNode(ctx, id, conf.Genesis.Threshold, conf.Genesis.Epoch)
 		if err != nil {
 			return nil, err
 		}
 	}
-	members, threshold, epoch, err := grp.ListActiveNodes()
+	members, threshold, epoch, err := grp.ListActiveNodes(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -126,9 +136,9 @@ func (grp *Group) GetThreshold() int {
 	return grp.threshold
 }
 
-func (grp *Group) Synced() (bool, error) {
-	v, err := grp.store.ReadProperty([]byte(groupBootSynced))
-	return bytes.Equal(v, []byte{1}), err
+func (grp *Group) Synced(ctx context.Context) (bool, error) {
+	v, err := grp.store.ReadProperty(ctx, groupBootSynced)
+	return v == "1", err
 }
 
 func (grp *Group) AddWorker(wkr Worker) {
@@ -152,7 +162,7 @@ func (grp *Group) Run(ctx context.Context) {
 		// drain all the utxos in the order of sequence
 		logger.Verbosef("Group.Run(drainOutputsFromNetwork) created\n")
 		grp.drainOutputsFromNetwork(ctx, filter, 500)
-		grp.store.WriteProperty([]byte(groupBootSynced), []byte{1})
+		grp.store.WriteProperty(ctx, groupBootSynced, "1")
 
 		// handle the utxos queue by sequence
 		logger.Verbosef("Group.Run(handleActionsQueue)\n")
@@ -172,8 +182,8 @@ func (grp *Group) Run(ctx context.Context) {
 	}
 }
 
-func (grp *Group) ListOutputsForAsset(groupId, assetId, state string, limit int) ([]*Output, error) {
-	outputs, err := grp.store.ListOutputsForAsset(groupId, state, assetId, limit)
+func (grp *Group) ListOutputsForAsset(ctx context.Context, groupId, assetId string, state, limit int) ([]*Output, error) {
+	outputs, err := grp.store.ListOutputsForAsset(ctx, groupId, assetId, state, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -181,8 +191,8 @@ func (grp *Group) ListOutputsForAsset(groupId, assetId, state string, limit int)
 	return outputs, nil
 }
 
-func (grp *Group) ListOutputsForTransaction(traceId string) ([]*Output, error) {
-	outputs, err := grp.store.ListOutputsForTransaction(traceId)
+func (grp *Group) ListOutputsForTransaction(ctx context.Context, traceId string) ([]*Output, error) {
+	outputs, err := grp.store.ListOutputsForTransaction(ctx, traceId)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +201,7 @@ func (grp *Group) ListOutputsForTransaction(traceId string) ([]*Output, error) {
 }
 
 func (grp *Group) signTransactions(ctx context.Context) error {
-	txs, err := grp.store.ListTransactions(TransactionStateInitial, 0)
+	txs, err := grp.store.ListTransactions(ctx, TransactionStateInitial, 0)
 	if err != nil {
 		return err
 	}
@@ -205,7 +215,7 @@ func (grp *Group) signTransactions(ctx context.Context) error {
 		ver, _ := common.UnmarshalVersionedTransaction(raw)
 		tx.Raw = raw
 		tx.Hash = ver.PayloadHash()
-		tx.UpdatedAt = grp.clock.Now()
+		tx.UpdatedAt = grp.clock.Now(ctx)
 		tx.State = TransactionStateSigning
 
 		if ver.AggregatedSignature != nil || len(ver.SignaturesMap) > 0 {
@@ -220,19 +230,19 @@ func (grp *Group) signTransactions(ctx context.Context) error {
 			}
 		}
 
-		grp.writeTansactionOrPanic(tx)
+		grp.writeTansactionOrPanic(ctx, tx)
 	}
 
 	return nil
 }
 
 func (grp *Group) unlockExpiredTransactions(ctx context.Context) error {
-	txs, err := grp.store.ListTransactions(TransactionStateSigning, 0)
+	txs, err := grp.store.ListTransactions(ctx, TransactionStateSigning, 0)
 	if err != nil || len(txs) == 0 {
 		return err
 	}
 	for _, tx := range txs {
-		outputs, err := grp.ListOutputsForTransaction(tx.TraceId)
+		outputs, err := grp.ListOutputsForTransaction(ctx, tx.TraceId)
 		if err != nil {
 			return err
 		}
@@ -241,7 +251,7 @@ func (grp *Group) unlockExpiredTransactions(ctx context.Context) error {
 		}
 		// FIXME do more check about compaction transaction
 		if tx.Memo == CompactionTransactionMemo {
-			err := grp.store.DeleteTransaction(tx)
+			err := grp.store.DeleteTransaction(ctx, tx)
 			logger.Verbosef("Group.deleteTransaction(%v) => %v", *tx, err)
 			if err != nil {
 				return err
@@ -251,14 +261,14 @@ func (grp *Group) unlockExpiredTransactions(ctx context.Context) error {
 		tx.State = TransactionStateInitial
 		tx.Hash = crypto.Hash{}
 		tx.Raw = nil
-		grp.writeTansactionOrPanic(tx)
+		grp.writeTansactionOrPanic(ctx, tx)
 		logger.Verbosef("Group.unlockTransaction(%v)", *tx)
 	}
 	return nil
 }
 
 func (grp *Group) verifyTransactions(ctx context.Context) error {
-	txs, err := grp.store.ListTransactions(TransactionStateSigned, 0)
+	txs, err := grp.store.ListTransactions(ctx, TransactionStateSigned, 0)
 	if err != nil || len(txs) == 0 {
 		return err
 	}
@@ -270,7 +280,7 @@ func (grp *Group) verifyTransactions(ctx context.Context) error {
 			continue
 		}
 		tx.State = TransactionStateSnapshot
-		grp.writeTansactionOrPanic(tx)
+		grp.writeTansactionOrPanic(ctx, tx)
 	}
 	return nil
 }

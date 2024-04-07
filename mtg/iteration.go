@@ -1,5 +1,10 @@
 package mtg
 
+import (
+	"context"
+	"database/sql"
+)
+
 const (
 	IterationActionAdd    = 11
 	IterationActionRemove = 12
@@ -15,28 +20,43 @@ type Iteration struct {
 	CreatedAt uint64
 }
 
-func (grp *Group) AddNode(id string, threshold int, epoch uint64) error {
+var iterationCols = []string{"action", "node_id", "threshold", "created_at"}
+
+func (i *Iteration) values() []any {
+	return []any{i.Action, i.NodeId, i.Threshold, i.CreatedAt}
+}
+
+func iterationFromRow(row *sql.Row) (*Iteration, error) {
+	var i Iteration
+	err := row.Scan(&i.Action, &i.NodeId, &i.Threshold, &i.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return &i, err
+}
+
+func (grp *Group) AddNode(ctx context.Context, id string, threshold int, epoch uint64) error {
 	ir := &Iteration{
 		Action:    IterationActionAdd,
 		NodeId:    id,
 		Threshold: threshold,
 		CreatedAt: epoch,
 	}
-	return grp.store.WriteIteration(ir)
+	return grp.store.WriteIteration(ctx, ir)
 }
 
-func (grp *Group) RemoveNode(id string, threshold int, epoch uint64) error {
+func (grp *Group) RemoveNode(ctx context.Context, id string, threshold int, epoch uint64) error {
 	ir := &Iteration{
 		Action:    IterationActionRemove,
 		NodeId:    id,
 		Threshold: threshold,
 		CreatedAt: epoch,
 	}
-	return grp.store.WriteIteration(ir)
+	return grp.store.WriteIteration(ctx, ir)
 }
 
-func (grp *Group) ListActiveNodes() ([]string, int, uint64, error) {
-	irs, err := grp.store.ListIterations()
+func (grp *Group) ListActiveNodes(ctx context.Context) ([]string, int, uint64, error) {
+	irs, err := grp.store.ListIterations(ctx)
 	var actives []string
 	for _, ir := range irs {
 		if ir.Action == IterationActionAdd {
