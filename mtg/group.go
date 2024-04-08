@@ -33,11 +33,10 @@ type Group struct {
 	groupSize    int
 	waitDuration time.Duration
 
-	clock           *Clock
 	id              string
 	members         []string
-	epoch           uint64
 	threshold       int
+	epoch           uint64
 	SpendPrivateKey string
 }
 
@@ -80,12 +79,6 @@ func BuildGroup(ctx context.Context, conf *Configuration) (*Group, error) {
 	if grp.groupSize <= 0 {
 		grp.groupSize = OutputsBatchSize
 	}
-
-	clock, err := NewClock(ctx, store)
-	if err != nil {
-		return nil, err
-	}
-	grp.clock = clock
 
 	oid, err := store.ReadProperty(ctx, groupGenesisId)
 	if err != nil {
@@ -215,7 +208,7 @@ func (grp *Group) signTransactions(ctx context.Context) error {
 		ver, _ := common.UnmarshalVersionedTransaction(raw)
 		tx.Raw = raw
 		tx.Hash = ver.PayloadHash()
-		tx.UpdatedAt = grp.clock.Now(ctx)
+		tx.UpdatedAt = time.Now()
 		tx.State = TransactionStateSigning
 
 		if ver.AggregatedSignature != nil || len(ver.SignaturesMap) > 0 {

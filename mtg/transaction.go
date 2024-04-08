@@ -62,7 +62,7 @@ func transactionFromRow(row *sql.Row) (*Transaction, error) {
 
 // the app should decide a unique trace id so that the MTG will not double spend
 func (grp *Group) BuildTransaction(ctx context.Context, assetId string, receivers []string, threshold int, amount, memo string, traceId, groupId string) error {
-	return grp.buildTransaction(ctx, assetId, receivers, threshold, amount, memo, traceId, groupId, grp.clock.Now(ctx), nil)
+	return grp.buildTransaction(ctx, assetId, receivers, threshold, amount, memo, traceId, groupId, time.Now(), nil)
 }
 
 // FIXME exists in new system?
@@ -78,7 +78,7 @@ func (grp *Group) BuildStorageTransaction(ctx context.Context, data []byte, grou
 	extra := int64(len(encodeMixinExtra(groupId, sTraceId, string(data))))
 	sAmount := decimal.RequireFromString(common.ExtraStoragePriceStep)
 	sAmount = sAmount.Mul(decimal.NewFromInt(extra/common.ExtraSizeStorageStep + 1))
-	err = grp.buildTransaction(ctx, StorageAssetId, sReceivers, 64, sAmount.String(), string(data), sTraceId, groupId, grp.clock.Now(ctx), nil)
+	err = grp.buildTransaction(ctx, StorageAssetId, sReceivers, 64, sAmount.String(), string(data), sTraceId, groupId, time.Now(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("Group.buildStorageTransaction(%d) => %s %v", len(data), sTraceId, err)
 	}
@@ -86,7 +86,7 @@ func (grp *Group) BuildStorageTransaction(ctx context.Context, data []byte, grou
 }
 
 func (grp *Group) BuildTransactionWithReferences(ctx context.Context, assetId string, receivers []string, threshold int, amount, memo string, traceId, groupId string, references []crypto.Hash) error {
-	return grp.buildTransaction(ctx, assetId, receivers, threshold, amount, memo, traceId, groupId, grp.clock.Now(ctx), references)
+	return grp.buildTransaction(ctx, assetId, receivers, threshold, amount, memo, traceId, groupId, time.Now(), references)
 }
 
 func (grp *Group) buildCompactTransaction(ctx context.Context, source *Transaction, outputs []*Output) error {
