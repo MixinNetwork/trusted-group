@@ -1,19 +1,14 @@
 package mtg
 
 import (
-	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
-	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
 
 const (
-	OutputStateUnspent = 10
-	OutputStateSigned  = 11
-	OutputStateSpent   = 12
-
 	OutputTypeSafeOutput = "kernel_output"
 
 	SafeUtxoStateUnspent SafeUtxoState = "unspent"
@@ -49,110 +44,31 @@ type UnifiedOutput struct {
 	SignedBy           string          `json:"signed_by"`
 }
 
-func (o *UnifiedOutput) OutputState() int {
-	switch o.State {
-	case SafeUtxoStateUnspent:
-		return OutputStateUnspent
-	case SafeUtxoStateSigned:
-		return OutputStateSigned
-	case SafeUtxoStateSpent:
-		return OutputStateSpent
-	}
-	panic(o.State)
-}
-
-func (o *UnifiedOutput) Output() *Output {
-	return &Output{
-		UTXOID:           o.OutputId,
-		TraceID:          o.RequestId,
-		AssetID:          o.AssetId,
-		TransactionHash:  o.TransactionHash,
-		OutputIndex:      o.OutputIndex,
-		Amount:           o.Amount,
-		SendersThreshold: o.SendersThreshold,
-		Senders:          o.Senders,
-		Threshold:        o.ReceiversThreshold,
-		Members:          o.Receivers,
-		Memo:             o.Extra,
-		State:            o.OutputState(),
-		Sequence:         o.Sequence,
-		CreatedAt:        o.CreatedAt,
-		UpdatedAt:        o.UpdatedAt,
-		SignedBy:         o.SignedBy,
-	}
-}
-
-type Output struct {
-	GroupId          string
-	UTXOID           string
-	TraceID          string
-	AssetID          string
-	TransactionHash  crypto.Hash
-	OutputIndex      int
-	Amount           decimal.Decimal
-	SendersThreshold int64
-	Senders          []string
-	Threshold        int64
-	Members          []string
-	Memo             string
-	State            int
-	Sequence         uint64
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
-	SignedBy         string
-	SignedTx         string
-}
-
-var outputCols = []string{"group_id", "utxo_id", "trace_id", "asset_id", "transaction_hash", "output_index", "amount", "senders_threshold", "senders", "threshold", "members", "memo", "state", "sequence", "created_at", "updated_at", "signed_by", "signed_tx"}
-
-func (o *Output) values() []any {
-	return []any{o.GroupId, o.UTXOID, o.TraceID, o.AssetID, o.TransactionHash, o.OutputIndex, o.Amount, o.SendersThreshold, o.Senders, o.Threshold, o.Members, o.Memo, o.State, o.Sequence, o.CreatedAt, o.UpdatedAt, o.SignedBy, o.SignedTx}
-}
-
-func outputFromRow(row *sql.Row) (*Output, error) {
-	var o Output
-	err := row.Scan(&o.GroupId, &o.UTXOID, &o.TraceID, &o.AssetID, &o.TransactionHash, &o.OutputIndex, &o.Amount, &o.SendersThreshold, &o.Senders, &o.Threshold, &o.Members, &o.Memo, &o.State, &o.Sequence, &o.CreatedAt, &o.UpdatedAt, &o.SignedBy, &o.SignedTx)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	return &o, err
-}
-
-func (out *Output) StateName() SafeUtxoState {
-	switch out.State {
-	case OutputStateUnspent:
-		return SafeUtxoStateUnspent
-	case OutputStateSigned:
-		return SafeUtxoStateSigned
-	case OutputStateSpent:
-		return SafeUtxoStateSpent
-	}
-	panic(out.State)
-}
-
-func (o *Output) Unified() *UnifiedOutput {
-	var kernelAssetId string
-	if uuid.FromStringOrNil(o.AssetID).String() == o.AssetID {
-		kernelAssetId = crypto.Sha256Hash([]byte(o.AssetID)).String()
-	}
-	return &UnifiedOutput{
-		Type:               OutputTypeSafeOutput,
-		OutputId:           o.UTXOID,
-		RequestId:          o.TraceID,
-		AssetId:            o.AssetID,
-		KernelAssetId:      kernelAssetId,
-		TransactionHash:    o.TransactionHash,
+func (o *UnifiedOutput) Action(state ActionState, traceId, groupId string) *Action {
+	return &Action{
+		OutputId:           o.OutputId,
+		RequestId:          o.RequestId,
+		TransactionHash:    o.TransactionHash.String(),
 		OutputIndex:        o.OutputIndex,
+		AssetId:            o.AssetId,
+		KernelAssetId:      o.KernelAssetId,
 		Amount:             o.Amount,
+		Mask:               o.Mask,
+		Keys:               strings.Join(o.Keys, ","),
 		SendersThreshold:   o.SendersThreshold,
-		Senders:            o.Senders,
-		ReceiversThreshold: o.Threshold,
-		Receivers:          o.Members,
-		Extra:              o.Memo,
-		State:              o.StateName(),
+		Senders:            strings.Join(o.Senders, ","),
+		ReceiversThreshold: o.ReceiversThreshold,
+		Receivers:          strings.Join(o.Receivers, ","),
+		Extra:              o.Extra,
+		State:              o.State,
 		Sequence:           o.Sequence,
 		CreatedAt:          o.CreatedAt,
 		UpdatedAt:          o.UpdatedAt,
+		Signers:            strings.Join(o.Signers, ","),
 		SignedBy:           o.SignedBy,
+
+		TraceId:     traceId,
+		GroupId:     groupId,
+		ActionState: state,
 	}
 }

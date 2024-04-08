@@ -3,30 +3,88 @@ package mtg
 import (
 	"context"
 	"database/sql"
+	"strings"
+	"time"
 
+	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/fox-one/mixin-sdk-go/v2"
+	"github.com/gofrs/uuid/v5"
+	"github.com/shopspring/decimal"
 )
 
 const (
-	ActionStateInitial = 10
-	ActionStateDone    = 11
+	ActionStateInitial ActionState = 10
+	ActionStateDone    ActionState = 11
 )
 
+type ActionState int
+
 type Action struct {
-	UTXOID    string
-	CreatedAt uint64
-	State     int
+	OutputId           string
+	RequestId          string
+	TransactionHash    string
+	OutputIndex        int
+	AssetId            string
+	KernelAssetId      string
+	Amount             decimal.Decimal
+	Mask               string
+	Keys               string
+	SendersThreshold   int64
+	Senders            string
+	ReceiversThreshold int64
+	Receivers          string
+	Extra              string
+	State              SafeUtxoState
+	Sequence           uint64
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Signers            string
+	SignedBy           string
+
+	TraceId     string
+	GroupId     string
+	ActionState ActionState
 }
 
-var actionCols = []string{"utxo_id", "created_at", "state"}
+func (a *Action) Output() *UnifiedOutput {
+	h, err := crypto.HashFromString(a.TransactionHash)
+	if err != nil {
+		panic(err)
+	}
+	return &UnifiedOutput{
+		OutputId:           a.OutputId,
+		RequestId:          a.RequestId,
+		TransactionHash:    h,
+		OutputIndex:        a.OutputIndex,
+		AssetId:            a.AssetId,
+		KernelAssetId:      a.KernelAssetId,
+		Amount:             a.Amount,
+		Mask:               a.Mask,
+		Keys:               strings.Split(a.Keys, ","),
+		SendersThreshold:   a.SendersThreshold,
+		Senders:            strings.Split(a.Senders, ","),
+		ReceiversThreshold: a.ReceiversThreshold,
+		Receivers:          strings.Split(a.Receivers, ","),
+		Extra:              a.Extra,
+		State:              a.State,
+		Sequence:           a.Sequence,
+		CreatedAt:          a.CreatedAt,
+		UpdatedAt:          a.UpdatedAt,
+		Signers:            strings.Split(a.Signers, ","),
+		SignedBy:           a.SignedBy,
+	}
+}
+
+var actionCols = []string{"output_id", "request_id", "transaction_hash", "output_index", "asset_id", "kernel_asset_id", "amount", "mask", "keys", "senders_threshold", "senders", "receivers_threshold", "receivers", "extra", "state", "sequence", "created_at", "updated_at", "signers", "signed_by", "trace_id", "group_id", "action_state"}
 
 func (a *Action) values() []any {
-	return []any{a.UTXOID, a.CreatedAt, a.State}
+	return []any{a.OutputId, a.RequestId, a.TransactionHash, a.OutputIndex, a.AssetId, a.KernelAssetId, a.Amount, a.Mask, a.Keys, a.SendersThreshold, a.Senders, a.ReceiversThreshold, a.Receivers, a.Extra, a.State, a.Sequence, a.CreatedAt, a.UpdatedAt, a.Signers, a.SignedBy, a.TraceId, a.GroupId, a.ActionState}
 }
 
 func actionFromRow(row *sql.Row) (*Action, error) {
 	var a Action
-	err := row.Scan(&a.UTXOID, &a.CreatedAt, &a.State)
+	err := row.Scan(&a.OutputId, &a.RequestId, &a.TransactionHash, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.Mask, &a.Keys, &a.SendersThreshold, &a.Senders, &a.ReceiversThreshold, &a.Receivers, &a.Extra, &a.State, &a.Sequence, &a.CreatedAt, &a.UpdatedAt, &a.Signers, &a.SignedBy, &a.TraceId, &a.GroupId, &a.ActionState)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -36,35 +94,45 @@ func actionFromRow(row *sql.Row) (*Action, error) {
 // actions queue is all the utxos ordered by their created time
 // this queue can only be queried after all utxos are drained from api
 func (grp *Group) handleActionsQueue(ctx context.Context) error {
-	outputs, err := grp.store.ListActions(ctx, 16)
+	as, err := grp.store.ListActions(ctx, 16)
 	if err != nil {
 		return err
 	}
-	for _, out := range outputs {
+	for _, a := range as {
+		out := a.Output()
 		for _, wkr := range grp.workers {
-			var handled bool
-			switch out.Type {
-			case OutputTypeSafeOutput:
-				handled = wkr.ProcessOutput(ctx, out.Output())
-			default:
-				panic(out.Type)
-			}
-			if handled {
-				break
-			}
+			ts := wkr.ProcessOutput(ctx, out)
+			err = grp.store.WriteTransactions(ctx, ts)
+			panic(err)
 		}
 		grp.writeAction(ctx, out, ActionStateDone)
 	}
 	return nil
 }
 
-func (grp *Group) writeAction(ctx context.Context, out *UnifiedOutput, state int) {
+func (grp *Group) writeAction(ctx context.Context, out *UnifiedOutput, state ActionState) {
 	logger.Verbosef("Group.writeAction(%v, %d)", out, state)
-	err := grp.store.WriteAction(ctx, &Action{
-		UTXOID:    out.OutputId,
-		CreatedAt: out.Sequence,
-		State:     state,
-	})
+	switch state {
+	case ActionStateInitial, ActionStateDone:
+	default:
+		panic(state)
+	}
+	switch out.Type {
+	case OutputTypeSafeOutput:
+	default:
+		panic(out.Type)
+	}
+
+	var groupId, traceId string
+	p := DecodeMixinExtra(out.Extra)
+	if p != nil {
+		groupId, traceId = p.G, p.T.String()
+	} else {
+		groupId = uuid.Nil.String()
+		traceId = mixin.UniqueConversationID(out.OutputId, out.SignedBy)
+	}
+	a := out.Action(state, traceId, groupId)
+	err := grp.store.WriteAction(ctx, a)
 	if err != nil {
 		panic(err)
 	}

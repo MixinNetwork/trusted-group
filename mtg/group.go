@@ -22,14 +22,13 @@ const (
 
 type Worker interface {
 	// handle the output and a true return value interrupts workers loop
-	ProcessOutput(context.Context, *Output) bool
+	ProcessOutput(context.Context, *UnifiedOutput) []*Transaction
 }
 
 type Group struct {
 	mixin        *mixin.Client
 	store        *SQLite3Store
 	workers      []Worker
-	grouper      func(*Output) string
 	groupSize    int
 	waitDuration time.Duration
 
@@ -113,10 +112,6 @@ func BuildGroup(ctx context.Context, conf *Configuration) (*Group, error) {
 	return grp, nil
 }
 
-func (grp *Group) SetOutputGrouper(per func(out *Output) string) {
-	grp.grouper = per
-}
-
 func (grp *Group) GenesisId() string {
 	return grp.id
 }
@@ -160,10 +155,6 @@ func (grp *Group) Run(ctx context.Context) {
 		// handle the utxos queue by sequence
 		logger.Verbosef("Group.Run(handleActionsQueue)\n")
 		grp.handleActionsQueue(ctx)
-
-		// because some utxos are unlocked for these signing transactions
-		logger.Verbosef("Group.Run(unlockExpiredTransactions)\n")
-		grp.unlockExpiredTransactions(ctx)
 
 		// sign any possible transactions from BuildTransaction
 		logger.Verbosef("Group.Run(signTransactions)\n")
@@ -226,37 +217,6 @@ func (grp *Group) signTransactions(ctx context.Context) error {
 		grp.writeTansactionOrPanic(ctx, tx)
 	}
 
-	return nil
-}
-
-func (grp *Group) unlockExpiredTransactions(ctx context.Context) error {
-	txs, err := grp.store.ListTransactions(ctx, TransactionStateSigning, 0)
-	if err != nil || len(txs) == 0 {
-		return err
-	}
-	for _, tx := range txs {
-		outputs, err := grp.ListOutputsForTransaction(ctx, tx.TraceId)
-		if err != nil {
-			return err
-		}
-		if len(outputs) > 0 && outputs[0].SignedBy == tx.Hash.String() {
-			continue
-		}
-		// FIXME do more check about compaction transaction
-		if tx.Memo == CompactionTransactionMemo {
-			err := grp.store.DeleteTransaction(ctx, tx)
-			logger.Verbosef("Group.deleteTransaction(%v) => %v", *tx, err)
-			if err != nil {
-				return err
-			}
-			continue
-		}
-		tx.State = TransactionStateInitial
-		tx.Hash = crypto.Hash{}
-		tx.Raw = nil
-		grp.writeTansactionOrPanic(ctx, tx)
-		logger.Verbosef("Group.unlockTransaction(%v)", *tx)
-	}
 	return nil
 }
 

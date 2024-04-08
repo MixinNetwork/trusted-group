@@ -9,14 +9,8 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 )
 
-func (s *SQLite3Store) readOutput(ctx context.Context, id string) (*Output, error) {
-	query := fmt.Sprintf("SELECT %s FROM outputs WHERE utxo_id=?", strings.Join(outputCols, ","))
-	row := s.db.QueryRowContext(ctx, query, id)
-	return outputFromRow(row)
-}
-
-func (s *SQLite3Store) ListActions(ctx context.Context, limit int) ([]*UnifiedOutput, error) {
-	query := "SELECT id FROM actions WHERE state=? ORDER BY created_at ASC"
+func (s *SQLite3Store) ListActions(ctx context.Context, limit int) ([]*Action, error) {
+	query := fmt.Sprintf("SELECT %s FROM actions WHERE state=? ORDER BY created_at ASC", strings.Join(actionCols, ","))
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
@@ -26,42 +20,22 @@ func (s *SQLite3Store) ListActions(ctx context.Context, limit int) ([]*UnifiedOu
 	}
 	defer rows.Close()
 
-	var os []*UnifiedOutput
+	var as []*Action
 	for rows.Next() {
-		var id string
-		err := rows.Scan(&id)
+		var a Action
+		err := rows.Scan(&a.OutputId, &a.RequestId, &a.TransactionHash, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.Mask, &a.Keys, &a.SendersThreshold, &a.Senders, &a.ReceiversThreshold, &a.Receivers, &a.Extra, &a.State, &a.Sequence, &a.CreatedAt, &a.UpdatedAt, &a.Signers, &a.SignedBy, &a.TraceId, &a.GroupId, &a.ActionState)
 		if err != nil {
 			return nil, err
 		}
-
-		o, err := s.readOutput(ctx, id)
-		if err != nil {
-			return nil, err
-		}
-		os = append(os, o.Unified())
+		as = append(as, &a)
 	}
-	return os, nil
+	return as, nil
 }
 
 func (s *SQLite3Store) readAction(ctx context.Context, id string) (*Action, error) {
-	query := fmt.Sprintf("SELECT %s FROM actions WHERE utxo_id=?", strings.Join(actionCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM actions WHERE output_id=?", strings.Join(actionCols, ","))
 	row := s.db.QueryRowContext(ctx, query, id)
 	return actionFromRow(row)
-}
-
-func (s *SQLite3Store) resetOldAction(ctx context.Context, tx *sql.Tx, act *Action) (*Action, error) {
-	old, err := s.readAction(ctx, act.UTXOID)
-	if err != nil || old == nil {
-		return old, err
-	}
-	if old.State >= act.State {
-		return old, err
-	}
-	err = s.execOne(ctx, tx, "DELETE FROM actions WHERE utxo_id=?", act.UTXOID)
-	if err != nil {
-		return nil, fmt.Errorf("DELETE actions %v", err)
-	}
-	return nil, err
 }
 
 func (s *SQLite3Store) WriteAction(ctx context.Context, a *Action) error {
@@ -74,40 +48,27 @@ func (s *SQLite3Store) WriteAction(ctx context.Context, a *Action) error {
 	}
 	defer tx.Rollback()
 
-	old, err := s.resetOldAction(ctx, tx, a)
-	if err != nil || old != nil {
+	old, err := s.readAction(ctx, a.OutputId)
+	if err != nil {
 		return err
 	}
 
-	err = s.execOne(ctx, tx, buildInsertionSQL("actions", actionCols), a.values()...)
-	if err != nil {
-		return fmt.Errorf("INSERT actions %v", err)
+	if old == nil {
+		err = s.execOne(ctx, tx, buildInsertionSQL("actions", actionCols), a.values()...)
+		if err != nil {
+			return fmt.Errorf("INSERT actions %v", err)
+		}
+	} else {
+		if old.State >= a.State {
+			return nil
+		}
+		err = s.execOne(ctx, tx, "UPDATE actions SET state=? WHERE output_id=?", a.State, a.OutputId)
+		if err != nil {
+			return fmt.Errorf("UPDATE actions %v", err)
+		}
 	}
+
 	return tx.Commit()
-}
-
-func (s *SQLite3Store) resetOldOutput(ctx context.Context, tx *sql.Tx, o *Output) (*Output, error) {
-	old, err := s.readOutput(ctx, o.UTXOID)
-	if err != nil || old == nil {
-		return old, err
-	}
-	switch {
-	case old.State == OutputStateSigned && o.State == OutputStateUnspent:
-	case o.State == OutputStateSpent && o.State > old.State:
-	case old.State == o.State && old.SignedTx == o.SignedTx:
-		return old, nil
-	case old.State == o.State && old.SignedTx != o.SignedTx:
-	case old.State > o.State:
-		panic(old.UTXOID)
-	case old.SignedBy != "" && old.SignedBy != o.SignedBy:
-		panic(old.SignedBy)
-	}
-
-	err = s.execOne(ctx, tx, "DELETE FROM outputs WHERE utxo_id=?", o.UTXOID)
-	if err != nil {
-		return nil, fmt.Errorf("DELETE outputs %v", err)
-	}
-	return nil, err
 }
 
 func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, traceId string) ([]*Output, error) {
@@ -151,52 +112,6 @@ func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, groupId, assetId
 		os = append(os, &o)
 	}
 	return os, nil
-}
-
-// FIXME trace id
-func (s *SQLite3Store) writeOutput(ctx context.Context, tx *sql.Tx, o *Output, traceId string) error {
-	old, err := s.resetOldOutput(ctx, tx, o)
-	if err != nil || old != nil {
-		return err
-	}
-
-	err = s.execOne(ctx, tx, buildInsertionSQL("outputs", outputCols), o.values()...)
-	if err != nil {
-		return fmt.Errorf("INSERT outputs %v", err)
-	}
-	return tx.Commit()
-}
-
-func (s *SQLite3Store) WriteOutput(ctx context.Context, o *Output, traceId string) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	return s.writeOutput(ctx, tx, o, traceId)
-}
-
-func (s *SQLite3Store) WriteOutputs(ctx context.Context, os []*Output, traceId string) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	for _, o := range os {
-		err = s.writeOutput(ctx, tx, o, traceId)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (s *SQLite3Store) readIteration(ctx context.Context, id string) (*Iteration, error) {

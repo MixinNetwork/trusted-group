@@ -7,11 +7,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
-	"github.com/gofrs/uuid/v5"
 )
 
 const (
@@ -43,121 +40,16 @@ func (grp *Group) drainOutputsFromNetwork(ctx context.Context, filter map[string
 }
 
 func (grp *Group) processSafeOutputs(ctx context.Context, filter map[string]bool, checkpoint uint64, outputs []*UnifiedOutput) uint64 {
-	for _, out := range outputs {
-		checkpoint = out.Sequence
-		key := fmt.Sprintf("OUT:%s:%d", out.OutputId, out.Sequence)
-		if filter[key] || out.Sequence < grp.epoch {
-			continue
-		}
-		filter[key] = true
-		grp.processSafeOutput(ctx, out.Output())
-	}
-
 	for _, utxo := range outputs {
+		checkpoint = utxo.Sequence
 		key := fmt.Sprintf("ACT:%s:%d", utxo.OutputId, utxo.Sequence)
 		if filter[key] || utxo.Sequence < grp.epoch {
 			continue
 		}
 		filter[key] = true
-		exist, err := grp.readOldTransaction(ctx, utxo)
-		if err != nil {
-			panic(utxo.TransactionHash)
-		} else if exist {
-			continue
-		}
 		grp.writeAction(ctx, utxo, ActionStateInitial)
 	}
 	return checkpoint
-}
-
-func (grp *Group) readOldTransaction(ctx context.Context, utxo *UnifiedOutput) (bool, error) {
-	switch utxo.Type {
-	case OutputTypeSafeOutput:
-		tx, err := grp.store.ReadTransactionByHash(ctx, utxo.TransactionHash)
-		return tx != nil, err
-	default:
-		panic(utxo.Type)
-	}
-}
-
-func (grp *Group) processSafeOutput(ctx context.Context, out *Output) {
-	logger.Verbosef("Group.processSafeOutput(%v)", out)
-
-	var ver *common.VersionedTransaction
-	var extra *mixinExtraPack
-	if out.SignedBy != "" {
-		t, err := grp.mixin.SafeReadMultisigRequests(ctx, out.SignedBy)
-		if err != nil {
-			panic(err)
-		}
-		ver, extra = decodeTransactionWithExtra(t.RawTransaction)
-		if ver == nil {
-			panic(t.RawTransaction)
-		}
-		out.SignedTx = t.RawTransaction
-	} else {
-		if out.State != OutputStateUnspent {
-			panic(out.State)
-		}
-	}
-	if grp.checkCompactTransactionRequest(ctx, ver, extra) {
-		amount := ver.Outputs[0].Amount.String()
-		receivers, threshold := grp.GetMembers(), grp.GetThreshold()
-		err := grp.buildTransaction(ctx, out.AssetID, receivers, threshold, amount, CompactionTransactionMemo, extra.T.String(), extra.G, time.Unix(0, 0), nil)
-		logger.Printf("Group.drainCompactTransaction(%s, %s, %s) => %v\n", extra.G, extra.T.String(), amount, err)
-		if err != nil {
-			panic(err)
-		}
-	}
-	var groupId, traceId string
-	if extra != nil {
-		groupId, traceId = extra.G, extra.T.String()
-	} else {
-		groupId = uuid.Nil.String()
-		traceId = mixin.UniqueConversationID(out.UTXOID, out.SignedBy)
-	}
-
-	// FIXME get trace id from other members could break the consensus
-	// this in theory won't affect asset security though
-	if out.State == OutputStateUnspent || (ver.AggregatedSignature == nil && len(ver.SignaturesMap) == 0) {
-		grp.writeOutputOrPanic(ctx, out, traceId)
-		return
-	}
-	tx := &Transaction{
-		GroupId: groupId,
-		TraceId: traceId,
-		State:   TransactionStateSigned,
-		Raw:     ver.Marshal(),
-		Hash:    ver.PayloadHash(),
-	}
-
-	out.State = OutputStateSpent
-	grp.writeOutputOrPanic(ctx, out, tx.TraceId)
-
-	old, err := grp.store.ReadTransactionByTraceId(ctx, tx.TraceId)
-	if err != nil {
-		panic(err)
-	}
-	if old != nil && old.State >= TransactionStateSigned {
-		return
-	}
-	grp.writeTansactionOrPanic(ctx, tx)
-}
-
-func (grp *Group) writeOutputOrPanic(ctx context.Context, out *Output, traceId string) {
-	// FIXME some invalid memo could also be randomly decoded
-	// thus result in incorrect group id
-	p := DecodeMixinExtra(out.Memo)
-	if p != nil && p.G != "" {
-		out.GroupId = p.G
-	} else if grp.grouper != nil {
-		out.GroupId = grp.grouper(out)
-	}
-	logger.Verbosef("Group.writeOutputOrPanic(%v, %s)", out, traceId)
-	err := grp.store.WriteOutput(ctx, out, traceId)
-	if err != nil {
-		panic(err)
-	}
 }
 
 func (grp *Group) readDrainingCheckpoint(ctx context.Context) (uint64, error) {
