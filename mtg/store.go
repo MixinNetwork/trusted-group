@@ -206,7 +206,7 @@ func (s *SQLite3Store) readIteration(ctx context.Context, id string) (*Iteration
 }
 
 func (s *SQLite3Store) ListIterations(ctx context.Context) ([]*Iteration, error) {
-	query := fmt.Sprintf("SELECT %s FROM iterations ORDER BY created_at ASC LIMIT 255", strings.Join(iterationCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM iterations ORDER BY node_id,created_at ASC LIMIT 255", strings.Join(iterationCols, ","))
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -250,17 +250,19 @@ func (s *SQLite3Store) WriteIteration(ctx context.Context, ir *Iteration) error 
 	if old != nil && old.Action >= ir.Action {
 		return nil
 	}
+
 	if old != nil {
-		err = s.execOne(ctx, tx, "DELETE FROM iterations WHERE node_id=?", ir.NodeId)
+		err = s.execOne(ctx, tx, "UPDATE iterations SET action=?, threshold=?, created_at=? WHERE node_id=?", ir.Action, ir.Threshold, ir.CreatedAt, ir.NodeId)
 		if err != nil {
-			return fmt.Errorf("DELETE iterations %v", err)
+			return fmt.Errorf("UPDATE iterations %v", err)
+		}
+	} else {
+		err = s.execOne(ctx, tx, buildInsertionSQL("iterations", iterationCols), ir.values()...)
+		if err != nil {
+			return fmt.Errorf("INSERT iterations %v", err)
 		}
 	}
 
-	err = s.execOne(ctx, tx, buildInsertionSQL("iterations", iterationCols), ir.values()...)
-	if err != nil {
-		return fmt.Errorf("INSERT iterations %v", err)
-	}
 	return tx.Commit()
 }
 
