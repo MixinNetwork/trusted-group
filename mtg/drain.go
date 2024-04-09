@@ -56,10 +56,16 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 	act := output.Action(ActionStateInitial, "", "")
 	state := ActionStateInitial
 
-	// ver, extra := DecodeMixinExtra(output.Extra)
-	// if grp.checkCompactTransactionRequest(ver, extra) {
-	// 	grp.renewAction(act)
-	// }
+	// FIXME handle network issues
+	tx, err := grp.mixin.SafeReadTransactionRequest(ctx, output.RequestId)
+	if err != nil {
+		panic(err)
+	}
+	ver, extra := decodeTransactionWithExtra(tx.RawTransaction)
+	if grp.checkCompactTransaction(ver, extra) {
+		grp.store.RestoreAction(ctx, act, ver)
+		return
+	}
 	grp.writeAction(ctx, act, state, []*Transaction{})
 }
 

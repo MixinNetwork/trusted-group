@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 )
 
@@ -38,13 +39,13 @@ func (s *SQLite3Store) readAction(ctx context.Context, id string, state ActionSt
 	return actionFromRow(row)
 }
 
-func (s *SQLite3Store) readRestorableAction(ctx context.Context, act *Action) (*Action, error) {
-	// if len(act.References) != 1 {
-	// 	return nil
-	// }
-	// signedTx := act.References[0]
-	query := fmt.Sprintf("SELECT %s FROM actions WHERE output_id=? AND action_state=? AND signedTx=? AND transaction_hash", strings.Join(actionCols, ","))
-	row := s.db.QueryRowContext(ctx, query, act.OutputId, ActionStateDone)
+func (s *SQLite3Store) readRestorableAction(ctx context.Context, act *Action, ver *common.VersionedTransaction) (*Action, error) {
+	if len(ver.References) != 1 {
+		return nil, nil
+	}
+	hash := ver.References[0].String()
+	query := fmt.Sprintf("SELECT %s FROM actions WHERE action_state=? AND signedTx=? AND transaction_hash", strings.Join(actionCols, ","))
+	row := s.db.QueryRowContext(ctx, query, ActionStateDone, act.TransactionHash, hash)
 	return actionFromRow(row)
 }
 
@@ -67,10 +68,6 @@ func (s *SQLite3Store) WriteAction(ctx context.Context, a *Action, ts []*Transac
 		if len(ts) > 0 {
 			return fmt.Errorf("Write new action with multiple transactions: %d", len(ts))
 		}
-		if a.ActionState == ActionStateRrestorable {
-			return fmt.Errorf("invalid action state: %d", a.State)
-		}
-
 		err = s.execOne(ctx, tx, buildInsertionSQL("actions", actionCols), a.values()...)
 		if err != nil {
 			return fmt.Errorf("INSERT actions %v", err)
@@ -78,9 +75,6 @@ func (s *SQLite3Store) WriteAction(ctx context.Context, a *Action, ts []*Transac
 	} else {
 		if old.ActionState >= a.ActionState {
 			return nil
-		}
-		if a.ActionState == ActionStateRrestorable {
-			a.ActionState = ActionStateInitial
 		}
 		err = s.execOne(ctx, tx, "UPDATE actions SET action_state=? WHERE output_id=?", a.ActionState, a.OutputId)
 		if err != nil {
@@ -107,7 +101,7 @@ func (s *SQLite3Store) WriteAction(ctx context.Context, a *Action, ts []*Transac
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) RestoreAction(ctx context.Context, a *Action) error {
+func (s *SQLite3Store) RestoreAction(ctx context.Context, a *Action, ver *common.VersionedTransaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -117,7 +111,7 @@ func (s *SQLite3Store) RestoreAction(ctx context.Context, a *Action) error {
 	}
 	defer tx.Rollback()
 
-	old, err := s.readRestorableAction(ctx, a)
+	old, err := s.readRestorableAction(ctx, a, ver)
 	if err != nil {
 		return err
 	}
@@ -126,9 +120,14 @@ func (s *SQLite3Store) RestoreAction(ctx context.Context, a *Action) error {
 		panic(reason)
 	}
 
-	err = s.execOne(ctx, tx, "UPDATE actions SET action_state=? WHERE output_id=?", ActionStateInitial, a.OutputId)
+	err = s.execOne(ctx, tx, "UPDATE actions SET action_state=?, signed_by=?, signed_tx=? WHERE output_id=?", ActionStateInitial, "", "", old.OutputId)
 	if err != nil {
 		return fmt.Errorf("UPDATE actions %v", err)
+	}
+
+	err = s.execOne(ctx, tx, buildInsertionSQL("actions", actionCols), a.values()...)
+	if err != nil {
+		return fmt.Errorf("INSERT actions %v", err)
 	}
 
 	return tx.Commit()

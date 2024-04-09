@@ -8,8 +8,6 @@ import (
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/fox-one/mixin-sdk-go/v2"
-	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
 
@@ -120,24 +118,12 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 func (grp *Group) writeAction(ctx context.Context, act *Action, state ActionState, ts []*Transaction) {
 	logger.Verbosef("Group.writeAction(%v, %d)", act, state)
 	switch state {
-	case ActionStateInitial, ActionStateDone, ActionStateRrestorable:
+	case ActionStateInitial, ActionStateDone:
 	default:
 		panic(state)
 	}
 
-	var groupId, traceId string
-	p := DecodeMixinExtra(act.Extra)
-	if p != nil {
-		groupId, traceId = p.G, p.T.String()
-	} else {
-		groupId = uuid.Nil.String()
-		// FIXME map action to multiple transactions
-		traceId = mixin.UniqueConversationID(act.OutputId, act.SignedBy)
-	}
 	act.ActionState = state
-	act.TraceId = traceId
-	act.GroupId = groupId
-
 	err := grp.store.WriteAction(ctx, act, ts)
 	if err != nil {
 		panic(err)

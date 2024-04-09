@@ -118,10 +118,9 @@ func (grp *Group) buildCompactTransaction(ctx context.Context, source *Transacti
 	return grp.writeCompactTansactionOrPanic(ctx, newTx)
 }
 
-func (grp *Group) checkCompactTransactionRequest(ctx context.Context, ver *common.VersionedTransaction, extra *mixinExtraPack) bool {
+func (grp *Group) checkCompactTransaction(ver *common.VersionedTransaction, extra *mixinExtraPack) bool {
 	// FIXME should check the keys with messenger api
-	return ver != nil && ver.AggregatedSignature == nil && len(ver.SignaturesMap) == 0 &&
-		extra != nil && extra.M == CompactionTransactionMemo && len(ver.Inputs) == OutputsBatchSize &&
+	return ver != nil && extra != nil && extra.M == CompactionTransactionMemo && len(ver.Inputs) == OutputsBatchSize &&
 		len(ver.Outputs) == 1 && len(ver.Outputs[0].Keys) == len(grp.GetMembers()) &&
 		ver.Outputs[0].Script.String() == common.NewThresholdScript(uint8(grp.GetThreshold())).String()
 }
