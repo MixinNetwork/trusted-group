@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	ActionStateInitial ActionState = 10
-	ActionStateDone    ActionState = 11
+	ActionStateInitial     ActionState = 10
+	ActionStateDone        ActionState = 11
+	ActionStateRrestorable ActionState = 12
 )
 
 type ActionState int
@@ -45,6 +46,7 @@ type Action struct {
 	TraceId     string
 	GroupId     string
 	ActionState ActionState
+	SignedTx    string
 }
 
 func (a *Action) Output() *UnifiedOutput {
@@ -76,15 +78,15 @@ func (a *Action) Output() *UnifiedOutput {
 	}
 }
 
-var actionCols = []string{"output_id", "request_id", "transaction_hash", "output_index", "asset_id", "kernel_asset_id", "amount", "mask", "keys", "senders_threshold", "senders", "receivers_threshold", "receivers", "extra", "state", "sequence", "created_at", "updated_at", "signers", "signed_by", "trace_id", "group_id", "action_state"}
+var actionCols = []string{"output_id", "request_id", "transaction_hash", "output_index", "asset_id", "kernel_asset_id", "amount", "mask", "keys", "senders_threshold", "senders", "receivers_threshold", "receivers", "extra", "state", "sequence", "created_at", "updated_at", "signers", "signed_by", "trace_id", "group_id", "action_state", "signed_tx"}
 
 func (a *Action) values() []any {
-	return []any{a.OutputId, a.RequestId, a.TransactionHash, a.OutputIndex, a.AssetId, a.KernelAssetId, a.Amount, a.Mask, a.Keys, a.SendersThreshold, a.Senders, a.ReceiversThreshold, a.Receivers, a.Extra, a.State, a.Sequence, a.CreatedAt, a.UpdatedAt, a.Signers, a.SignedBy, a.TraceId, a.GroupId, a.ActionState}
+	return []any{a.OutputId, a.RequestId, a.TransactionHash, a.OutputIndex, a.AssetId, a.KernelAssetId, a.Amount, a.Mask, a.Keys, a.SendersThreshold, a.Senders, a.ReceiversThreshold, a.Receivers, a.Extra, a.State, a.Sequence, a.CreatedAt, a.UpdatedAt, a.Signers, a.SignedBy, a.TraceId, a.GroupId, a.ActionState, a.SignedTx}
 }
 
 func actionFromRow(row *sql.Row) (*Action, error) {
 	var a Action
-	err := row.Scan(&a.OutputId, &a.RequestId, &a.TransactionHash, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.Mask, &a.Keys, &a.SendersThreshold, &a.Senders, &a.ReceiversThreshold, &a.Receivers, &a.Extra, &a.State, &a.Sequence, &a.CreatedAt, &a.UpdatedAt, &a.Signers, &a.SignedBy, &a.TraceId, &a.GroupId, &a.ActionState)
+	err := row.Scan(&a.OutputId, &a.RequestId, &a.TransactionHash, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.Mask, &a.Keys, &a.SendersThreshold, &a.Senders, &a.ReceiversThreshold, &a.Receivers, &a.Extra, &a.State, &a.Sequence, &a.CreatedAt, &a.UpdatedAt, &a.Signers, &a.SignedBy, &a.TraceId, &a.GroupId, &a.ActionState, &a.SignedTx)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -118,7 +120,7 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 func (grp *Group) writeAction(ctx context.Context, act *Action, state ActionState, ts []*Transaction) {
 	logger.Verbosef("Group.writeAction(%v, %d)", act, state)
 	switch state {
-	case ActionStateInitial, ActionStateDone:
+	case ActionStateInitial, ActionStateDone, ActionStateRrestorable:
 	default:
 		panic(state)
 	}

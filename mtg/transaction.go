@@ -85,26 +85,37 @@ func (t *Transaction) check() error {
 		}
 	}
 
-	s := encodeMixinExtra(groupId, tx.TraceId, tx.Extra)
+	s := encodeMixinExtra(t.GroupId, t.TraceId, t.Memo)
 	if len(s) >= common.ExtraSizeGeneralLimit {
-		return fmt.Sprintf("invalid extra length: %d", len(s))
+		return fmt.Errorf("invalid extra length: %d", len(s))
 	}
 
 	return nil
 }
 
-func (grp *Group) buildCompactTransaction(ctx context.Context, source *Transaction, outputs []*Output) error {
+func (grp *Group) buildCompactTransaction(ctx context.Context, source *Transaction, outputs []*Action) error {
 	var total common.Integer
 	traceId := mixin.UniqueConversationID(CompactionTransactionMemo, source.TraceId)
 	for _, out := range outputs {
-		if out.GroupId != source.GroupId {
-			panic(source)
-		}
+		// if out.GroupId != source.GroupId {
+		// 	panic(source)
+		// }
 		total = total.Add(common.NewIntegerFromString(out.Amount.String()))
-		traceId = mixin.UniqueConversationID(traceId, out.UTXOID)
+		traceId = mixin.UniqueConversationID(traceId, out.OutputId)
+	}
+	newTx := &Transaction{
+		GroupId:   source.GroupId,
+		TraceId:   traceId,
+		State:     TransactionStateInitial,
+		AssetId:   source.AssetId,
+		Receivers: grp.GetMembers(),
+		Threshold: grp.GetThreshold(),
+		Amount:    total.String(),
+		Memo:      CompactionTransactionMemo,
 	}
 	logger.Printf("Group.buildCompactTransaction(%s, %s, %s) => %s\n", source.GroupId, source.TraceId, total, traceId)
-	return grp.buildTransaction(ctx, source.AssetId, grp.GetMembers(), grp.GetThreshold(), total.String(), CompactionTransactionMemo, traceId, source.GroupId, time.Unix(0, 0), nil)
+	// TODO write compact tx and delete all initial txs related to the action
+	return grp.writeCompactTansactionOrPanic(ctx, newTx)
 }
 
 func (grp *Group) checkCompactTransactionRequest(ctx context.Context, ver *common.VersionedTransaction, extra *mixinExtraPack) bool {
@@ -121,7 +132,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 		panic(err)
 	}
 	if len(outputs) == 0 {
-		outputs, err = grp.ListOutputsForAsset(ctx, tx.GroupId, tx.AssetId, OutputStateUnspent, OutputsBatchSize)
+		outputs, err = grp.ListOutputsForAsset(ctx, tx.GroupId, tx.AssetId, SafeUtxoStateUnspent, OutputsBatchSize)
 	}
 	if err != nil {
 		panic(err)
@@ -149,8 +160,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	}
 
 	raw := hex.EncodeToString(ver.Marshal())
-	id := mixin.UniqueConversationID(raw, ver.PayloadHash().String())
-	req, err := grp.createMultisigUntilSufficient(ctx, id, raw)
+	req, err := grp.createMultisigUntilSufficient(ctx, tx.TraceId, raw)
 	if err != nil {
 		return nil, err
 	}
@@ -161,11 +171,12 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	}
 
 	for _, out := range outputs {
-		out.State = OutputStateSigned
+		out.State = SafeUtxoStateSigned
 		out.SignedBy = ver.PayloadHash().String()
 		out.SignedTx = req.RawTransaction
 	}
-	err = grp.store.WriteOutputs(ctx, outputs, tx.TraceId)
+	// TODO
+	err = grp.store.SignOutputs(ctx, outputs, tx.TraceId)
 	if err != nil {
 		panic(err)
 	}
@@ -230,7 +241,7 @@ func checkRetryableError(err error) bool {
 	return true
 }
 
-func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outputs []*Output) (*common.VersionedTransaction, []*Output, error) {
+func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outputs []*Action) (*common.VersionedTransaction, []*Action, error) {
 	old, _ := decodeTransactionWithExtra(outputs[0].SignedTx)
 	if old != nil && (old.AggregatedSignature != nil || len(old.SignaturesMap) > 0) {
 		return old, nil, nil
@@ -240,10 +251,14 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 	target := common.NewIntegerFromString(tx.Amount)
 
 	var total common.Integer
-	var consumed []*Output
+	var consumed []*Action
 	for _, out := range outputs {
+		hash, err := crypto.HashFromString(out.TransactionHash)
+		if err != nil {
+			panic(err)
+		}
 		total = total.Add(common.NewIntegerFromString(out.Amount.String()))
-		ver.AddInput(crypto.Hash(out.TransactionHash), uint(out.OutputIndex))
+		ver.AddInput(hash, uint(out.OutputIndex))
 		consumed = append(consumed, out)
 		if total.Cmp(target) >= 0 && len(consumed) >= grp.groupSize {
 			break
@@ -276,26 +291,24 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 	if err != nil {
 		return nil, nil, err
 	}
-	out := &mixinnet.Output{
+	ver.Outputs = append(ver.Outputs, newCommonOutput(&mixinnet.Output{
 		Mask:   keys[0].Mask,
 		Keys:   keys[0].Keys,
 		Amount: mixinnet.IntegerFromDecimal(amount),
 		Script: mixinnet.NewThresholdScript(uint8(tx.Threshold)),
-	}
-	ver.Outputs = append(ver.Outputs, newCommonOutput(out))
+	}))
 
 	if diff := total.Sub(common.NewIntegerFromString(tx.Amount)); diff.Sign() > 0 {
 		amount, err := decimal.NewFromString(diff.String())
 		if err != nil {
 			return nil, nil, err
 		}
-		out := &mixinnet.Output{
+		ver.Outputs = append(ver.Outputs, newCommonOutput(&mixinnet.Output{
 			Mask:   keys[1].Mask,
 			Keys:   keys[1].Keys,
 			Amount: mixinnet.IntegerFromDecimal(amount),
 			Script: mixinnet.NewThresholdScript(uint8(grp.threshold)),
-		}
-		ver.Outputs = append(ver.Outputs, newCommonOutput(out))
+		}))
 	}
 
 	ver.References = tx.References

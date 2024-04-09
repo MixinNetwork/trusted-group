@@ -32,9 +32,19 @@ func (s *SQLite3Store) ListActions(ctx context.Context, limit int) ([]*Action, e
 	return as, nil
 }
 
-func (s *SQLite3Store) readAction(ctx context.Context, id string) (*Action, error) {
-	query := fmt.Sprintf("SELECT %s FROM actions WHERE output_id=?", strings.Join(actionCols, ","))
-	row := s.db.QueryRowContext(ctx, query, id)
+func (s *SQLite3Store) readAction(ctx context.Context, id string, state ActionState) (*Action, error) {
+	query := fmt.Sprintf("SELECT %s FROM actions WHERE output_id=? AND action_state=?", strings.Join(actionCols, ","))
+	row := s.db.QueryRowContext(ctx, query, id, state)
+	return actionFromRow(row)
+}
+
+func (s *SQLite3Store) readRestorableAction(ctx context.Context, act *Action) (*Action, error) {
+	// if len(act.References) != 1 {
+	// 	return nil
+	// }
+	// signedTx := act.References[0]
+	query := fmt.Sprintf("SELECT %s FROM actions WHERE output_id=? AND action_state=? AND signedTx=? AND transaction_hash", strings.Join(actionCols, ","))
+	row := s.db.QueryRowContext(ctx, query, act.OutputId, ActionStateDone)
 	return actionFromRow(row)
 }
 
@@ -48,7 +58,7 @@ func (s *SQLite3Store) WriteAction(ctx context.Context, a *Action, ts []*Transac
 	}
 	defer tx.Rollback()
 
-	old, err := s.readAction(ctx, a.OutputId)
+	old, err := s.readAction(ctx, a.OutputId, a.ActionState)
 	if err != nil {
 		return err
 	}
@@ -57,30 +67,39 @@ func (s *SQLite3Store) WriteAction(ctx context.Context, a *Action, ts []*Transac
 		if len(ts) > 0 {
 			return fmt.Errorf("Write new action with multiple transactions: %d", len(ts))
 		}
+		if a.ActionState == ActionStateRrestorable {
+			return fmt.Errorf("invalid action state: %d", a.State)
+		}
+
 		err = s.execOne(ctx, tx, buildInsertionSQL("actions", actionCols), a.values()...)
 		if err != nil {
 			return fmt.Errorf("INSERT actions %v", err)
 		}
 	} else {
-		if old.State >= a.State {
+		if old.ActionState >= a.ActionState {
 			return nil
 		}
-		err = s.execOne(ctx, tx, "UPDATE actions SET state=? WHERE output_id=?", a.State, a.OutputId)
+		if a.ActionState == ActionStateRrestorable {
+			a.ActionState = ActionStateInitial
+		}
+		err = s.execOne(ctx, tx, "UPDATE actions SET action_state=? WHERE output_id=?", a.ActionState, a.OutputId)
 		if err != nil {
 			return fmt.Errorf("UPDATE actions %v", err)
 		}
 
-		for _, t := range ts {
-			exist, err := s.checkExistence(ctx, tx, "SELECT trace_id from transactions where trace_id=?", t.TraceId)
-			if err != nil {
-				return err
-			}
-			if exist {
-				continue
-			}
-			err = s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), t.values()...)
-			if err != nil {
-				return fmt.Errorf("INSERT transactions %v", err)
+		if a.ActionState == ActionStateDone {
+			for _, t := range ts {
+				exist, err := s.checkExistence(ctx, tx, "SELECT trace_id from transactions where trace_id=?", t.TraceId)
+				if err != nil {
+					return err
+				}
+				if exist {
+					continue
+				}
+				err = s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), t.values()...)
+				if err != nil {
+					return fmt.Errorf("INSERT transactions %v", err)
+				}
 			}
 		}
 	}
@@ -88,28 +107,55 @@ func (s *SQLite3Store) WriteAction(ctx context.Context, a *Action, ts []*Transac
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, traceId string) ([]*Output, error) {
-	query := fmt.Sprintf("SELECT %s FROM outputs WHERE trace_id=? ORDER BY created_at ASC", strings.Join(outputCols, ","))
+func (s *SQLite3Store) RestoreAction(ctx context.Context, a *Action) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	old, err := s.readRestorableAction(ctx, a)
+	if err != nil {
+		return err
+	}
+	if old == nil {
+		reason := fmt.Sprintf("failed to find restore action of %#v", a)
+		panic(reason)
+	}
+
+	err = s.execOne(ctx, tx, "UPDATE actions SET action_state=? WHERE output_id=?", ActionStateInitial, a.OutputId)
+	if err != nil {
+		return fmt.Errorf("UPDATE actions %v", err)
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, traceId string) ([]*Action, error) {
+	query := fmt.Sprintf("SELECT %s FROM actions WHERE trace_id=? ORDER BY created_at ASC", strings.Join(actionCols, ","))
 	rows, err := s.db.QueryContext(ctx, query, traceId)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var os []*Output
+	var as []*Action
 	for rows.Next() {
-		var o Output
-		err := rows.Scan(&o.GroupId, &o.UTXOID, &o.TraceID, &o.AssetID, &o.TransactionHash, &o.OutputIndex, &o.Amount, &o.SendersThreshold, &o.Senders, &o.Threshold, &o.Members, &o.Memo, &o.State, &o.Sequence, &o.CreatedAt, &o.UpdatedAt, &o.SignedBy, &o.SignedTx)
+		var a Action
+		err := rows.Scan(&a.OutputId, &a.RequestId, &a.TransactionHash, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.Mask, &a.Keys, &a.SendersThreshold, &a.Senders, &a.ReceiversThreshold, &a.Receivers, &a.Extra, &a.State, &a.Sequence, &a.CreatedAt, &a.UpdatedAt, &a.Signers, &a.SignedBy, &a.TraceId, &a.GroupId, &a.ActionState)
 		if err != nil {
 			return nil, err
 		}
-		os = append(os, &o)
+		as = append(as, &a)
 	}
-	return os, nil
+	return as, nil
 }
 
-func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, groupId, assetId string, state, limit int) ([]*Output, error) {
-	query := fmt.Sprintf("SELECT %s FROM outputs WHERE group_id=? AND trace_id=? AND state=? ORDER BY created_at ASC", strings.Join(outputCols, ","))
+func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, groupId, assetId string, state SafeUtxoState, limit int) ([]*Action, error) {
+	query := fmt.Sprintf("SELECT %s FROM actions WHERE group_id=? AND trace_id=? AND state=? ORDER BY created_at ASC", strings.Join(actionCols, ","))
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
@@ -119,16 +165,20 @@ func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, groupId, assetId
 	}
 	defer rows.Close()
 
-	var os []*Output
+	var as []*Action
 	for rows.Next() {
-		var o Output
-		err := rows.Scan(&o.GroupId, &o.UTXOID, &o.TraceID, &o.AssetID, &o.TransactionHash, &o.OutputIndex, &o.Amount, &o.SendersThreshold, &o.Senders, &o.Threshold, &o.Members, &o.Memo, &o.State, &o.Sequence, &o.CreatedAt, &o.UpdatedAt, &o.SignedBy, &o.SignedTx)
+		var a Action
+		err := rows.Scan(&a.OutputId, &a.RequestId, &a.TransactionHash, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.Mask, &a.Keys, &a.SendersThreshold, &a.Senders, &a.ReceiversThreshold, &a.Receivers, &a.Extra, &a.State, &a.Sequence, &a.CreatedAt, &a.UpdatedAt, &a.Signers, &a.SignedBy, &a.TraceId, &a.GroupId, &a.ActionState)
 		if err != nil {
 			return nil, err
 		}
-		os = append(os, &o)
+		as = append(as, &a)
 	}
-	return os, nil
+	return as, nil
+}
+
+func (s *SQLite3Store) SignOutputs(ctx context.Context, os []*Action, traceId string) error {
+	return nil
 }
 
 func (s *SQLite3Store) readIteration(ctx context.Context, id string) (*Iteration, error) {

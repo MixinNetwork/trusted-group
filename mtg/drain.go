@@ -47,9 +47,20 @@ func (grp *Group) processSafeOutputs(ctx context.Context, filter map[string]bool
 			continue
 		}
 		filter[key] = true
-		grp.writeAction(ctx, utxo.Action(ActionStateInitial, "", ""), ActionStateInitial, []*Transaction{})
+		grp.processSafeOutput(ctx, utxo)
 	}
 	return checkpoint
+}
+
+func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) {
+	act := output.Action(ActionStateInitial, "", "")
+	state := ActionStateInitial
+
+	// ver, extra := DecodeMixinExtra(output.Extra)
+	// if grp.checkCompactTransactionRequest(ver, extra) {
+	// 	grp.renewAction(act)
+	// }
+	grp.writeAction(ctx, act, state, []*Transaction{})
 }
 
 func (grp *Group) readDrainingCheckpoint(ctx context.Context) (uint64, error) {

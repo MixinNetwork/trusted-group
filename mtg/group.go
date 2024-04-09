@@ -166,23 +166,23 @@ func (grp *Group) Run(ctx context.Context) {
 	}
 }
 
-// func (grp *Group) ListOutputsForAsset(ctx context.Context, groupId, assetId string, state, limit int) ([]*Output, error) {
-// 	outputs, err := grp.store.ListOutputsForAsset(ctx, groupId, assetId, state, limit)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	sort.Slice(outputs, func(i, j int) bool { return outputs[i].CreatedAt.Before(outputs[j].CreatedAt) })
-// 	return outputs, nil
-// }
+func (grp *Group) ListOutputsForAsset(ctx context.Context, groupId, assetId string, state SafeUtxoState, limit int) ([]*Action, error) {
+	outputs, err := grp.store.ListOutputsForAsset(ctx, groupId, assetId, state, limit)
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(outputs, func(i, j int) bool { return outputs[i].CreatedAt.Before(outputs[j].CreatedAt) })
+	return outputs, nil
+}
 
-// func (grp *Group) ListOutputsForTransaction(ctx context.Context, traceId string) ([]*Output, error) {
-// 	outputs, err := grp.store.ListOutputsForTransaction(ctx, traceId)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	sort.Slice(outputs, func(i, j int) bool { return outputs[i].CreatedAt.Before(outputs[j].CreatedAt) })
-// 	return outputs, nil
-// }
+func (grp *Group) ListOutputsForTransaction(ctx context.Context, traceId string) ([]*Action, error) {
+	outputs, err := grp.store.ListOutputsForTransaction(ctx, traceId)
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(outputs, func(i, j int) bool { return outputs[i].CreatedAt.Before(outputs[j].CreatedAt) })
+	return outputs, nil
+}
 
 func (grp *Group) signTransactions(ctx context.Context) error {
 	txs, err := grp.store.ListTransactions(ctx, TransactionStateInitial, 0)
@@ -248,6 +248,14 @@ func (grp *Group) snapshotTransaction(ctx context.Context, tx crypto.Hash) (bool
 		return false, err
 	}
 	return true, nil
+}
+
+func (grp *Group) writeTansactionOrPanic(ctx context.Context, tx *Transaction) {
+
+}
+
+func (grp *Group) writeCompactTansactionOrPanic(ctx context.Context, tx *Transaction) error {
+	return nil
 }
 
 func generateGenesisId(conf *Configuration) string {
