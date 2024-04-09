@@ -54,7 +54,6 @@ func (grp *Group) processSafeOutputs(ctx context.Context, filter map[string]bool
 
 func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) {
 	act := output.Action(ActionStateInitial, "", "")
-	state := ActionStateInitial
 
 	// FIXME handle network issues
 	tx, err := grp.mixin.SafeReadTransactionRequest(ctx, output.RequestId)
@@ -66,7 +65,7 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 		grp.store.RestoreAction(ctx, act, ver)
 		return
 	}
-	grp.writeAction(ctx, act, state, []*Transaction{})
+	grp.writeAction(ctx, act, ActionStateInitial, []*Transaction{})
 }
 
 func (grp *Group) readDrainingCheckpoint(ctx context.Context) (uint64, error) {

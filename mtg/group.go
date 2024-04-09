@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/fox-one/mixin-sdk-go/v2"
@@ -166,8 +165,8 @@ func (grp *Group) Run(ctx context.Context) {
 	}
 }
 
-func (grp *Group) ListOutputsForAsset(ctx context.Context, groupId, assetId string, state SafeUtxoState, limit int) ([]*Action, error) {
-	outputs, err := grp.store.ListOutputsForAsset(ctx, groupId, assetId, state, limit)
+func (grp *Group) ListOutputsForAsset(ctx context.Context, tx *Transaction, state SafeUtxoState, limit int) ([]*Action, error) {
+	outputs, err := grp.store.ListOutputsForAsset(ctx, tx, state, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -175,8 +174,8 @@ func (grp *Group) ListOutputsForAsset(ctx context.Context, groupId, assetId stri
 	return outputs, nil
 }
 
-func (grp *Group) ListOutputsForTransaction(ctx context.Context, traceId string) ([]*Action, error) {
-	outputs, err := grp.store.ListOutputsForTransaction(ctx, traceId)
+func (grp *Group) ListOutputsForTransaction(ctx context.Context, tx *Transaction) ([]*Action, error) {
+	outputs, err := grp.store.ListOutputsForTransaction(ctx, tx)
 	if err != nil {
 		return nil, err
 	}
@@ -196,25 +195,6 @@ func (grp *Group) signTransactions(ctx context.Context) error {
 		if err != nil {
 			continue
 		}
-		ver, _ := common.UnmarshalVersionedTransaction(raw)
-		tx.Raw = raw
-		tx.Hash = ver.PayloadHash()
-		tx.UpdatedAt = time.Now()
-		tx.State = TransactionStateSigning
-
-		if ver.AggregatedSignature != nil || len(ver.SignaturesMap) > 0 {
-			tx.State = TransactionStateSigned
-		} else {
-			p := DecodeMixinExtra(string(ver.Extra))
-			if p.T.String() != tx.TraceId {
-				panic(hex.EncodeToString(raw))
-			}
-			if p.G != tx.GroupId {
-				panic(hex.EncodeToString(raw))
-			}
-		}
-
-		grp.writeTansactionOrPanic(ctx, tx)
 	}
 
 	return nil

@@ -42,18 +42,19 @@ type Transaction struct {
 	Raw        []byte
 	Hash       crypto.Hash
 	References []crypto.Hash
+	Sequence   uint64
 	UpdatedAt  time.Time
 }
 
-var transactionCols = []string{"group_id", "trace_id", "state", "asset_id", "receivers", "threshold", "amount", "memo", "raw", "hash", "references", "updated_at"}
+var transactionCols = []string{"group_id", "trace_id", "state", "asset_id", "receivers", "threshold", "amount", "memo", "raw", "hash", "references", "sequence", "updated_at"}
 
 func (t *Transaction) values() []any {
-	return []any{t.GroupId, t.TraceId, t.State, t.AssetId, t.Receivers, t.Threshold, t.Amount, t.Memo, t.Raw, t.Hash, t.References, t.UpdatedAt}
+	return []any{t.GroupId, t.TraceId, t.State, t.AssetId, t.Receivers, t.Threshold, t.Amount, t.Memo, t.Raw, t.Hash, t.References, t.Sequence, t.UpdatedAt}
 }
 
 func transactionFromRow(row *sql.Row) (*Transaction, error) {
 	var t Transaction
-	err := row.Scan(&t.GroupId, &t.TraceId, &t.State, &t.AssetId, &t.Receivers, &t.Threshold, &t.Amount, &t.Memo, &t.Raw, &t.Hash, &t.References, &t.UpdatedAt)
+	err := row.Scan(&t.GroupId, &t.TraceId, &t.State, &t.AssetId, &t.Receivers, &t.Threshold, &t.Amount, &t.Memo, &t.Raw, &t.Hash, &t.References, &t.Sequence, &t.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -126,12 +127,12 @@ func (grp *Group) checkCompactTransaction(ver *common.VersionedTransaction, extr
 }
 
 func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte, error) {
-	outputs, err := grp.ListOutputsForTransaction(ctx, tx.TraceId)
+	outputs, err := grp.ListOutputsForTransaction(ctx, tx)
 	if err != nil {
 		panic(err)
 	}
 	if len(outputs) == 0 {
-		outputs, err = grp.ListOutputsForAsset(ctx, tx.GroupId, tx.AssetId, SafeUtxoStateUnspent, OutputsBatchSize)
+		outputs, err = grp.ListOutputsForAsset(ctx, tx, SafeUtxoStateUnspent, OutputsBatchSize)
 	}
 	if err != nil {
 		panic(err)
@@ -163,7 +164,6 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	if err != nil {
 		return nil, err
 	}
-
 	req, err = grp.signMultisigUntilSufficient(ctx, req)
 	if err != nil {
 		return nil, err
@@ -174,12 +174,35 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 		out.SignedBy = ver.PayloadHash().String()
 		out.SignedTx = req.RawTransaction
 	}
+
+	rb, err := hex.DecodeString(req.RawTransaction)
+	if err != nil {
+		return nil, err
+	}
+	ver, _ = common.UnmarshalVersionedTransaction(rb)
+	tx.Raw = rb
+	tx.Hash = ver.PayloadHash()
+	tx.UpdatedAt = time.Now()
+	tx.State = TransactionStateSigning
+
+	if ver.AggregatedSignature != nil || len(ver.SignaturesMap) > 0 {
+		tx.State = TransactionStateSigned
+	} else {
+		p := DecodeMixinExtra(string(ver.Extra))
+		if p.T.String() != tx.TraceId {
+			panic(hex.EncodeToString(rb))
+		}
+		if p.G != tx.GroupId {
+			panic(hex.EncodeToString(rb))
+		}
+	}
+
 	// TODO
-	err = grp.store.SignOutputs(ctx, outputs, tx.TraceId)
+	err = grp.store.SignTxWithOutputs(ctx, outputs, tx.TraceId)
 	if err != nil {
 		panic(err)
 	}
-	return hex.DecodeString(req.RawTransaction)
+	return rb, nil
 }
 
 func (grp *Group) createMultisigUntilSufficient(ctx context.Context, id, raw string) (*mixin.SafeTransactionRequest, error) {
@@ -265,6 +288,7 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 	}
 	if total.Cmp(target) < 0 {
 		if len(outputs) == OutputsBatchSize {
+			// FIXME with reference
 			err := grp.buildCompactTransaction(ctx, tx, outputs)
 			if err != nil {
 				panic(err)

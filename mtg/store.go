@@ -11,7 +11,7 @@ import (
 )
 
 func (s *SQLite3Store) ListActions(ctx context.Context, limit int) ([]*Action, error) {
-	query := fmt.Sprintf("SELECT %s FROM actions WHERE state=? ORDER BY created_at ASC", strings.Join(actionCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM actions WHERE state=? ORDER BY sequence ASC", strings.Join(actionCols, ","))
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
@@ -73,12 +73,11 @@ func (s *SQLite3Store) WriteAction(ctx context.Context, a *Action, ts []*Transac
 			return fmt.Errorf("INSERT actions %v", err)
 		}
 	} else {
-		if old.ActionState >= a.ActionState {
-			return nil
-		}
-		err = s.execOne(ctx, tx, "UPDATE actions SET action_state=? WHERE output_id=?", a.ActionState, a.OutputId)
-		if err != nil {
-			return fmt.Errorf("UPDATE actions %v", err)
+		if a.ActionState > old.ActionState {
+			err = s.execOne(ctx, tx, "UPDATE actions SET action_state=? WHERE output_id=?", a.ActionState, a.OutputId)
+			if err != nil {
+				return fmt.Errorf("UPDATE actions %v", err)
+			}
 		}
 
 		if a.ActionState == ActionStateDone {
@@ -90,6 +89,7 @@ func (s *SQLite3Store) WriteAction(ctx context.Context, a *Action, ts []*Transac
 				if exist {
 					continue
 				}
+				t.Sequence = a.Sequence
 				err = s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), t.values()...)
 				if err != nil {
 					return fmt.Errorf("INSERT transactions %v", err)
@@ -133,9 +133,9 @@ func (s *SQLite3Store) RestoreAction(ctx context.Context, a *Action, ver *common
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, traceId string) ([]*Action, error) {
-	query := fmt.Sprintf("SELECT %s FROM actions WHERE trace_id=? ORDER BY created_at ASC", strings.Join(actionCols, ","))
-	rows, err := s.db.QueryContext(ctx, query, traceId)
+func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, tx *Transaction) ([]*Action, error) {
+	query := fmt.Sprintf("SELECT %s FROM actions WHERE trace_id=? AND sequence <= ? ORDER BY sequence ASC", strings.Join(actionCols, ","))
+	rows, err := s.db.QueryContext(ctx, query, tx.TraceId, tx.Sequence)
 	if err != nil {
 		return nil, err
 	}
@@ -153,12 +153,12 @@ func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, traceId st
 	return as, nil
 }
 
-func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, groupId, assetId string, state SafeUtxoState, limit int) ([]*Action, error) {
-	query := fmt.Sprintf("SELECT %s FROM actions WHERE group_id=? AND trace_id=? AND state=? ORDER BY created_at ASC", strings.Join(actionCols, ","))
+func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, tx *Transaction, state SafeUtxoState, limit int) ([]*Action, error) {
+	query := fmt.Sprintf("SELECT %s FROM actions WHERE group_id=? AND asset_id=? AND sequence <= ? AND state=? ORDER BY sequence ASC", strings.Join(actionCols, ","))
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
-	rows, err := s.db.QueryContext(ctx, query, groupId, assetId, state)
+	rows, err := s.db.QueryContext(ctx, query, tx.GroupId, tx.AssetId, tx.Sequence, state)
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +176,7 @@ func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, groupId, assetId
 	return as, nil
 }
 
-func (s *SQLite3Store) SignOutputs(ctx context.Context, os []*Action, traceId string) error {
+func (s *SQLite3Store) SignTxWithOutputs(ctx context.Context, os []*Action, traceId string) error {
 	return nil
 }
 
@@ -248,7 +248,7 @@ func (s *SQLite3Store) WriteIteration(ctx context.Context, ir *Iteration) error 
 }
 
 func (s *SQLite3Store) ListTransactions(ctx context.Context, state, limit int) ([]*Transaction, error) {
-	query := fmt.Sprintf("SELECT %s FROM transactions where state=? ORDER BY created_at ASC", strings.Join(iterationCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM transactions where state=? ORDER BY sequence ASC", strings.Join(iterationCols, ","))
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
