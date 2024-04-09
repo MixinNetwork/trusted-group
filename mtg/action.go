@@ -99,40 +99,38 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 		return err
 	}
 	for _, a := range as {
-		out := a.Output()
+		var totalTs []*Transaction
 		for _, wkr := range grp.workers {
-			ts := wkr.ProcessOutput(ctx, out)
-			err = grp.store.WriteTransactions(ctx, ts)
-			panic(err)
+			ts := wkr.ProcessOutput(ctx, a)
+			totalTs = append(totalTs, ts...)
 		}
-		grp.writeAction(ctx, out, ActionStateDone)
+		grp.writeAction(ctx, a, ActionStateDone, totalTs)
 	}
 	return nil
 }
 
-func (grp *Group) writeAction(ctx context.Context, out *UnifiedOutput, state ActionState) {
-	logger.Verbosef("Group.writeAction(%v, %d)", out, state)
+func (grp *Group) writeAction(ctx context.Context, act *Action, state ActionState, ts []*Transaction) {
+	logger.Verbosef("Group.writeAction(%v, %d)", act, state)
 	switch state {
 	case ActionStateInitial, ActionStateDone:
 	default:
 		panic(state)
 	}
-	switch out.Type {
-	case OutputTypeSafeOutput:
-	default:
-		panic(out.Type)
-	}
 
 	var groupId, traceId string
-	p := DecodeMixinExtra(out.Extra)
+	p := DecodeMixinExtra(act.Extra)
 	if p != nil {
 		groupId, traceId = p.G, p.T.String()
 	} else {
 		groupId = uuid.Nil.String()
-		traceId = mixin.UniqueConversationID(out.OutputId, out.SignedBy)
+		// FIXME map action to multiple transactions
+		traceId = mixin.UniqueConversationID(act.OutputId, act.SignedBy)
 	}
-	a := out.Action(state, traceId, groupId)
-	err := grp.store.WriteAction(ctx, a)
+	act.ActionState = state
+	act.TraceId = traceId
+	act.GroupId = groupId
+
+	err := grp.store.WriteAction(ctx, act, ts)
 	if err != nil {
 		panic(err)
 	}

@@ -47,7 +47,7 @@ func (grp *Group) processSafeOutputs(ctx context.Context, filter map[string]bool
 			continue
 		}
 		filter[key] = true
-		grp.writeAction(ctx, utxo, ActionStateInitial)
+		grp.writeAction(ctx, utxo.Action(ActionStateInitial, "", ""), ActionStateInitial, []*Transaction{})
 	}
 	return checkpoint
 }

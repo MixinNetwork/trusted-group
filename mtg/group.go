@@ -22,7 +22,7 @@ const (
 
 type Worker interface {
 	// handle the output and a true return value interrupts workers loop
-	ProcessOutput(context.Context, *UnifiedOutput) []*Transaction
+	ProcessOutput(context.Context, *Action) []*Transaction
 }
 
 type Group struct {
@@ -166,23 +166,23 @@ func (grp *Group) Run(ctx context.Context) {
 	}
 }
 
-func (grp *Group) ListOutputsForAsset(ctx context.Context, groupId, assetId string, state, limit int) ([]*Output, error) {
-	outputs, err := grp.store.ListOutputsForAsset(ctx, groupId, assetId, state, limit)
-	if err != nil {
-		return nil, err
-	}
-	sort.Slice(outputs, func(i, j int) bool { return outputs[i].CreatedAt.Before(outputs[j].CreatedAt) })
-	return outputs, nil
-}
+// func (grp *Group) ListOutputsForAsset(ctx context.Context, groupId, assetId string, state, limit int) ([]*Output, error) {
+// 	outputs, err := grp.store.ListOutputsForAsset(ctx, groupId, assetId, state, limit)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	sort.Slice(outputs, func(i, j int) bool { return outputs[i].CreatedAt.Before(outputs[j].CreatedAt) })
+// 	return outputs, nil
+// }
 
-func (grp *Group) ListOutputsForTransaction(ctx context.Context, traceId string) ([]*Output, error) {
-	outputs, err := grp.store.ListOutputsForTransaction(ctx, traceId)
-	if err != nil {
-		return nil, err
-	}
-	sort.Slice(outputs, func(i, j int) bool { return outputs[i].CreatedAt.Before(outputs[j].CreatedAt) })
-	return outputs, nil
-}
+// func (grp *Group) ListOutputsForTransaction(ctx context.Context, traceId string) ([]*Output, error) {
+// 	outputs, err := grp.store.ListOutputsForTransaction(ctx, traceId)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	sort.Slice(outputs, func(i, j int) bool { return outputs[i].CreatedAt.Before(outputs[j].CreatedAt) })
+// 	return outputs, nil
+// }
 
 func (grp *Group) signTransactions(ctx context.Context) error {
 	txs, err := grp.store.ListTransactions(ctx, TransactionStateInitial, 0)

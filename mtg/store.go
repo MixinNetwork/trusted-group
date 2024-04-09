@@ -38,7 +38,7 @@ func (s *SQLite3Store) readAction(ctx context.Context, id string) (*Action, erro
 	return actionFromRow(row)
 }
 
-func (s *SQLite3Store) WriteAction(ctx context.Context, a *Action) error {
+func (s *SQLite3Store) WriteAction(ctx context.Context, a *Action, ts []*Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -54,6 +54,9 @@ func (s *SQLite3Store) WriteAction(ctx context.Context, a *Action) error {
 	}
 
 	if old == nil {
+		if len(ts) > 0 {
+			return fmt.Errorf("Write new action with multiple transactions: %d", len(ts))
+		}
 		err = s.execOne(ctx, tx, buildInsertionSQL("actions", actionCols), a.values()...)
 		if err != nil {
 			return fmt.Errorf("INSERT actions %v", err)
@@ -65,6 +68,20 @@ func (s *SQLite3Store) WriteAction(ctx context.Context, a *Action) error {
 		err = s.execOne(ctx, tx, "UPDATE actions SET state=? WHERE output_id=?", a.State, a.OutputId)
 		if err != nil {
 			return fmt.Errorf("UPDATE actions %v", err)
+		}
+
+		for _, t := range ts {
+			exist, err := s.checkExistence(ctx, tx, "SELECT trace_id from transactions where trace_id=?", t.TraceId)
+			if err != nil {
+				return err
+			}
+			if exist {
+				continue
+			}
+			err = s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), t.values()...)
+			if err != nil {
+				return fmt.Errorf("INSERT transactions %v", err)
+			}
 		}
 	}
 
