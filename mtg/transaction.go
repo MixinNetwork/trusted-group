@@ -60,33 +60,37 @@ func transactionFromRow(row *sql.Row) (*Transaction, error) {
 	return &t, err
 }
 
-// the app should decide a unique trace id so that the MTG will not double spend
-func (grp *Group) BuildTransaction(ctx context.Context, assetId string, receivers []string, threshold int, amount, memo string, traceId, groupId string) error {
-	return grp.buildTransaction(ctx, assetId, receivers, threshold, amount, memo, traceId, groupId, time.Now(), nil)
-}
-
-// FIXME exists in new system?
-func (grp *Group) BuildStorageTransaction(ctx context.Context, data []byte, groupId string) (*Transaction, error) {
-	sTraceId := crypto.Blake3Hash(data).String()
-	sTraceId = mixin.UniqueConversationID(sTraceId, sTraceId)
-	old, err := grp.store.ReadTransactionByTraceId(ctx, sTraceId)
-	if err != nil || old != nil {
-		return old, err
+func (t *Transaction) check() error {
+	if len(t.References) > 2 {
+		return fmt.Errorf("invalid references length: %d", len(t.References))
+	}
+	for i, r := range t.References {
+		if !r.HasValue() {
+			return fmt.Errorf("invalid reference: %d %v", i, r)
+		}
+	}
+	if t.Threshold < 1 || t.Threshold > 128 {
+		return fmt.Errorf("invalid receivers threshold %d/%d", t.Threshold, len(t.Receivers))
+	}
+	amt, err := decimal.NewFromString(t.Amount)
+	min, _ := decimal.NewFromString("0.00000001")
+	if err != nil || amt.Cmp(min) < 0 {
+		return fmt.Errorf("invalid amount %s", t.Amount)
 	}
 
-	sReceivers := []string{StorageReceiverId}
-	extra := int64(len(encodeMixinExtra(groupId, sTraceId, string(data))))
-	sAmount := decimal.RequireFromString(common.ExtraStoragePriceStep)
-	sAmount = sAmount.Mul(decimal.NewFromInt(extra/common.ExtraSizeStorageStep + 1))
-	err = grp.buildTransaction(ctx, StorageAssetId, sReceivers, 64, sAmount.String(), string(data), sTraceId, groupId, time.Now(), nil)
-	if err != nil {
-		return nil, fmt.Errorf("Group.buildStorageTransaction(%d) => %s %v", len(data), sTraceId, err)
+	for _, r := range t.Receivers {
+		id, _ := uuid.FromString(r)
+		if id.String() == uuid.Nil.String() {
+			return fmt.Errorf("invalid receiver %s", r)
+		}
 	}
-	return grp.store.ReadTransactionByTraceId(ctx, sTraceId)
-}
 
-func (grp *Group) BuildTransactionWithReferences(ctx context.Context, assetId string, receivers []string, threshold int, amount, memo string, traceId, groupId string, references []crypto.Hash) error {
-	return grp.buildTransaction(ctx, assetId, receivers, threshold, amount, memo, traceId, groupId, time.Now(), references)
+	s := encodeMixinExtra(groupId, tx.TraceId, tx.Extra)
+	if len(s) >= common.ExtraSizeGeneralLimit {
+		return fmt.Sprintf("invalid extra length: %d", len(s))
+	}
+
+	return nil
 }
 
 func (grp *Group) buildCompactTransaction(ctx context.Context, source *Transaction, outputs []*Output) error {
@@ -101,74 +105,6 @@ func (grp *Group) buildCompactTransaction(ctx context.Context, source *Transacti
 	}
 	logger.Printf("Group.buildCompactTransaction(%s, %s, %s) => %s\n", source.GroupId, source.TraceId, total, traceId)
 	return grp.buildTransaction(ctx, source.AssetId, grp.GetMembers(), grp.GetThreshold(), total.String(), CompactionTransactionMemo, traceId, source.GroupId, time.Unix(0, 0), nil)
-}
-
-func (grp *Group) buildTransaction(ctx context.Context, assetId string, receivers []string, threshold int, amount, memo string, traceId, groupId string, ts time.Time, references []crypto.Hash) error {
-	if len(references) > 2 {
-		panic(len(references))
-	}
-	for _, r := range references {
-		if !r.HasValue() {
-			panic(traceId)
-		}
-	}
-	if threshold < 1 || threshold > 128 {
-		return fmt.Errorf("invalid receivers threshold %d/%d", threshold, len(receivers))
-	}
-	amt, err := decimal.NewFromString(amount)
-	min, _ := decimal.NewFromString("0.00000001")
-	if err != nil || amt.Cmp(min) < 0 {
-		return fmt.Errorf("invalid amount %s", amount)
-	}
-
-	for _, r := range receivers {
-		id, _ := uuid.FromString(r)
-		if id.String() == uuid.Nil.String() {
-			return fmt.Errorf("invalid receiver %s", r)
-		}
-	}
-	old, err := grp.store.ReadTransactionByTraceId(ctx, traceId)
-	if err != nil {
-		panic(err)
-	} else if old != nil {
-		return nil
-	}
-	tx := &Transaction{
-		GroupId:    groupId,
-		TraceId:    traceId,
-		State:      TransactionStateInitial,
-		AssetId:    assetId,
-		Receivers:  receivers,
-		Threshold:  threshold,
-		Amount:     amount,
-		Memo:       memo,
-		References: references,
-		UpdatedAt:  ts,
-	}
-
-	// TODO ensure valid memo and trace id
-	if grp.checkStorageTransaction(tx) {
-		if len(tx.Memo) > common.ExtraSizeStorageCapacity/2 {
-			panic(len(tx.Memo))
-		}
-	} else {
-		EncodeMixinExtra(groupId, tx.TraceId, tx.Memo)
-	}
-
-	grp.writeTansactionOrPanic(ctx, tx)
-	return nil
-}
-
-func (grp *Group) writeTansactionOrPanic(ctx context.Context, tx *Transaction) {
-	err := grp.store.WriteTransaction(ctx, tx)
-	logger.Printf("Group.writeTansactionOrPanic(%v) => %v", *tx, err)
-	if err != nil {
-		panic(err)
-	}
-}
-
-func (grp *Group) checkStorageTransaction(tx *Transaction) bool {
-	return len(tx.Receivers) == 1 && tx.Threshold == 64 && tx.AssetId == StorageAssetId && tx.Receivers[0] == StorageReceiverId
 }
 
 func (grp *Group) checkCompactTransactionRequest(ctx context.Context, ver *common.VersionedTransaction, extra *mixinExtraPack) bool {

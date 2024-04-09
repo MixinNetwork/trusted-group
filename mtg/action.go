@@ -104,6 +104,12 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 			ts := wkr.ProcessOutput(ctx, a)
 			totalTs = append(totalTs, ts...)
 		}
+		for _, t := range totalTs {
+			err = t.check()
+			if err != nil {
+				panic(err)
+			}
+		}
 		grp.writeAction(ctx, a, ActionStateDone, totalTs)
 	}
 	return nil
