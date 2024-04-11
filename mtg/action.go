@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
-	"github.com/MixinNetwork/mixin/logger"
 	"github.com/shopspring/decimal"
 )
 
@@ -112,29 +111,21 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 				panic(err)
 			}
 			t.ActionId = a.OutputId
+			t.Sequence = a.Sequence
+			if a.RestoreSequence > 0 {
+				t.Sequence = a.RestoreSequence
+			}
 			if t.Memo == CompactionTransactionMemo {
 				hasCompaction = true
 			}
 		}
-		if hasCompaction {
-			continue
+		if !hasCompaction {
+			a.ActionState = ActionStateDone
 		}
-		grp.writeAction(ctx, a, ActionStateDone, totalTs)
+		err = grp.store.writeAction(ctx, a, totalTs)
+		if err != nil {
+			panic(err)
+		}
 	}
 	return nil
-}
-
-func (grp *Group) writeAction(ctx context.Context, act *Action, state ActionState, ts []*Transaction) {
-	logger.Verbosef("Group.writeAction(%v, %d)", act, state)
-	switch state {
-	case ActionStateInitial, ActionStateDone:
-	default:
-		panic(state)
-	}
-
-	act.ActionState = state
-	err := grp.store.writeAction(ctx, act, ts)
-	if err != nil {
-		panic(err)
-	}
 }

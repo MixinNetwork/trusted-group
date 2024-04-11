@@ -95,31 +95,6 @@ func (t *Transaction) check() error {
 	return nil
 }
 
-func (grp *Group) buildCompactTransaction(ctx context.Context, source *Transaction, outputs []*Action) error {
-	var total common.Integer
-	traceId := mixin.UniqueConversationID(CompactionTransactionMemo, source.TraceId)
-	for _, out := range outputs {
-		// if out.GroupId != source.GroupId {
-		// 	panic(source)
-		// }
-		total = total.Add(common.NewIntegerFromString(out.Amount.String()))
-		traceId = mixin.UniqueConversationID(traceId, out.OutputId)
-	}
-	newTx := &Transaction{
-		GroupId:   source.GroupId,
-		TraceId:   traceId,
-		State:     TransactionStateInitial,
-		AssetId:   source.AssetId,
-		Receivers: grp.GetMembers(),
-		Threshold: grp.GetThreshold(),
-		Amount:    total.String(),
-		Memo:      CompactionTransactionMemo,
-	}
-	logger.Printf("Group.buildCompactTransaction(%s, %s, %s) => %s\n", source.GroupId, source.TraceId, total, traceId)
-	// TODO write compact tx and delete all initial txs related to the action
-	return grp.writeCompactTansactionOrPanic(ctx, newTx)
-}
-
 func (grp *Group) checkCompactTransaction(ver *common.VersionedTransaction, extra *mixinExtraPack) bool {
 	// FIXME should check the keys with messenger api
 	return ver != nil && extra != nil && extra.M == CompactionTransactionMemo && len(ver.Inputs) == OutputsBatchSize &&
@@ -291,13 +266,6 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 		}
 	}
 	if total.Cmp(target) < 0 {
-		if len(outputs) == OutputsBatchSize {
-			// FIXME with reference
-			err := grp.buildCompactTransaction(ctx, tx, outputs)
-			if err != nil {
-				panic(err)
-			}
-		}
 		return nil, nil, fmt.Errorf("insufficient %d %s %s", len(outputs), total, tx.Amount)
 	}
 

@@ -81,20 +81,18 @@ func (s *SQLite3Store) writeAction(ctx context.Context, a *Action, ts []*Transac
 			}
 		}
 
-		if a.ActionState == ActionStateDone {
-			for _, t := range ts {
-				exist, err := s.checkExistence(ctx, tx, "SELECT trace_id from transactions where trace_id=?", t.TraceId)
-				if err != nil {
-					return err
-				}
-				if exist {
-					continue
-				}
-				t.Sequence = a.Sequence
-				err = s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), t.values()...)
-				if err != nil {
-					return fmt.Errorf("INSERT transactions %v", err)
-				}
+		for _, t := range ts {
+			exist, err := s.checkExistence(ctx, tx, "SELECT trace_id from transactions where trace_id=?", t.TraceId)
+			if err != nil {
+				return err
+			}
+			if exist {
+				continue
+			}
+			t.Sequence = a.Sequence
+			err = s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), t.values()...)
+			if err != nil {
+				return fmt.Errorf("INSERT transactions %v", err)
 			}
 		}
 	}
