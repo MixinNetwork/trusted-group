@@ -44,7 +44,7 @@ func (s *SQLite3Store) readRestorableAction(ctx context.Context, act *Action, ve
 		return nil, nil
 	}
 	hash := ver.References[0].String()
-	query := fmt.Sprintf("SELECT %s FROM actions WHERE action_state=? AND signedTx=? AND transaction_hash", strings.Join(actionCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM actions WHERE action_state=? AND signed_tx=? AND transaction_hash=?", strings.Join(actionCols, ","))
 	row := s.db.QueryRowContext(ctx, query, ActionStateDone, act.TransactionHash, hash)
 	return actionFromRow(row)
 }
@@ -66,7 +66,7 @@ func (s *SQLite3Store) WriteAction(ctx context.Context, a *Action, ts []*Transac
 
 	if old == nil {
 		if len(ts) > 0 {
-			return fmt.Errorf("Write new action with multiple transactions: %d", len(ts))
+			return fmt.Errorf("write new action with multiple transactions: %d", len(ts))
 		}
 		err = s.execOne(ctx, tx, buildInsertionSQL("actions", actionCols), a.values()...)
 		if err != nil {
@@ -116,8 +116,7 @@ func (s *SQLite3Store) RestoreAction(ctx context.Context, a *Action, ver *common
 		return err
 	}
 	if old == nil {
-		reason := fmt.Sprintf("failed to find restore action of %#v", a)
-		panic(reason)
+		return fmt.Errorf("failed to find restore action of %#v %#v", a, ver)
 	}
 
 	err = s.execOne(ctx, tx, "UPDATE actions SET action_state=?, signed_by=?, signed_tx=? WHERE output_id=?", ActionStateInitial, "", "", old.OutputId)
