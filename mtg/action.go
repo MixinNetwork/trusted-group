@@ -104,6 +104,7 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 			ts := wkr.ProcessOutput(ctx, a)
 			totalTs = append(totalTs, ts...)
 		}
+
 		hasCompaction := false
 		for _, t := range totalTs {
 			err = t.check()
@@ -112,11 +113,14 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 			}
 			t.ActionId = a.OutputId
 			t.Sequence = a.Sequence
+
 			if a.RestoreSequence > 0 {
 				t.Sequence = a.RestoreSequence
 			}
 			if t.Memo == CompactionTransactionMemo {
 				hasCompaction = true
+				totalTs = []*Transaction{t}
+				break
 			}
 		}
 		if !hasCompaction {
