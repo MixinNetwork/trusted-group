@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
@@ -49,7 +50,7 @@ func (s *SQLite3Store) readRestorableAction(ctx context.Context, act *Action, ve
 	return actionFromRow(row)
 }
 
-func (s *SQLite3Store) WriteAction(ctx context.Context, a *Action, ts []*Transaction) error {
+func (s *SQLite3Store) writeAction(ctx context.Context, a *Action, ts []*Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -101,7 +102,7 @@ func (s *SQLite3Store) WriteAction(ctx context.Context, a *Action, ts []*Transac
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) RestoreAction(ctx context.Context, a *Action, ver *common.VersionedTransaction) error {
+func (s *SQLite3Store) restoreAction(ctx context.Context, a *Action, ver *common.VersionedTransaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -119,11 +120,12 @@ func (s *SQLite3Store) RestoreAction(ctx context.Context, a *Action, ver *common
 		return fmt.Errorf("failed to find restore action of %#v %#v", a, ver)
 	}
 
-	err = s.execOne(ctx, tx, "UPDATE actions SET action_state=?, signed_by=?, signed_tx=? WHERE output_id=?", ActionStateInitial, "", "", old.OutputId)
+	err = s.execOne(ctx, tx, "UPDATE actions SET action_state=?, signed_by=?, signed_tx=?, restore_sequence=? WHERE output_id=?", ActionStateInitial, "", "", a.Sequence, old.OutputId)
 	if err != nil {
 		return fmt.Errorf("UPDATE actions %v", err)
 	}
 
+	a.ActionState = ActionStateDone
 	err = s.execOne(ctx, tx, buildInsertionSQL("actions", actionCols), a.values()...)
 	if err != nil {
 		return fmt.Errorf("INSERT actions %v", err)
@@ -133,7 +135,7 @@ func (s *SQLite3Store) RestoreAction(ctx context.Context, a *Action, ver *common
 }
 
 func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, tx *Transaction) ([]*Action, error) {
-	query := fmt.Sprintf("SELECT %s FROM actions WHERE trace_id=? AND sequence <= ? ORDER BY sequence ASC", strings.Join(actionCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM actions WHERE trace_id=? AND sequence<=? ORDER BY sequence ASC", strings.Join(actionCols, ","))
 	rows, err := s.db.QueryContext(ctx, query, tx.TraceId, tx.Sequence)
 	if err != nil {
 		return nil, err
@@ -153,7 +155,7 @@ func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, tx *Transa
 }
 
 func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, tx *Transaction, state SafeUtxoState, limit int) ([]*Action, error) {
-	query := fmt.Sprintf("SELECT %s FROM actions WHERE group_id=? AND asset_id=? AND sequence <= ? AND state=? ORDER BY sequence ASC", strings.Join(actionCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM actions WHERE group_id=? AND asset_id=? AND sequence<=? AND state=? ORDER BY sequence ASC", strings.Join(actionCols, ","))
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
@@ -175,8 +177,52 @@ func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, tx *Transaction,
 	return as, nil
 }
 
-func (s *SQLite3Store) SignTxWithOutputs(ctx context.Context, os []*Action, traceId string) error {
-	return nil
+func (s *SQLite3Store) updateTxWithOutputs(ctx context.Context, t *Transaction, os []*Action) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = s.execOne(ctx, tx, "UPDATE transactions SET raw=?, hash=?, state=?, updated_at=? WHERE trace_id=?", t.Raw, t.Hash, t.State, t.UpdatedAt, t.TraceId)
+	if err != nil {
+		return fmt.Errorf("UPDATE transactions %v", err)
+	}
+
+	for _, o := range os {
+		err = s.execOne(ctx, tx, "UPDATE actions SET state=?, signed_by=?, signed_tx=? WHERE output_id=?", o.State, o.SignedBy, o.SignedTx, o.OutputId)
+		if err != nil {
+			return fmt.Errorf("UPDATE actions %v", err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) finishTransaction(ctx context.Context, traceId string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = s.execOne(ctx, tx, "UPDATE transactions SET state=?, updated_at=? WHERE trace_id=?", TransactionStateSnapshot, time.Now(), traceId)
+	if err != nil {
+		return fmt.Errorf("UPDATE transactions %v", err)
+	}
+
+	err = s.execOne(ctx, tx, "UPDATE actions SET state=? WHERE trace_id=?", SafeUtxoStateSpent, traceId)
+	if err != nil {
+		return fmt.Errorf("UPDATE actions %v", err)
+	}
+
+	return tx.Commit()
 }
 
 func (s *SQLite3Store) readIteration(ctx context.Context, id string) (*Iteration, error) {
@@ -287,55 +333,6 @@ func (s *SQLite3Store) resetTransactionOutputs(ctx context.Context, tx *sql.Tx, 
 		return fmt.Errorf("DELETE outputs %v", err)
 	}
 	return err
-}
-
-func (s *SQLite3Store) resetOldTransaction(ctx context.Context, tx *sql.Tx, t *Transaction) (*Transaction, error) {
-	old, err := s.ReadTransactionByTraceId(ctx, t.TraceId)
-	if err != nil || old == nil {
-		return nil, err
-	}
-	switch {
-	case old.State == t.State && old.Hash == t.Hash:
-		return old, nil
-	case t.State > old.State:
-	case old.State == TransactionStateSigning && t.State == TransactionStateInitial:
-		err := s.resetTransactionOutputs(ctx, tx, t.TraceId)
-		if err != nil {
-			return nil, err
-		}
-	case old.State > t.State:
-		panic(old.TraceId)
-	case old.Raw != nil && old.Hash != t.Hash:
-		panic(old.Hash.String())
-	}
-
-	err = s.execOne(ctx, tx, "DELETE FROM transactions WHERE trace_id=?", t.TraceId)
-	if err != nil {
-		return nil, fmt.Errorf("DELETE transactions %v", err)
-	}
-	return nil, err
-}
-
-func (s *SQLite3Store) WriteTransaction(ctx context.Context, t *Transaction) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	old, err := s.resetOldTransaction(ctx, tx, t)
-	if err != nil || old != nil {
-		return err
-	}
-
-	err = s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), t.values()...)
-	if err != nil {
-		return fmt.Errorf("INSERT transactions %v", err)
-	}
-	return tx.Commit()
 }
 
 func (s *SQLite3Store) DeleteTransaction(ctx context.Context, t *Transaction) error {

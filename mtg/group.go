@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -170,7 +171,6 @@ func (grp *Group) ListOutputsForAsset(ctx context.Context, tx *Transaction, stat
 	if err != nil {
 		return nil, err
 	}
-	sort.Slice(outputs, func(i, j int) bool { return outputs[i].CreatedAt.Before(outputs[j].CreatedAt) })
 	return outputs, nil
 }
 
@@ -179,7 +179,6 @@ func (grp *Group) ListOutputsForTransaction(ctx context.Context, tx *Transaction
 	if err != nil {
 		return nil, err
 	}
-	sort.Slice(outputs, func(i, j int) bool { return outputs[i].CreatedAt.Before(outputs[j].CreatedAt) })
 	return outputs, nil
 }
 
@@ -189,11 +188,18 @@ func (grp *Group) signTransactions(ctx context.Context) error {
 		return err
 	}
 
+	skipAction := []string{}
 	for _, tx := range txs {
-		raw, err := grp.signTransaction(ctx, tx)
-		logger.Verbosef("Group.signTransaction(%v) => %s %v", *tx, hex.EncodeToString(raw), err)
+		if slices.Contains(skipAction, tx.ActionId) {
+			continue
+		}
+		raw, skip, err := grp.signTransaction(ctx, tx)
+		logger.Verbosef("Group.signTransaction(%v) => %s %t %v", *tx, hex.EncodeToString(raw), skip, err)
 		if err != nil {
 			continue
+		}
+		if skip {
+			skipAction = append(skipAction, tx.ActionId)
 		}
 	}
 
@@ -212,8 +218,7 @@ func (grp *Group) verifyTransactions(ctx context.Context) error {
 		} else if !snapshot {
 			continue
 		}
-		tx.State = TransactionStateSnapshot
-		grp.writeTansactionOrPanic(ctx, tx)
+		grp.store.finishTransaction(ctx, tx.TraceId)
 	}
 	return nil
 }

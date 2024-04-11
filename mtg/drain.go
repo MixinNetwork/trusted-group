@@ -62,8 +62,7 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 	}
 	ver, extra := decodeTransactionWithExtra(tx.RawTransaction)
 	if grp.checkCompactTransaction(ver, extra) {
-		act.ActionState = ActionStateDone
-		err = grp.store.RestoreAction(ctx, act, ver)
+		err = grp.store.restoreAction(ctx, act, ver)
 		if err != nil {
 			panic(err)
 		}
