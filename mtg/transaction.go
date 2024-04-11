@@ -335,22 +335,33 @@ func DecodeMixinExtra(memo string) *mixinExtraPack {
 	if err != nil {
 		return nil
 	}
-	var p mixinExtraPack
-	err = MsgpackUnmarshal(extra, &p)
-	if err != nil || p.T.String() == uuid.Nil.String() {
+	data, err := base64.RawStdEncoding.DecodeString(string(extra))
+	if err != nil || len(data) < 32 {
 		return nil
 	}
-	return &p
+	gid := uuid.FromBytesOrNil(data[0:16])
+	tid := uuid.FromBytesOrNil(data[16:32])
+	m := string(data[32])
+	return &mixinExtraPack{
+		T: tid,
+		G: gid.String(),
+		M: m,
+	}
 }
 
 func encodeMixinExtra(groupId, traceId, memo string) string {
-	id, err := uuid.FromString(traceId)
+	gid, err := uuid.FromString(groupId)
 	if err != nil {
 		panic(err)
 	}
-	p := &mixinExtraPack{T: id, G: groupId, M: memo}
-	b := MsgpackMarshalPanic(p)
-	s := base64.RawURLEncoding.EncodeToString(b)
+	tid, err := uuid.FromString(traceId)
+	if err != nil {
+		panic(err)
+	}
+	data := gid.Bytes()
+	data = append(data, tid.Bytes()...)
+	data = append(data, []byte(memo)...)
+	s := base64.RawURLEncoding.EncodeToString(data)
 	return s
 }
 
