@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 //go:embed schema.sql

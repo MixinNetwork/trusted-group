@@ -82,7 +82,7 @@ func (a *Action) values() []any {
 	return []any{a.OutputId, a.RequestId, a.TransactionHash, a.OutputIndex, a.AssetId, a.KernelAssetId, a.Amount, a.Mask, a.Keys, a.SendersThreshold, a.Senders, a.ReceiversThreshold, a.Receivers, a.Extra, a.State, a.Sequence, a.CreatedAt, a.UpdatedAt, a.Signers, a.SignedBy, a.TraceId, a.GroupId, a.ActionState, a.SignedTx, a.RestoreSequence}
 }
 
-func actionFromRow(row *sql.Row) (*Action, error) {
+func actionFromRow(row Row) (*Action, error) {
 	var a Action
 	err := row.Scan(&a.OutputId, &a.RequestId, &a.TransactionHash, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.Mask, &a.Keys, &a.SendersThreshold, &a.Senders, &a.ReceiversThreshold, &a.Receivers, &a.Extra, &a.State, &a.Sequence, &a.CreatedAt, &a.UpdatedAt, &a.Signers, &a.SignedBy, &a.TraceId, &a.GroupId, &a.ActionState, &a.SignedTx, &a.RestoreSequence)
 	if err == sql.ErrNoRows {
@@ -94,7 +94,7 @@ func actionFromRow(row *sql.Row) (*Action, error) {
 // actions queue is all the utxos ordered by their created time
 // this queue can only be queried after all utxos are drained from api
 func (grp *Group) handleActionsQueue(ctx context.Context) error {
-	as, err := grp.store.ListActions(ctx, 16)
+	as, err := grp.store.ListActions(ctx, ActionStateInitial, 16)
 	if err != nil {
 		return err
 	}
@@ -107,12 +107,10 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 
 		hasCompaction := false
 		for _, t := range totalTs {
-			err = t.check()
+			err = t.check(ctx)
 			if err != nil {
 				panic(err)
 			}
-			t.ActionId = a.OutputId
-			t.Sequence = a.Sequence
 
 			if a.RestoreSequence > 0 {
 				t.Sequence = a.RestoreSequence

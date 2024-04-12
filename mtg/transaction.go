@@ -47,22 +47,45 @@ type Transaction struct {
 	UpdatedAt  time.Time
 }
 
-var transactionCols = []string{"group_id", "trace_id", "action_id", "state", "asset_id", "receivers", "threshold", "amount", "memo", "raw", "hash", "references", "sequence", "updated_at"}
+var transactionCols = []string{"group_id", "trace_id", "action_id", "state", "asset_id", "receivers", "threshold", "amount", "memo", "raw", "hash", "refs", "sequence", "updated_at"}
 
 func (t *Transaction) values() []any {
-	return []any{t.GroupId, t.TraceId, t.ActionId, t.State, t.AssetId, t.Receivers, t.Threshold, t.Amount, t.Memo, t.Raw, t.Hash, t.References, t.Sequence, t.UpdatedAt}
+	var refs []string
+	for _, r := range t.References {
+		refs = append(refs, r.String())
+	}
+	return []any{t.GroupId, t.TraceId, t.ActionId, t.State, t.AssetId, strings.Join(t.Receivers, ","), t.Threshold, t.Amount, t.Memo, t.Raw, t.Hash.String(), strings.Join(refs, ","), t.Sequence, t.UpdatedAt}
 }
 
-func transactionFromRow(row *sql.Row) (*Transaction, error) {
+func transactionFromRow(row Row) (*Transaction, error) {
 	var t Transaction
-	err := row.Scan(&t.GroupId, &t.TraceId, &t.ActionId, &t.State, &t.AssetId, &t.Receivers, &t.Threshold, &t.Amount, &t.Memo, &t.Raw, &t.Hash, &t.References, &t.Sequence, &t.UpdatedAt)
+	var hash, rs, refs string
+	err := row.Scan(&t.GroupId, &t.TraceId, &t.ActionId, &t.State, &t.AssetId, &rs, &t.Threshold, &t.Amount, &t.Memo, &t.Raw, &hash, &refs, &t.Sequence, &t.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
+	}
+
+	h, err := crypto.HashFromString(hash)
+	if err != nil {
+		return nil, err
+	}
+	t.Hash = h
+
+	t.Receivers = strings.Split(rs, ",")
+	for _, r := range strings.Split(refs, ",") {
+		if r == "" {
+			continue
+		}
+		ref, err := crypto.HashFromString(r)
+		if err != nil {
+			return nil, err
+		}
+		t.References = append(t.References, ref)
 	}
 	return &t, err
 }
 
-func (t *Transaction) check() error {
+func (t *Transaction) check(ctx context.Context) error {
 	if len(t.References) > 2 {
 		return fmt.Errorf("invalid references length: %d", len(t.References))
 	}
@@ -81,6 +104,9 @@ func (t *Transaction) check() error {
 	}
 
 	for _, r := range t.Receivers {
+		if CheckTestEnvironment(ctx) {
+			continue
+		}
 		id, _ := uuid.FromString(r)
 		if id.String() == uuid.Nil.String() {
 			return fmt.Errorf("invalid receiver %s", r)
@@ -200,7 +226,7 @@ func (grp *Group) createMultisigUntilSufficient(ctx context.Context, id, raw str
 }
 
 func (grp *Group) signMultisigUntilSufficient(ctx context.Context, input *mixin.SafeTransactionRequest) (*mixin.SafeTransactionRequest, error) {
-	key, err := mixinnet.KeyFromString(grp.SpendPrivateKey)
+	key, err := mixinnet.KeyFromString(grp.spendPrivateKey)
 	if err != nil {
 		return nil, err
 	}
@@ -269,17 +295,32 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 		return nil, nil, fmt.Errorf("insufficient %d %s %s", len(outputs), total, tx.Amount)
 	}
 
-	keys, err := grp.mixin.SafeCreateGhostKeys(ctx, []*mixin.GhostInput{{
-		Receivers: tx.Receivers,
-		Index:     0,
-		Hint:      tx.TraceId,
-	}, {
-		Receivers: grp.members,
-		Index:     1,
-		Hint:      tx.TraceId,
-	}})
-	if err != nil {
-		return nil, nil, err
+	var keys []*mixin.GhostKeys
+	if CheckTestEnvironment(ctx) {
+		key1, err := testGetGhostKeys(tx, 0)
+		if err != nil {
+			return nil, nil, err
+		}
+		key2, err := testGetGhostKeys(tx, 0)
+		if err != nil {
+			return nil, nil, err
+		}
+		keys = append(keys, key1)
+		keys = append(keys, key2)
+	} else {
+		ks, err := grp.mixin.SafeCreateGhostKeys(ctx, []*mixin.GhostInput{{
+			Receivers: tx.Receivers,
+			Index:     0,
+			Hint:      tx.TraceId,
+		}, {
+			Receivers: grp.members,
+			Index:     1,
+			Hint:      tx.TraceId,
+		}})
+		if err != nil {
+			return nil, nil, err
+		}
+		keys = ks
 	}
 
 	amount, err := decimal.NewFromString(tx.Amount)
@@ -350,9 +391,13 @@ func DecodeMixinExtra(memo string) *mixinExtraPack {
 }
 
 func encodeMixinExtra(groupId, traceId, memo string) string {
-	gid, err := uuid.FromString(groupId)
-	if err != nil {
-		panic(err)
+	var gid uuid.UUID
+	var err error
+	if groupId != "" {
+		gid, err = uuid.FromString(groupId)
+		if err != nil {
+			panic(err)
+		}
 	}
 	tid, err := uuid.FromString(traceId)
 	if err != nil {
@@ -385,4 +430,29 @@ func newCommonOutput(out *mixinnet.Output) *common.Output {
 		cout.Keys = append(cout.Keys, &ck)
 	}
 	return cout
+}
+
+func testGetGhostKeys(tx *Transaction, index int) (*mixin.GhostKeys, error) {
+	k := &mixin.GhostKeys{}
+	for _, r := range tx.Receivers {
+		id := mixin.UniqueConversationID(r, tx.TraceId)
+		id = mixin.UniqueConversationID(id, fmt.Sprint(index))
+		bs := uuid.FromStringOrNil(id).Bytes()
+		bs = append(bs, bs...)
+		key, err := mixinnet.KeyFromSeed(hex.EncodeToString(bs))
+		if err != nil {
+			return nil, err
+		}
+		k.Keys = append(k.Keys, key)
+	}
+
+	id := mixin.UniqueConversationID(tx.TraceId, fmt.Sprint(index))
+	bs := uuid.FromStringOrNil(id).Bytes()
+	bs = append(bs, bs...)
+	m, err := mixinnet.KeyFromSeed(hex.EncodeToString(bs))
+	if err != nil {
+		return nil, err
+	}
+	k.Mask = m
+	return k, nil
 }

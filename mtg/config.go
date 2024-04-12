@@ -8,11 +8,11 @@ import (
 
 type Configuration struct {
 	App struct {
-		AppId             string `toml:"app_id"`
-		SessionId         string `toml:"session_id"`
-		SessionPrivateKey string `toml:"session_private_key"`
-		ServerPublicKey   string `toml:"server_public_key"`
-		SpendPrivateKey   string `toml:"spend_private_key"`
+		AppId             string `toml:"app-id"`
+		SessionId         string `toml:"session-id"`
+		SessionPrivateKey string `toml:"session-private-key"`
+		ServerPublicKey   string `toml:"server-public-key"`
+		SpendPrivateKey   string `toml:"spend-private-key"`
 	} `toml:"app"`
 	Genesis struct {
 		Members   []string `toml:"members"`

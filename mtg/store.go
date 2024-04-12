@@ -2,7 +2,6 @@ package mtg
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -11,12 +10,12 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 )
 
-func (s *SQLite3Store) ListActions(ctx context.Context, limit int) ([]*Action, error) {
-	query := fmt.Sprintf("SELECT %s FROM actions WHERE state=? ORDER BY sequence ASC", strings.Join(actionCols, ","))
+func (s *SQLite3Store) ListActions(ctx context.Context, state ActionState, limit int) ([]*Action, error) {
+	query := fmt.Sprintf("SELECT %s FROM actions WHERE action_state=? ORDER BY sequence ASC", strings.Join(actionCols, ","))
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
-	rows, err := s.db.QueryContext(ctx, query, ActionStateInitial)
+	rows, err := s.db.QueryContext(ctx, query, state)
 	if err != nil {
 		return nil, err
 	}
@@ -24,19 +23,18 @@ func (s *SQLite3Store) ListActions(ctx context.Context, limit int) ([]*Action, e
 
 	var as []*Action
 	for rows.Next() {
-		var a Action
-		err := rows.Scan(&a.OutputId, &a.RequestId, &a.TransactionHash, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.Mask, &a.Keys, &a.SendersThreshold, &a.Senders, &a.ReceiversThreshold, &a.Receivers, &a.Extra, &a.State, &a.Sequence, &a.CreatedAt, &a.UpdatedAt, &a.Signers, &a.SignedBy, &a.TraceId, &a.GroupId, &a.ActionState)
+		a, err := actionFromRow(rows)
 		if err != nil {
 			return nil, err
 		}
-		as = append(as, &a)
+		as = append(as, a)
 	}
 	return as, nil
 }
 
-func (s *SQLite3Store) readAction(ctx context.Context, id string, state ActionState) (*Action, error) {
-	query := fmt.Sprintf("SELECT %s FROM actions WHERE output_id=? AND action_state=?", strings.Join(actionCols, ","))
-	row := s.db.QueryRowContext(ctx, query, id, state)
+func (s *SQLite3Store) readAction(ctx context.Context, id string) (*Action, error) {
+	query := fmt.Sprintf("SELECT %s FROM actions WHERE output_id=?", strings.Join(actionCols, ","))
+	row := s.db.QueryRowContext(ctx, query, id)
 	return actionFromRow(row)
 }
 
@@ -60,7 +58,7 @@ func (s *SQLite3Store) writeAction(ctx context.Context, a *Action, ts []*Transac
 	}
 	defer tx.Rollback()
 
-	old, err := s.readAction(ctx, a.OutputId, a.ActionState)
+	old, err := s.readAction(ctx, a.OutputId)
 	if err != nil {
 		return err
 	}
@@ -89,6 +87,8 @@ func (s *SQLite3Store) writeAction(ctx context.Context, a *Action, ts []*Transac
 			if exist {
 				continue
 			}
+			t.State = TransactionStateInitial
+			t.ActionId = a.OutputId
 			t.Sequence = a.Sequence
 			err = s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), t.values()...)
 			if err != nil {
@@ -142,12 +142,11 @@ func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, tx *Transa
 
 	var as []*Action
 	for rows.Next() {
-		var a Action
-		err := rows.Scan(&a.OutputId, &a.RequestId, &a.TransactionHash, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.Mask, &a.Keys, &a.SendersThreshold, &a.Senders, &a.ReceiversThreshold, &a.Receivers, &a.Extra, &a.State, &a.Sequence, &a.CreatedAt, &a.UpdatedAt, &a.Signers, &a.SignedBy, &a.TraceId, &a.GroupId, &a.ActionState)
+		a, err := actionFromRow(rows)
 		if err != nil {
 			return nil, err
 		}
-		as = append(as, &a)
+		as = append(as, a)
 	}
 	return as, nil
 }
@@ -165,12 +164,11 @@ func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, tx *Transaction,
 
 	var as []*Action
 	for rows.Next() {
-		var a Action
-		err := rows.Scan(&a.OutputId, &a.RequestId, &a.TransactionHash, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.Mask, &a.Keys, &a.SendersThreshold, &a.Senders, &a.ReceiversThreshold, &a.Receivers, &a.Extra, &a.State, &a.Sequence, &a.CreatedAt, &a.UpdatedAt, &a.Signers, &a.SignedBy, &a.TraceId, &a.GroupId, &a.ActionState)
+		a, err := actionFromRow(rows)
 		if err != nil {
 			return nil, err
 		}
-		as = append(as, &a)
+		as = append(as, a)
 	}
 	return as, nil
 }
@@ -239,12 +237,11 @@ func (s *SQLite3Store) ListIterations(ctx context.Context) ([]*Iteration, error)
 
 	var irs []*Iteration
 	for rows.Next() {
-		var i Iteration
-		err := rows.Scan(&i.Action, &i.NodeId, &i.Threshold, &i.CreatedAt)
+		i, err := iterationFromRow(rows)
 		if err != nil {
 			return nil, err
 		}
-		irs = append(irs, &i)
+		irs = append(irs, i)
 	}
 	return irs, nil
 }
@@ -291,7 +288,7 @@ func (s *SQLite3Store) WriteIteration(ctx context.Context, ir *Iteration) error 
 }
 
 func (s *SQLite3Store) ListTransactions(ctx context.Context, state, limit int) ([]*Transaction, error) {
-	query := fmt.Sprintf("SELECT %s FROM transactions where state=? ORDER BY sequence ASC", strings.Join(iterationCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM transactions where state=? ORDER BY sequence ASC", strings.Join(transactionCols, ","))
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
@@ -303,12 +300,11 @@ func (s *SQLite3Store) ListTransactions(ctx context.Context, state, limit int) (
 
 	var ts []*Transaction
 	for rows.Next() {
-		var t Transaction
-		err := rows.Scan(&t.GroupId, &t.TraceId, &t.State, &t.AssetId, &t.Receivers, &t.Threshold, &t.Amount, &t.Memo, &t.Raw, &t.Hash, &t.References, &t.UpdatedAt)
+		t, err := transactionFromRow(rows)
 		if err != nil {
 			return nil, err
 		}
-		ts = append(ts, &t)
+		ts = append(ts, t)
 	}
 	return ts, nil
 }
@@ -325,32 +321,6 @@ func (s *SQLite3Store) ReadTransactionByHash(ctx context.Context, hash crypto.Ha
 	return transactionFromRow(row)
 }
 
-func (s *SQLite3Store) resetTransactionOutputs(ctx context.Context, tx *sql.Tx, traceId string) error {
-	err := s.execOne(ctx, tx, "DELETE FROM outputs WHERE trace_id=?", traceId)
-	if err != nil {
-		return fmt.Errorf("DELETE outputs %v", err)
-	}
-	return err
-}
-
-func (s *SQLite3Store) DeleteTransaction(ctx context.Context, t *Transaction) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	err = s.resetTransactionOutputs(ctx, tx, t.TraceId)
-	if err != nil {
-		return err
-	}
-
-	err = s.execOne(ctx, tx, "DELETE FROM transactions WHERE trace_id=?", t.TraceId)
-	if err != nil {
-		return fmt.Errorf("DELETE transactions %v", err)
-	}
-	return tx.Commit()
+type Row interface {
+	Scan(dest ...any) error
 }

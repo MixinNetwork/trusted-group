@@ -13,6 +13,7 @@ import (
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
+	"github.com/shopspring/decimal"
 )
 
 const (
@@ -36,10 +37,10 @@ type Group struct {
 	members         []string
 	threshold       int
 	epoch           uint64
-	SpendPrivateKey string
+	spendPrivateKey string
 }
 
-func BuildGroup(ctx context.Context, conf *Configuration) (*Group, error) {
+func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (*Group, error) {
 	if cg := conf.Genesis; len(cg.Members) < cg.Threshold || cg.Threshold < 1 {
 		return nil, fmt.Errorf("invalid group threshold %d %d", len(cg.Members), cg.Threshold)
 	}
@@ -47,30 +48,27 @@ func BuildGroup(ctx context.Context, conf *Configuration) (*Group, error) {
 		return nil, fmt.Errorf("app %s not belongs to the group", conf.App.AppId)
 	}
 
-	client, err := mixin.NewFromKeystore(&mixin.Keystore{
-		AppID:             conf.App.AppId,
-		SessionID:         conf.App.SessionId,
-		SessionPrivateKey: conf.App.SessionPrivateKey,
-		ServerPublicKey:   conf.App.ServerPublicKey,
-	})
-	if err != nil {
-		return nil, err
+	var client *mixin.Client
+	if !CheckTestEnvironment(ctx) {
+		client, err := mixin.NewFromKeystore(&mixin.Keystore{
+			AppID:             conf.App.AppId,
+			SessionID:         conf.App.SessionId,
+			SessionPrivateKey: conf.App.SessionPrivateKey,
+			ServerPublicKey:   conf.App.ServerPublicKey,
+		})
+		if err != nil {
+			return nil, err
+		}
+		_, err = client.UserMe(ctx)
+		if err != nil {
+			return nil, err
+		}
 	}
-	_, err = client.UserMe(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	store, err := OpenSQLite3Store(conf.StoreDir + "/mtg.sqlite3")
-	if err != nil {
-		return nil, err
-	}
-	defer store.Close()
 
 	grp := &Group{
 		mixin:           client,
 		store:           store,
-		SpendPrivateKey: conf.App.SpendPrivateKey,
+		spendPrivateKey: conf.App.SpendPrivateKey,
 		id:              generateGenesisId(conf),
 		groupSize:       conf.GroupSize,
 		waitDuration:    time.Duration(conf.LoopWaitDuration),
@@ -182,6 +180,32 @@ func (grp *Group) ListOutputsForTransaction(ctx context.Context, tx *Transaction
 	return outputs, nil
 }
 
+func (grp *Group) GetBalanceForTransaction(ctx context.Context, tx *Transaction) (*decimal.Decimal, error) {
+	os, err := grp.store.ListOutputsForAsset(ctx, tx, SafeUtxoStateUnspent, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	total := decimal.NewFromInt(0)
+	compaction := decimal.NewFromInt(0)
+	for i, o := range os {
+		total = total.Add(o.Amount)
+		if i+1 == OutputsBatchSize {
+			compaction = total
+		}
+	}
+
+	amt, err := decimal.NewFromString(tx.Amount)
+	if err != nil {
+		return nil, err
+	}
+	if total.Cmp(amt) >= 0 {
+		compaction = decimal.NewFromInt(0)
+	}
+
+	return &compaction, nil
+}
+
 func (grp *Group) signTransactions(ctx context.Context) error {
 	txs, err := grp.store.ListTransactions(ctx, TransactionStateInitial, 0)
 	if err != nil {
@@ -233,14 +257,6 @@ func (grp *Group) snapshotTransaction(ctx context.Context, tx crypto.Hash) (bool
 		return false, err
 	}
 	return true, nil
-}
-
-func (grp *Group) writeTansactionOrPanic(ctx context.Context, tx *Transaction) {
-
-}
-
-func (grp *Group) writeCompactTansactionOrPanic(ctx context.Context, tx *Transaction) error {
-	return nil
 }
 
 func generateGenesisId(conf *Configuration) string {

@@ -26,7 +26,7 @@ func (i *Iteration) values() []any {
 	return []any{i.Action, i.NodeId, i.Threshold, i.CreatedAt}
 }
 
-func iterationFromRow(row *sql.Row) (*Iteration, error) {
+func iterationFromRow(row Row) (*Iteration, error) {
 	var i Iteration
 	err := row.Scan(&i.Action, &i.NodeId, &i.Threshold, &i.CreatedAt)
 	if err == sql.ErrNoRows {
