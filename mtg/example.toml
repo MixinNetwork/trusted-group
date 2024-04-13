@@ -1,4 +1,4 @@
-store-dir = "/tmp/mtg"
+store-dir = "/tmp"
 
 [app]
 app-id = "member-id-0"

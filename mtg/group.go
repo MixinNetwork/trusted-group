@@ -180,7 +180,7 @@ func (grp *Group) ListOutputsForTransaction(ctx context.Context, tx *Transaction
 	return outputs, nil
 }
 
-func (grp *Group) GetBalanceForTransaction(ctx context.Context, tx *Transaction) (*decimal.Decimal, error) {
+func (grp *Group) CheckBalanceForTransaction(ctx context.Context, tx *Transaction) (*decimal.Decimal, error) {
 	os, err := grp.store.ListOutputsForAsset(ctx, tx.GroupId, tx.AssetId, tx.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
 	if err != nil {
 		return nil, err

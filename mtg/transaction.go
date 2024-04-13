@@ -167,7 +167,6 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	if len(outputs) == 0 {
 		return nil, fmt.Errorf("empty outputs %s", tx.Amount)
 	}
-	// FIXME do more compatcion transaction check
 	if tx.Compaction && len(outputs) < OutputsBatchSize {
 		return nil, fmt.Errorf("insufficient compaction transaction outputs %v %d", tx, len(outputs))
 	}
@@ -177,7 +176,6 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	if err != nil {
 		return nil, err
 	}
-	// FIXME do more compatcion transaction check
 	if tx.Compaction && len(ver.Outputs) != 1 {
 		return nil, fmt.Errorf("expired compaction transaction %v", tx)
 	}
@@ -394,7 +392,7 @@ func DecodeMixinExtra(memo string) (string, string, string) {
 	}
 	gid := uuid.FromBytesOrNil(data[0:16])
 	tid := uuid.FromBytesOrNil(data[16:32])
-	m := string(data[32])
+	m := string(data[32:])
 	return gid.String(), tid.String(), m
 }
 

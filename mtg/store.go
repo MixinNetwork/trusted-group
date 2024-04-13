@@ -43,8 +43,8 @@ func (s *SQLite3Store) readRestorableAction(ctx context.Context, act *Action, t 
 		return nil, nil
 	}
 	hash := t.References[0].String()
-	query := fmt.Sprintf("SELECT %s FROM actions WHERE action_state=? AND signed_tx=? AND transaction_hash=?", strings.Join(actionCols, ","))
-	row := s.db.QueryRowContext(ctx, query, ActionStateRrestorable, act.TransactionHash, hash)
+	query := fmt.Sprintf("SELECT %s FROM actions WHERE action_state=? AND transaction_hash=?", strings.Join(actionCols, ","))
+	row := s.db.QueryRowContext(ctx, query, ActionStateRrestorable, hash)
 	return actionFromRow(row)
 }
 
