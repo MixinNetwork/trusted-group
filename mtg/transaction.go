@@ -230,6 +230,41 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	return rb, nil
 }
 
+func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transaction) ([]*mixin.GhostKeys, error) {
+	if CheckTestEnvironment(ctx) {
+		var keys []*mixin.GhostKeys
+		key1, err := testGetGhostKeys(tx, 0)
+		if err != nil {
+			return nil, err
+		}
+		key2, err := testGetGhostKeys(tx, 0)
+		if err != nil {
+			return nil, err
+		}
+		keys = append(keys, key1)
+		keys = append(keys, key2)
+		return keys, nil
+	}
+
+	for {
+		keys, err := grp.mixin.SafeCreateGhostKeys(ctx, []*mixin.GhostInput{{
+			Receivers: tx.Receivers,
+			Index:     0,
+			Hint:      tx.TraceId,
+		}, {
+			Receivers: grp.members,
+			Index:     1,
+			Hint:      tx.TraceId,
+		}})
+		logger.Verbosef("group.SafeCreateGhostKeys(%v) => %v %v\n", tx, keys, err)
+		if err != nil && checkRetryableError(err) {
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		return keys, err
+	}
+}
+
 func (grp *Group) createMultisigUntilSufficient(ctx context.Context, id, raw string) (*mixin.SafeTransactionRequest, error) {
 	for {
 		req, err := grp.mixin.SafeCreateTransactionRequest(ctx, &mixin.SafeTransactionRequestInput{
@@ -315,32 +350,9 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 		return nil, nil, fmt.Errorf("insufficient %d %s %s", len(outputs), total, tx.Amount)
 	}
 
-	var keys []*mixin.GhostKeys
-	if CheckTestEnvironment(ctx) {
-		key1, err := testGetGhostKeys(tx, 0)
-		if err != nil {
-			return nil, nil, err
-		}
-		key2, err := testGetGhostKeys(tx, 0)
-		if err != nil {
-			return nil, nil, err
-		}
-		keys = append(keys, key1)
-		keys = append(keys, key2)
-	} else {
-		ks, err := grp.mixin.SafeCreateGhostKeys(ctx, []*mixin.GhostInput{{
-			Receivers: tx.Receivers,
-			Index:     0,
-			Hint:      tx.TraceId,
-		}, {
-			Receivers: grp.members,
-			Index:     1,
-			Hint:      tx.TraceId,
-		}})
-		if err != nil {
-			return nil, nil, err
-		}
-		keys = ks
+	keys, err := grp.createGhostKeysUntilSufficient(ctx, tx)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	amount, err := decimal.NewFromString(tx.Amount)
