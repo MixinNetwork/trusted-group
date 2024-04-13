@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   hash                 VARCHAR,
   refs                 VARCHAR NOT NULL,
   sequence             INTEGER NOT NULL,
+  compaction           BOOLEAN NOT NULL,
   updated_at           TIMESTAMP NOT NULL,
   PRIMARY KEY ('trace_id')
 );
