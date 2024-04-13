@@ -33,7 +33,6 @@ const (
 type Transaction struct {
 	GroupId    string
 	TraceId    string
-	ActionId   string
 	State      int
 	AssetId    string
 	Receivers  []string
@@ -44,23 +43,24 @@ type Transaction struct {
 	Hash       crypto.Hash
 	References []crypto.Hash
 	Sequence   uint64
+	Compaction bool
 	UpdatedAt  time.Time
 }
 
-var transactionCols = []string{"group_id", "trace_id", "action_id", "state", "asset_id", "receivers", "threshold", "amount", "memo", "raw", "hash", "refs", "sequence", "updated_at"}
+var transactionCols = []string{"group_id", "trace_id", "state", "asset_id", "receivers", "threshold", "amount", "memo", "raw", "hash", "refs", "sequence", "compaction", "updated_at"}
 
 func (t *Transaction) values() []any {
 	var refs []string
 	for _, r := range t.References {
 		refs = append(refs, r.String())
 	}
-	return []any{t.GroupId, t.TraceId, t.ActionId, t.State, t.AssetId, strings.Join(t.Receivers, ","), t.Threshold, t.Amount, t.Memo, t.Raw, t.Hash.String(), strings.Join(refs, ","), t.Sequence, t.UpdatedAt}
+	return []any{t.GroupId, t.TraceId, t.State, t.AssetId, strings.Join(t.Receivers, ","), t.Threshold, t.Amount, t.Memo, t.Raw, t.Hash.String(), strings.Join(refs, ","), t.Sequence, t.Compaction, t.UpdatedAt}
 }
 
 func transactionFromRow(row Row) (*Transaction, error) {
 	var t Transaction
 	var hash, rs, refs string
-	err := row.Scan(&t.GroupId, &t.TraceId, &t.ActionId, &t.State, &t.AssetId, &rs, &t.Threshold, &t.Amount, &t.Memo, &t.Raw, &hash, &refs, &t.Sequence, &t.UpdatedAt)
+	err := row.Scan(&t.GroupId, &t.TraceId, &t.State, &t.AssetId, &rs, &t.Threshold, &t.Amount, &t.Memo, &t.Raw, &hash, &refs, &t.Sequence, &t.Compaction, &t.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -121,58 +121,79 @@ func (t *Transaction) check(ctx context.Context) error {
 	return nil
 }
 
-func (grp *Group) checkCompactTransaction(ver *common.VersionedTransaction, extra *mixinExtraPack) bool {
-	// FIXME should check the keys with messenger api
-	return ver != nil && extra != nil && extra.M == CompactionTransactionMemo && len(ver.Inputs) == OutputsBatchSize &&
-		len(ver.Outputs) == 1 && len(ver.Outputs[0].Keys) == len(grp.GetMembers()) &&
-		ver.Outputs[0].Script.String() == common.NewThresholdScript(uint8(grp.GetThreshold())).String()
+func (grp *Group) buildCompactionTransaction(ctx context.Context, asset string, act *Action) (*Transaction, error) {
+	compaction, err := grp.ListOutputsForAsset(ctx, act.GroupId, asset, act.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
+	if err != nil {
+		return nil, err
+	}
+	total := decimal.NewFromInt(0)
+	for _, out := range compaction {
+		total = total.Add(out.Amount)
+	}
+
+	groupId, _, _ := DecodeMixinExtra(act.Extra)
+	hash, err := crypto.HashFromString(act.TransactionHash)
+	if err != nil {
+		return nil, err
+	}
+
+	tx := &Transaction{
+		TraceId:    mixin.UniqueConversationID(act.OutputId, "compaction"),
+		GroupId:    groupId,
+		State:      TransactionStateInitial,
+		AssetId:    asset,
+		Receivers:  grp.GetMembers(),
+		Threshold:  grp.GetThreshold(),
+		Amount:     total.String(),
+		Memo:       "",
+		References: []crypto.Hash{hash},
+		Compaction: true,
+		Sequence:   act.RestoreSequence,
+	}
+	return tx, nil
 }
 
-func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte, bool, error) {
+func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte, error) {
 	outputs, err := grp.ListOutputsForTransaction(ctx, tx)
 	if err != nil {
 		panic(err)
 	}
 	if len(outputs) == 0 {
-		outputs, err = grp.ListOutputsForAsset(ctx, tx, SafeUtxoStateUnspent, OutputsBatchSize)
+		outputs, err = grp.ListOutputsForAsset(ctx, tx.GroupId, tx.AssetId, tx.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
 	}
 	if err != nil {
 		panic(err)
 	}
 	logger.Verbosef("group.ListOutputsForTransaction(%s) => %d %v\n", tx.TraceId, len(outputs), err)
 	if len(outputs) == 0 {
-		return nil, false, fmt.Errorf("empty outputs %s", tx.Amount)
+		return nil, fmt.Errorf("empty outputs %s", tx.Amount)
 	}
 	// FIXME do more compatcion transaction check
 	if len(outputs) < OutputsBatchSize && tx.Memo == CompactionTransactionMemo {
-		return nil, false, fmt.Errorf("insufficient compaction transaction outputs %v %d", tx, len(outputs))
+		return nil, fmt.Errorf("insufficient compaction transaction outputs %v %d", tx, len(outputs))
 	}
 
 	ver, outputs, err := grp.buildRawTransaction(ctx, tx, outputs)
 	logger.Verbosef("group.buildRawTransaction(%v) => %v %d %v\n", tx, ver, len(outputs), err)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	// FIXME do more compatcion transaction check
 	if len(ver.Outputs) != 1 && tx.Memo == CompactionTransactionMemo {
-		return nil, false, fmt.Errorf("expired compaction transaction %v", tx)
+		return nil, fmt.Errorf("expired compaction transaction %v", tx)
 	}
 	if ver.AggregatedSignature != nil || len(ver.SignaturesMap) > 0 {
-		return ver.Marshal(), false, nil
-	}
-	isCompaction := false
-	if tx.Memo == CompactionTransactionMemo {
-		isCompaction = true
+		return ver.Marshal(), nil
 	}
 
 	raw := hex.EncodeToString(ver.Marshal())
 	req, err := grp.createMultisigUntilSufficient(ctx, tx.TraceId, raw)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	req, err = grp.signMultisigUntilSufficient(ctx, req)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
 	for _, out := range outputs {
@@ -183,7 +204,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 
 	rb, err := hex.DecodeString(req.RawTransaction)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	ver, _ = common.UnmarshalVersionedTransaction(rb)
 	tx.Raw = rb
@@ -194,11 +215,11 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	if ver.AggregatedSignature != nil || len(ver.SignaturesMap) > 0 {
 		tx.State = TransactionStateSigned
 	} else {
-		p := DecodeMixinExtra(string(ver.Extra))
-		if p.T.String() != tx.TraceId {
+		t, g, _ := DecodeMixinExtra(string(ver.Extra))
+		if t != tx.TraceId {
 			panic(hex.EncodeToString(rb))
 		}
-		if p.G != tx.GroupId {
+		if g != tx.GroupId {
 			panic(hex.EncodeToString(rb))
 		}
 	}
@@ -207,7 +228,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	if err != nil {
 		panic(err)
 	}
-	return rb, isCompaction, nil
+	return rb, nil
 }
 
 func (grp *Group) createMultisigUntilSufficient(ctx context.Context, id, raw string) (*mixin.SafeTransactionRequest, error) {
@@ -269,7 +290,7 @@ func checkRetryableError(err error) bool {
 }
 
 func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outputs []*Action) (*common.VersionedTransaction, []*Action, error) {
-	old, _ := decodeTransactionWithExtra(outputs[0].SignedTx)
+	old := decodeTransaction(outputs[0].SignedTx)
 	if old != nil && (old.AggregatedSignature != nil || len(old.SignaturesMap) > 0) {
 		return old, nil, nil
 	}
@@ -351,43 +372,31 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 	return ver.AsVersioned(), consumed, nil
 }
 
-// all the transactions sent by the MTG is encoded by base64(msgpack(mep))
-type mixinExtraPack struct {
-	T uuid.UUID
-	G string `msgpack:",omitempty"`
-	M string `msgpack:",omitempty"`
-}
-
-func decodeTransactionWithExtra(s string) (*common.VersionedTransaction, *mixinExtraPack) {
+func decodeTransaction(s string) *common.VersionedTransaction {
 	raw, err := hex.DecodeString(s)
 	if err != nil {
-		return nil, nil
+		return nil
 	}
 	tx, err := common.UnmarshalVersionedTransaction(raw)
 	if err != nil {
-		return nil, nil
+		return nil
 	}
-	p := DecodeMixinExtra(string(tx.Extra))
-	return tx, p
+	return tx
 }
 
-func DecodeMixinExtra(memo string) *mixinExtraPack {
+func DecodeMixinExtra(memo string) (string, string, string) {
 	extra, err := hex.DecodeString(memo)
 	if err != nil {
-		return nil
+		return "", "", ""
 	}
 	data, err := base64.RawStdEncoding.DecodeString(string(extra))
 	if err != nil || len(data) < 32 {
-		return nil
+		return "", "", ""
 	}
 	gid := uuid.FromBytesOrNil(data[0:16])
 	tid := uuid.FromBytesOrNil(data[16:32])
 	m := string(data[32])
-	return &mixinExtraPack{
-		T: tid,
-		G: gid.String(),
-		M: m,
-	}
+	return gid.String(), tid.String(), m
 }
 
 func encodeMixinExtra(groupId, traceId, memo string) string {

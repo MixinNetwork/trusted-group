@@ -2,11 +2,11 @@ package mtg
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 )
 
@@ -38,13 +38,13 @@ func (s *SQLite3Store) readAction(ctx context.Context, id string) (*Action, erro
 	return actionFromRow(row)
 }
 
-func (s *SQLite3Store) readRestorableAction(ctx context.Context, act *Action, ver *common.VersionedTransaction) (*Action, error) {
-	if len(ver.References) != 1 {
+func (s *SQLite3Store) readRestorableAction(ctx context.Context, act *Action, t *Transaction) (*Action, error) {
+	if len(t.References) != 1 {
 		return nil, nil
 	}
-	hash := ver.References[0].String()
+	hash := t.References[0].String()
 	query := fmt.Sprintf("SELECT %s FROM actions WHERE action_state=? AND signed_tx=? AND transaction_hash=?", strings.Join(actionCols, ","))
-	row := s.db.QueryRowContext(ctx, query, ActionStateDone, act.TransactionHash, hash)
+	row := s.db.QueryRowContext(ctx, query, ActionStateRrestorable, act.TransactionHash, hash)
 	return actionFromRow(row)
 }
 
@@ -88,7 +88,6 @@ func (s *SQLite3Store) writeAction(ctx context.Context, a *Action, ts []*Transac
 				continue
 			}
 			t.State = TransactionStateInitial
-			t.ActionId = a.OutputId
 			t.Sequence = a.Sequence
 			err = s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), t.values()...)
 			if err != nil {
@@ -100,7 +99,7 @@ func (s *SQLite3Store) writeAction(ctx context.Context, a *Action, ts []*Transac
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) restoreAction(ctx context.Context, a *Action, ver *common.VersionedTransaction) error {
+func (s *SQLite3Store) restoreAction(ctx context.Context, a *Action, t *Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -110,12 +109,12 @@ func (s *SQLite3Store) restoreAction(ctx context.Context, a *Action, ver *common
 	}
 	defer tx.Rollback()
 
-	old, err := s.readRestorableAction(ctx, a, ver)
+	old, err := s.readRestorableAction(ctx, a, t)
 	if err != nil {
 		return err
 	}
 	if old == nil {
-		return fmt.Errorf("failed to find restore action of %#v %#v", a, ver)
+		return fmt.Errorf("failed to find restore action of %#v %#v", a, t)
 	}
 
 	err = s.execOne(ctx, tx, "UPDATE actions SET action_state=?, signed_by=?, signed_tx=?, restore_sequence=? WHERE output_id=?", ActionStateInitial, "", "", a.Sequence, old.OutputId)
@@ -151,12 +150,12 @@ func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, tx *Transa
 	return as, nil
 }
 
-func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, tx *Transaction, state SafeUtxoState, limit int) ([]*Action, error) {
+func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, groupId, assetId string, sequence uint64, state SafeUtxoState, limit int) ([]*Action, error) {
 	query := fmt.Sprintf("SELECT %s FROM actions WHERE group_id=? AND asset_id=? AND sequence<=? AND state=? ORDER BY sequence ASC", strings.Join(actionCols, ","))
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
-	rows, err := s.db.QueryContext(ctx, query, tx.GroupId, tx.AssetId, tx.Sequence, state)
+	rows, err := s.db.QueryContext(ctx, query, groupId, assetId, sequence, state)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +182,7 @@ func (s *SQLite3Store) updateTxWithOutputs(ctx context.Context, t *Transaction, 
 	}
 	defer tx.Rollback()
 
-	err = s.execOne(ctx, tx, "UPDATE transactions SET raw=?, hash=?, state=?, updated_at=? WHERE trace_id=?", t.Raw, t.Hash, t.State, t.UpdatedAt, t.TraceId)
+	err = s.execOne(ctx, tx, "UPDATE transactions SET raw=?, hash=?, state=?, updated_at=? WHERE trace_id=?", hex.EncodeToString(t.Raw), t.Hash.String(), t.State, t.UpdatedAt, t.TraceId)
 	if err != nil {
 		return fmt.Errorf("UPDATE transactions %v", err)
 	}

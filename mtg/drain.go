@@ -53,16 +53,15 @@ func (grp *Group) processSafeOutputs(ctx context.Context, filter map[string]bool
 }
 
 func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) {
-	act := output.Action(ActionStateInitial, "", "")
+	groupId, traceId, _ := DecodeMixinExtra(output.Extra)
+	act := output.Action(ActionStateInitial, traceId, groupId)
 
-	// FIXME handle network issues
-	tx, err := grp.mixin.SafeReadTransactionRequest(ctx, output.RequestId)
+	tx, err := grp.store.ReadTransactionByHash(ctx, output.TransactionHash)
 	if err != nil {
 		panic(err)
 	}
-	ver, extra := decodeTransactionWithExtra(tx.RawTransaction)
-	if grp.checkCompactTransaction(ver, extra) {
-		err = grp.store.restoreAction(ctx, act, ver)
+	if tx != nil && tx.Compaction {
+		err = grp.store.restoreAction(ctx, act, tx)
 		if err != nil {
 			panic(err)
 		}

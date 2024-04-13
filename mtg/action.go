@@ -100,29 +100,32 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 	}
 	for _, a := range as {
 		var totalTs []*Transaction
+		var ca string
 		for _, wkr := range grp.workers {
-			ts := wkr.ProcessOutput(ctx, a)
+			ts, compactionAsset := wkr.ProcessOutput(ctx, a)
 			totalTs = append(totalTs, ts...)
+			ca = compactionAsset
 		}
 
-		hasCompaction := false
+		if ca != "" {
+			if len(totalTs) > 0 {
+				panic(len(totalTs))
+			}
+			t, err := grp.buildCompactionTransaction(ctx, ca, a)
+			if err != nil {
+				return err
+			}
+			totalTs = []*Transaction{t}
+			a.ActionState = ActionStateRrestorable
+		} else {
+			a.ActionState = ActionStateDone
+		}
+
 		for _, t := range totalTs {
 			err = t.check(ctx)
 			if err != nil {
 				panic(err)
 			}
-
-			if a.RestoreSequence > 0 {
-				t.Sequence = a.RestoreSequence
-			}
-			if t.Memo == CompactionTransactionMemo {
-				hasCompaction = true
-				totalTs = []*Transaction{t}
-				break
-			}
-		}
-		if !hasCompaction {
-			a.ActionState = ActionStateDone
 		}
 		err = grp.store.writeAction(ctx, a, totalTs)
 		if err != nil {

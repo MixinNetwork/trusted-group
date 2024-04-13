@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -23,7 +22,8 @@ const (
 
 type Worker interface {
 	// handle the output and a true return value interrupts workers loop
-	ProcessOutput(context.Context, *Action) []*Transaction
+	// txs to be handled or compaction asset id
+	ProcessOutput(context.Context, *Action) ([]*Transaction, string)
 }
 
 type Group struct {
@@ -164,8 +164,8 @@ func (grp *Group) Run(ctx context.Context) {
 	}
 }
 
-func (grp *Group) ListOutputsForAsset(ctx context.Context, tx *Transaction, state SafeUtxoState, limit int) ([]*Action, error) {
-	outputs, err := grp.store.ListOutputsForAsset(ctx, tx, state, limit)
+func (grp *Group) ListOutputsForAsset(ctx context.Context, groupId, assetId string, sequence uint64, state SafeUtxoState, limit int) ([]*Action, error) {
+	outputs, err := grp.store.ListOutputsForAsset(ctx, groupId, assetId, sequence, state, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +181,7 @@ func (grp *Group) ListOutputsForTransaction(ctx context.Context, tx *Transaction
 }
 
 func (grp *Group) GetBalanceForTransaction(ctx context.Context, tx *Transaction) (*decimal.Decimal, error) {
-	os, err := grp.store.ListOutputsForAsset(ctx, tx, SafeUtxoStateUnspent, 0)
+	os, err := grp.store.ListOutputsForAsset(ctx, tx.GroupId, tx.AssetId, tx.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
 	if err != nil {
 		return nil, err
 	}
@@ -211,19 +211,11 @@ func (grp *Group) signTransactions(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
-	skipAction := []string{}
 	for _, tx := range txs {
-		if slices.Contains(skipAction, tx.ActionId) {
-			continue
-		}
-		raw, skip, err := grp.signTransaction(ctx, tx)
-		logger.Verbosef("Group.signTransaction(%v) => %s %t %v", *tx, hex.EncodeToString(raw), skip, err)
+		raw, err := grp.signTransaction(ctx, tx)
+		logger.Verbosef("Group.signTransaction(%v) => %s %v", *tx, hex.EncodeToString(raw), err)
 		if err != nil {
 			continue
-		}
-		if skip {
-			skipAction = append(skipAction, tx.ActionId)
 		}
 	}
 

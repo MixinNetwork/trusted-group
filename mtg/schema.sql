@@ -59,7 +59,6 @@ CREATE INDEX IF NOT EXISTS actions_by_group_state_asset_sequence ON actions(grou
 CREATE TABLE IF NOT EXISTS transactions (
   group_id             VARCHAR NOT NULL,
   trace_id             VARCHAR NOT NULL,
-  action_id            VARCHAR NOT NULL,
   state                INTEGER NOT NULL,
   asset_id             VARCHAR NOT NULL,
   receivers            VARCHAR NOT NULL,
