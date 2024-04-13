@@ -38,7 +38,7 @@ func (s *SQLite3Store) readAction(ctx context.Context, id string) (*Action, erro
 	return actionFromRow(row)
 }
 
-func (s *SQLite3Store) readRestorableAction(ctx context.Context, act *Action, t *Transaction) (*Action, error) {
+func (s *SQLite3Store) readRestorableAction(ctx context.Context, t *Transaction) (*Action, error) {
 	if len(t.References) != 1 {
 		return nil, nil
 	}
@@ -109,7 +109,7 @@ func (s *SQLite3Store) restoreAction(ctx context.Context, a *Action, t *Transact
 	}
 	defer tx.Rollback()
 
-	old, err := s.readRestorableAction(ctx, a, t)
+	old, err := s.readRestorableAction(ctx, t)
 	if err != nil {
 		return err
 	}
@@ -306,12 +306,6 @@ func (s *SQLite3Store) ListTransactions(ctx context.Context, state, limit int) (
 		ts = append(ts, t)
 	}
 	return ts, nil
-}
-
-func (s *SQLite3Store) ReadTransactionByTraceId(ctx context.Context, id string) (*Transaction, error) {
-	query := fmt.Sprintf("SELECT %s FROM transactions WHERE trace_id=?", strings.Join(transactionCols, ","))
-	row := s.db.QueryRowContext(ctx, query, id)
-	return transactionFromRow(row)
 }
 
 func (s *SQLite3Store) ReadTransactionByHash(ctx context.Context, hash crypto.Hash) (*Transaction, error) {

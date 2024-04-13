@@ -45,16 +45,6 @@ func (grp *Group) AddNode(ctx context.Context, id string, threshold int, epoch u
 	return grp.store.WriteIteration(ctx, ir)
 }
 
-func (grp *Group) RemoveNode(ctx context.Context, id string, threshold int, epoch uint64) error {
-	ir := &Iteration{
-		Action:    IterationActionRemove,
-		NodeId:    id,
-		Threshold: threshold,
-		CreatedAt: epoch,
-	}
-	return grp.store.WriteIteration(ctx, ir)
-}
-
 func (grp *Group) ListActiveNodes(ctx context.Context) ([]string, int, uint64, error) {
 	irs, err := grp.store.ListIterations(ctx)
 	var actives []string

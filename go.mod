@@ -11,7 +11,6 @@ require (
 	github.com/pelletier/go-toml v1.9.5
 	github.com/shopspring/decimal v1.3.1
 	github.com/stretchr/testify v1.9.0
-	github.com/vmihailenco/msgpack/v4 v4.3.13
 )
 
 require (
