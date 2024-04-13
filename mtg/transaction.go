@@ -194,6 +194,8 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	}
 
 	for _, out := range outputs {
+		out.TraceId = tx.TraceId
+		out.GroupId = tx.GroupId
 		out.State = SafeUtxoStateSigned
 		out.SignedBy = ver.PayloadHash().String()
 		out.SignedTx = req.RawTransaction
