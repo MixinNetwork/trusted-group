@@ -24,10 +24,9 @@ const (
 	TransactionStateSigned   = 12
 	TransactionStateSnapshot = 13
 
-	OutputsBatchSize          = 36
-	CompactionTransactionMemo = "COMPACTION"
-	StorageAssetId            = "c94ac88f-4671-3976-b60a-09064f1811e8"
-	StorageReceiverId         = "773e5e77-4107-45c2-b648-8fc722ed77f5"
+	OutputsBatchSize  = 36
+	StorageAssetId    = "c94ac88f-4671-3976-b60a-09064f1811e8"
+	StorageReceiverId = "773e5e77-4107-45c2-b648-8fc722ed77f5"
 )
 
 type Transaction struct {
@@ -169,7 +168,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 		return nil, fmt.Errorf("empty outputs %s", tx.Amount)
 	}
 	// FIXME do more compatcion transaction check
-	if len(outputs) < OutputsBatchSize && tx.Memo == CompactionTransactionMemo {
+	if tx.Compaction && len(outputs) < OutputsBatchSize {
 		return nil, fmt.Errorf("insufficient compaction transaction outputs %v %d", tx, len(outputs))
 	}
 
@@ -179,7 +178,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 		return nil, err
 	}
 	// FIXME do more compatcion transaction check
-	if len(ver.Outputs) != 1 && tx.Memo == CompactionTransactionMemo {
+	if tx.Compaction && len(ver.Outputs) != 1 {
 		return nil, fmt.Errorf("expired compaction transaction %v", tx)
 	}
 	if ver.AggregatedSignature != nil || len(ver.SignaturesMap) > 0 {
