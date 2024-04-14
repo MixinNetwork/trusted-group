@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	XINAssetId = "c94ac88f-4671-3976-b60a-09064f1811e8"
-	testSender = "e14c1573-3aca-48b1-b437-766b4757b50d"
+	XINAssetId  = "c94ac88f-4671-3976-b60a-09064f1811e8"
+	testSender  = "e14c1573-3aca-48b1-b437-766b4757b50d"
+	testGroupId = "e14c1573-3aca-48b1-b437-766b4757b50e"
 )
 
 type Node struct {
@@ -41,7 +42,7 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 		return []*Transaction{}, ""
 	}
 
-	balance, err := n.Group.CheckAssetBalanceAt(ctx, "", XINAssetId, a.Sequence)
+	balance, err := n.Group.CheckAssetBalanceAt(ctx, a.GroupId, a.AssetId, a.Sequence)
 	if err != nil {
 		panic(err)
 	}
@@ -53,6 +54,7 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 	id := mixin.UniqueConversationID(amount, testSender)
 	t := &Transaction{
 		TraceId:   id,
+		GroupId:   a.GroupId,
 		AssetId:   XINAssetId,
 		Amount:    amount,
 		Receivers: n.Group.GetMembers(),
@@ -157,7 +159,7 @@ func testDrainInitialOutputs(ctx context.Context, assert *assert.Assertions, gro
 		}
 		out := testBuildOutput(group, assert, "0.0001", extra, SafeUtxoStateUnspent, uint64(start+i+1), "")
 
-		act := out.Action(state, "", "")
+		act := out.Action(state, "", testGroupId)
 		err := group.store.writeAction(ctx, act, []*Transaction{})
 		assert.Nil(err)
 	}

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
-	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
 
@@ -80,9 +79,6 @@ func (a *Action) Output() *UnifiedOutput {
 var actionCols = []string{"output_id", "request_id", "transaction_hash", "output_index", "asset_id", "kernel_asset_id", "amount", "mask", "keys", "senders_threshold", "senders", "receivers_threshold", "receivers", "extra", "state", "sequence", "created_at", "updated_at", "signers", "signed_by", "trace_id", "group_id", "action_state", "signed_tx", "restore_sequence"}
 
 func (a *Action) values() []any {
-	if a.GroupId == "" {
-		a.GroupId = uuid.Nil.String()
-	}
 	return []any{a.OutputId, a.RequestId, a.TransactionHash, a.OutputIndex, a.AssetId, a.KernelAssetId, a.Amount, a.Mask, a.Keys, a.SendersThreshold, a.Senders, a.ReceiversThreshold, a.Receivers, a.Extra, a.State, a.Sequence, a.CreatedAt, a.UpdatedAt, a.Signers, a.SignedBy, a.TraceId, a.GroupId, a.ActionState, a.SignedTx, a.RestoreSequence}
 }
 

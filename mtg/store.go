@@ -50,6 +50,10 @@ func (s *SQLite3Store) readRestorableAction(ctx context.Context, t *Transaction)
 }
 
 func (s *SQLite3Store) writeAction(ctx context.Context, a *Action, ts []*Transaction) error {
+	if _, err := uuid.FromString(a.GroupId); err != nil {
+		return fmt.Errorf("invalid group id of action: %s", a.GroupId)
+	}
+
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -152,9 +156,6 @@ func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, tx *Transa
 }
 
 func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, groupId, assetId string, sequence uint64, state SafeUtxoState, limit int) ([]*Action, error) {
-	if groupId == "" {
-		groupId = uuid.Nil.String()
-	}
 	query := fmt.Sprintf("SELECT %s FROM actions WHERE group_id=? AND asset_id=? AND sequence<=? AND state=? ORDER BY sequence ASC", strings.Join(actionCols, ","))
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)

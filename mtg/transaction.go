@@ -130,7 +130,6 @@ func (grp *Group) buildCompactionTransaction(ctx context.Context, asset string, 
 		total = total.Add(out.Amount)
 	}
 
-	groupId, _, _ := DecodeMixinExtra(act.Extra)
 	hash, err := crypto.HashFromString(act.TransactionHash)
 	if err != nil {
 		return nil, err
@@ -138,7 +137,7 @@ func (grp *Group) buildCompactionTransaction(ctx context.Context, asset string, 
 
 	tx := &Transaction{
 		TraceId:    mixin.UniqueConversationID(act.OutputId, "compaction"),
-		GroupId:    groupId,
+		GroupId:    act.GroupId,
 		State:      TransactionStateInitial,
 		AssetId:    asset,
 		Receivers:  grp.GetMembers(),
