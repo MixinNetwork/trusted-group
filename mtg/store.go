@@ -73,7 +73,11 @@ func (s *SQLite3Store) finishAction(ctx context.Context, id string, state Action
 		if t.State != TransactionStateInitial {
 			panic(t.State)
 		}
-		if t.Sequence != act.Sequence {
+		sequence := act.Sequence
+		if act.restoreSequence > act.Sequence {
+			sequence = act.restoreSequence
+		}
+		if t.Sequence != sequence {
 			panic(t.Sequence)
 		}
 		err = s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), t.values()...)
@@ -132,7 +136,7 @@ func (s *SQLite3Store) restoreAction(ctx context.Context, a *Action, t *Transact
 		return err
 	}
 
-	query := "UPDATE actions SET action_state=?,signed_by=?,signed_tx=?,restore_sequence=? WHERE output_id=? AND state=?"
+	query := "UPDATE actions SET action_state=?,signed_by=?,signed_tx=?,restore_sequence=? WHERE output_id=? AND action_state=?"
 	err = s.execOne(ctx, tx, query, ActionStateInitial, "", "", a.Sequence, act.OutputId, ActionStateRrestorable)
 	if err != nil {
 		return fmt.Errorf("UPDATE actions %v", err)
