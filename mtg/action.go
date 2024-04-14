@@ -120,7 +120,6 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 				if err != nil {
 					panic(err)
 				}
-				t.Sequence = a.Sequence
 			}
 			err = grp.store.finishAction(ctx, a.OutputId, state, ts)
 			if err != nil {
