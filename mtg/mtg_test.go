@@ -40,6 +40,15 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 	if err != nil {
 		return []*Transaction{}, ""
 	}
+
+	balance, err := n.Group.CheckAssetBalanceAt(ctx, "", XINAssetId, a.Sequence)
+	if err != nil {
+		panic(err)
+	}
+	if balance.Cmp(amt) < 0 {
+		return nil, XINAssetId
+	}
+
 	amount := amt.String()
 	id := mixin.UniqueConversationID(amount, testSender)
 	t := &Transaction{
@@ -50,16 +59,7 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 		Threshold: n.Group.GetThreshold(),
 		Sequence:  a.Sequence,
 	}
-
-	asset := ""
-	compaction, err := n.Group.CheckBalanceForTransaction(ctx, t)
-	if err != nil {
-		panic(err)
-	}
-	if compaction.Cmp(decimal.NewFromInt(0)) > 0 {
-		return nil, XINAssetId
-	}
-	return []*Transaction{t}, asset
+	return []*Transaction{t}, ""
 }
 
 func TestMTGCompaction(t *testing.T) {

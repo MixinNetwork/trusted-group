@@ -160,7 +160,7 @@ func (grp *Group) Run(ctx context.Context) {
 
 		// verify all transactions
 		logger.Verbosef("Group.Run(publishTransactions)\n")
-		grp.verifyTransactions(ctx)
+		grp.publishTransactions(ctx)
 	}
 }
 
@@ -180,30 +180,17 @@ func (grp *Group) ListOutputsForTransaction(ctx context.Context, tx *Transaction
 	return outputs, nil
 }
 
-func (grp *Group) CheckBalanceForTransaction(ctx context.Context, tx *Transaction) (*decimal.Decimal, error) {
-	os, err := grp.store.ListOutputsForAsset(ctx, tx.GroupId, tx.AssetId, tx.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
+func (grp *Group) CheckAssetBalanceAt(ctx context.Context, groupId, assetId string, sequence uint64) (decimal.Decimal, error) {
+	os, err := grp.store.ListOutputsForAsset(ctx, groupId, assetId, sequence, SafeUtxoStateUnspent, OutputsBatchSize)
 	if err != nil {
-		return nil, err
+		return decimal.Zero, err
 	}
 
 	total := decimal.NewFromInt(0)
-	compaction := decimal.NewFromInt(0)
-	for i, o := range os {
+	for _, o := range os {
 		total = total.Add(o.Amount)
-		if i+1 == OutputsBatchSize {
-			compaction = total
-		}
 	}
-
-	amt, err := decimal.NewFromString(tx.Amount)
-	if err != nil {
-		return nil, err
-	}
-	if total.Cmp(amt) >= 0 {
-		compaction = decimal.NewFromInt(0)
-	}
-
-	return &compaction, nil
+	return total, nil
 }
 
 func (grp *Group) signTransactions(ctx context.Context) error {
@@ -222,7 +209,7 @@ func (grp *Group) signTransactions(ctx context.Context) error {
 	return nil
 }
 
-func (grp *Group) verifyTransactions(ctx context.Context) error {
+func (grp *Group) publishTransactions(ctx context.Context) error {
 	txs, err := grp.store.ListTransactions(ctx, TransactionStateSigned, 0)
 	if err != nil || len(txs) == 0 {
 		return err
