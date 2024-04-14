@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
+	"github.com/gofrs/uuid/v5"
 )
 
 func (s *SQLite3Store) ListActions(ctx context.Context, state ActionState, limit int) ([]*Action, error) {
@@ -151,6 +152,9 @@ func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, tx *Transa
 }
 
 func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, groupId, assetId string, sequence uint64, state SafeUtxoState, limit int) ([]*Action, error) {
+	if groupId == "" {
+		groupId = uuid.Nil.String()
+	}
 	query := fmt.Sprintf("SELECT %s FROM actions WHERE group_id=? AND asset_id=? AND sequence<=? AND state=? ORDER BY sequence ASC", strings.Join(actionCols, ","))
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)
