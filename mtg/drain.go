@@ -70,7 +70,7 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 		}
 		return
 	}
-	grp.store.writeAction(ctx, act, []*Transaction{})
+	grp.store.writeAction(ctx, act)
 }
 
 func (grp *Group) readDrainingCheckpoint(ctx context.Context) (uint64, error) {

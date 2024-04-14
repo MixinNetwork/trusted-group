@@ -49,9 +49,46 @@ func (s *SQLite3Store) readRestorableAction(ctx context.Context, t *Transaction)
 	return actionFromRow(row)
 }
 
-func (s *SQLite3Store) writeAction(ctx context.Context, a *Action, ts []*Transaction) error {
-	if _, err := uuid.FromString(a.GroupId); err != nil {
-		return fmt.Errorf("invalid group id of action: %s", a.GroupId)
+func (s *SQLite3Store) finishAction(ctx context.Context, id string, state ActionState, ts []*Transaction) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	act, err := s.readAction(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	err = s.execOne(ctx, tx, "UPDATE actions SET action_state=? WHERE output_id=? AND action_state=?", state, id, ActionStateInitial)
+	if err != nil {
+		return fmt.Errorf("UPDATE actions %v", err)
+	}
+
+	for _, t := range ts {
+		if t.State != TransactionStateInitial {
+			panic(t.State)
+		}
+		if t.Sequence != act.Sequence {
+			panic(t.Sequence)
+		}
+		err = s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), t.values()...)
+		if err != nil {
+			return fmt.Errorf("INSERT transactions %v", err)
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (s *SQLite3Store) writeAction(ctx context.Context, a *Action) error {
+	gid := uuid.Must(uuid.FromString(a.GroupId))
+	if gid.String() != a.GroupId {
+		panic(a.GroupId)
 	}
 
 	s.mutex.Lock()
@@ -64,41 +101,12 @@ func (s *SQLite3Store) writeAction(ctx context.Context, a *Action, ts []*Transac
 	defer tx.Rollback()
 
 	old, err := s.readAction(ctx, a.OutputId)
-	if err != nil {
+	if err != nil || old != nil {
 		return err
 	}
-
-	if old == nil {
-		if len(ts) > 0 {
-			return fmt.Errorf("write new action with multiple transactions: %d", len(ts))
-		}
-		err = s.execOne(ctx, tx, buildInsertionSQL("actions", actionCols), a.values()...)
-		if err != nil {
-			return fmt.Errorf("INSERT actions %v", err)
-		}
-	} else {
-		if a.ActionState > old.ActionState {
-			err = s.execOne(ctx, tx, "UPDATE actions SET action_state=? WHERE output_id=?", a.ActionState, a.OutputId)
-			if err != nil {
-				return fmt.Errorf("UPDATE actions %v", err)
-			}
-		}
-
-		for _, t := range ts {
-			exist, err := s.checkExistence(ctx, tx, "SELECT trace_id from transactions where trace_id=?", t.TraceId)
-			if err != nil {
-				return err
-			}
-			if exist {
-				continue
-			}
-			t.State = TransactionStateInitial
-			t.Sequence = a.Sequence
-			err = s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), t.values()...)
-			if err != nil {
-				return fmt.Errorf("INSERT transactions %v", err)
-			}
-		}
+	err = s.execOne(ctx, tx, buildInsertionSQL("actions", actionCols), a.values()...)
+	if err != nil {
+		return fmt.Errorf("INSERT actions %v", err)
 	}
 
 	return tx.Commit()
@@ -114,15 +122,18 @@ func (s *SQLite3Store) restoreAction(ctx context.Context, a *Action, t *Transact
 	}
 	defer tx.Rollback()
 
-	old, err := s.readRestorableAction(ctx, t)
+	old, err := s.readAction(ctx, a.OutputId)
+	if err != nil || old != nil {
+		return err
+	}
+
+	act, err := s.readRestorableAction(ctx, t)
 	if err != nil {
 		return err
 	}
-	if old == nil {
-		return fmt.Errorf("failed to find restore action of %#v %#v", a, t)
-	}
 
-	err = s.execOne(ctx, tx, "UPDATE actions SET action_state=?, signed_by=?, signed_tx=?, restore_sequence=? WHERE output_id=?", ActionStateInitial, "", "", a.Sequence, old.OutputId)
+	query := "UPDATE actions SET action_state=?,signed_by=?,signed_tx=?,restore_sequence=? WHERE output_id=? AND state=?"
+	err = s.execOne(ctx, tx, query, ActionStateInitial, "", "", a.Sequence, act.OutputId, ActionStateRrestorable)
 	if err != nil {
 		return fmt.Errorf("UPDATE actions %v", err)
 	}

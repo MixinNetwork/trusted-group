@@ -146,7 +146,7 @@ func (grp *Group) buildCompactionTransaction(ctx context.Context, asset string, 
 		Memo:       "",
 		References: []crypto.Hash{hash},
 		Compaction: true,
-		Sequence:   act.RestoreSequence,
+		Sequence:   act.restoreSequence,
 	}
 	return tx, nil
 }

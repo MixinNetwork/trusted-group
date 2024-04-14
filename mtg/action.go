@@ -44,7 +44,7 @@ type Action struct {
 	GroupId         string
 	ActionState     ActionState
 	SignedTx        string
-	RestoreSequence uint64
+	restoreSequence uint64
 }
 
 func (a *Action) Output() *UnifiedOutput {
@@ -79,12 +79,12 @@ func (a *Action) Output() *UnifiedOutput {
 var actionCols = []string{"output_id", "request_id", "transaction_hash", "output_index", "asset_id", "kernel_asset_id", "amount", "mask", "keys", "senders_threshold", "senders", "receivers_threshold", "receivers", "extra", "state", "sequence", "created_at", "updated_at", "signers", "signed_by", "trace_id", "group_id", "action_state", "signed_tx", "restore_sequence"}
 
 func (a *Action) values() []any {
-	return []any{a.OutputId, a.RequestId, a.TransactionHash, a.OutputIndex, a.AssetId, a.KernelAssetId, a.Amount, a.Mask, a.Keys, a.SendersThreshold, a.Senders, a.ReceiversThreshold, a.Receivers, a.Extra, a.State, a.Sequence, a.CreatedAt, a.UpdatedAt, a.Signers, a.SignedBy, a.TraceId, a.GroupId, a.ActionState, a.SignedTx, a.RestoreSequence}
+	return []any{a.OutputId, a.RequestId, a.TransactionHash, a.OutputIndex, a.AssetId, a.KernelAssetId, a.Amount, a.Mask, a.Keys, a.SendersThreshold, a.Senders, a.ReceiversThreshold, a.Receivers, a.Extra, a.State, a.Sequence, a.CreatedAt, a.UpdatedAt, a.Signers, a.SignedBy, a.TraceId, a.GroupId, a.ActionState, a.SignedTx, a.restoreSequence}
 }
 
 func actionFromRow(row Row) (*Action, error) {
 	var a Action
-	err := row.Scan(&a.OutputId, &a.RequestId, &a.TransactionHash, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.Mask, &a.Keys, &a.SendersThreshold, &a.Senders, &a.ReceiversThreshold, &a.Receivers, &a.Extra, &a.State, &a.Sequence, &a.CreatedAt, &a.UpdatedAt, &a.Signers, &a.SignedBy, &a.TraceId, &a.GroupId, &a.ActionState, &a.SignedTx, &a.RestoreSequence)
+	err := row.Scan(&a.OutputId, &a.RequestId, &a.TransactionHash, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.Mask, &a.Keys, &a.SendersThreshold, &a.Senders, &a.ReceiversThreshold, &a.Receivers, &a.Extra, &a.State, &a.Sequence, &a.CreatedAt, &a.UpdatedAt, &a.Signers, &a.SignedBy, &a.TraceId, &a.GroupId, &a.ActionState, &a.SignedTx, &a.restoreSequence)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -99,40 +99,32 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 		return err
 	}
 	for _, a := range as {
-		var totalTs []*Transaction
-		var ca string
 		for _, wkr := range grp.workers {
-			if a.RestoreSequence > a.Sequence {
-				a.Sequence = a.RestoreSequence
+			if a.restoreSequence > a.Sequence {
+				a.Sequence = a.restoreSequence
 			}
+			state := ActionStateDone
 			ts, compactionAsset := wkr.ProcessOutput(ctx, a)
-			totalTs = append(totalTs, ts...)
-			ca = compactionAsset
-		}
-
-		if ca != "" {
-			if len(totalTs) > 0 {
-				panic(len(totalTs))
+			if compactionAsset != "" && len(ts) == 0 {
+				t, err := grp.buildCompactionTransaction(ctx, compactionAsset, a)
+				if err != nil {
+					return err
+				}
+				state = ActionStateRrestorable
+				ts = []*Transaction{t}
+			} else if compactionAsset != "" {
+				panic(compactionAsset)
 			}
-			t, err := grp.buildCompactionTransaction(ctx, ca, a)
-			if err != nil {
-				return err
+			for _, t := range ts {
+				err = t.check(ctx)
+				if err != nil {
+					panic(err)
+				}
 			}
-			totalTs = []*Transaction{t}
-			a.ActionState = ActionStateRrestorable
-		} else {
-			a.ActionState = ActionStateDone
-		}
-
-		for _, t := range totalTs {
-			err = t.check(ctx)
+			err = grp.store.finishAction(ctx, a.OutputId, state, ts)
 			if err != nil {
 				panic(err)
 			}
-		}
-		err = grp.store.writeAction(ctx, a, totalTs)
-		if err != nil {
-			panic(err)
 		}
 	}
 	return nil

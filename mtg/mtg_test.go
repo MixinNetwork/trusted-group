@@ -160,7 +160,7 @@ func testDrainInitialOutputs(ctx context.Context, assert *assert.Assertions, gro
 		out := testBuildOutput(group, assert, "0.0001", extra, SafeUtxoStateUnspent, uint64(start+i+1), "")
 
 		act := out.Action(state, "", testGroupId)
-		err := group.store.writeAction(ctx, act, []*Transaction{})
+		err := group.store.writeAction(ctx, act)
 		assert.Nil(err)
 	}
 }
