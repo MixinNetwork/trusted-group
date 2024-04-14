@@ -13,6 +13,7 @@ type Configuration struct {
 		Threshold int      `toml:"threshold"`
 		Epoch     uint64   `toml:"epoch"`
 	} `toml:"genesis"`
+	Project          string `toml:"project"`
 	StoreDir         string `toml:"store-dir"`
 	GroupSize        int    `toml:"group-size"`
 	LoopWaitDuration int64  `toml:"loop-wait-duration"`

@@ -34,6 +34,7 @@ type Group struct {
 	waitDuration time.Duration
 
 	id              string
+	groupId         string
 	members         []string
 	threshold       int
 	epoch           uint64
@@ -65,11 +66,13 @@ func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (
 		}
 	}
 
+	id := generateGenesisId(conf)
 	grp := &Group{
 		mixin:           client,
 		store:           store,
 		spendPrivateKey: conf.App.SpendPrivateKey,
-		id:              generateGenesisId(conf),
+		id:              id,
+		groupId:         mixin.UniqueConversationID(id, conf.Project),
 		groupSize:       conf.GroupSize,
 		waitDuration:    time.Duration(conf.LoopWaitDuration),
 	}
