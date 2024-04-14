@@ -84,6 +84,28 @@ func transactionFromRow(row Row) (*Transaction, error) {
 	return &t, err
 }
 
+func (grp *Group) BuildTransaction(traceId, groupId, assetId, amount, memo string, receivers []string, threshold int) *Transaction {
+	return &Transaction{
+		TraceId:   traceId,
+		GroupId:   groupId,
+		State:     TransactionStateInitial,
+		AssetId:   assetId,
+		Amount:    amount,
+		Receivers: receivers,
+		Threshold: threshold,
+		Memo:      memo,
+	}
+}
+
+func (grp *Group) BuildTransactionWithReference(traceId, groupId, assetId, amount, memo string, receivers []string, threshold int, reference crypto.Hash) *Transaction {
+	if !reference.HasValue() {
+		panic(reference)
+	}
+	t := grp.BuildTransaction(traceId, groupId, assetId, amount, memo, receivers, threshold)
+	t.References = []crypto.Hash{reference}
+	return t
+}
+
 func (t *Transaction) check(ctx context.Context) error {
 	if len(t.References) > 2 {
 		return fmt.Errorf("invalid references length: %d", len(t.References))
@@ -146,7 +168,7 @@ func (grp *Group) buildCompactionTransaction(ctx context.Context, asset string, 
 		Memo:       "",
 		References: []crypto.Hash{hash},
 		Compaction: true,
-		Sequence:   act.restoreSequence,
+		Sequence:   act.Sequence,
 	}
 	return tx, nil
 }
