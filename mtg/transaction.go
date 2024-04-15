@@ -114,7 +114,7 @@ func (grp *Group) BuildStorageTransaction(extra []byte) (*Transaction, error) {
 	step := common.NewIntegerFromString(common.ExtraStoragePriceStep)
 	amount := step.Mul(len(extra)/common.ExtraSizeStorageStep + 1)
 	traceId := mixin.UniqueConversationID(StorageReceiverId, string(extra))
-	t := grp.BuildTransaction(traceId, grp.GroupId, StorageAssetId, amount.String(), string(extra), []string{StorageReceiverId}, 64)
+	t := grp.BuildTransaction(traceId, "", StorageAssetId, amount.String(), string(extra), []string{StorageReceiverId}, 64)
 	t.Storage = true
 	return t, nil
 }
