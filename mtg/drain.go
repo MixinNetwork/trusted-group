@@ -55,7 +55,7 @@ func (grp *Group) processSafeOutputs(ctx context.Context, filter map[string]bool
 func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) {
 	groupId, traceId, _ := DecodeMixinExtra(output.Extra)
 	if groupId == "" {
-		groupId = grp.groupId
+		groupId = grp.GroupId
 	}
 	act := output.Action(ActionStateInitial, traceId, groupId)
 
