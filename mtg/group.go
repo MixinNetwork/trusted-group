@@ -175,8 +175,8 @@ func (grp *Group) ListOutputsForAsset(ctx context.Context, groupId, assetId stri
 	return outputs, nil
 }
 
-func (grp *Group) ListOutputsForTransaction(ctx context.Context, tx *Transaction) ([]*Action, error) {
-	outputs, err := grp.store.ListOutputsForTransaction(ctx, tx)
+func (grp *Group) ListOutputsForTransaction(ctx context.Context, traceId string, sequence uint64) ([]*Action, error) {
+	outputs, err := grp.store.ListOutputsForTransaction(ctx, traceId, sequence)
 	if err != nil {
 		return nil, err
 	}

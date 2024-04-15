@@ -174,7 +174,7 @@ func (grp *Group) buildCompactionTransaction(ctx context.Context, asset string, 
 }
 
 func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte, error) {
-	outputs, err := grp.ListOutputsForTransaction(ctx, tx)
+	outputs, err := grp.ListOutputsForTransaction(ctx, tx.TraceId, tx.Sequence)
 	if err != nil {
 		panic(err)
 	}

@@ -151,9 +151,9 @@ func (s *SQLite3Store) restoreAction(ctx context.Context, a *Action, t *Transact
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, tx *Transaction) ([]*Action, error) {
+func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, traceId string, sequence uint64) ([]*Action, error) {
 	query := fmt.Sprintf("SELECT %s FROM actions WHERE trace_id=? AND sequence<=? ORDER BY sequence ASC", strings.Join(actionCols, ","))
-	rows, err := s.db.QueryContext(ctx, query, tx.TraceId, tx.Sequence)
+	rows, err := s.db.QueryContext(ctx, query, traceId, sequence)
 	if err != nil {
 		return nil, err
 	}
