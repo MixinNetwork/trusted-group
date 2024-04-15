@@ -43,23 +43,24 @@ type Transaction struct {
 	References []crypto.Hash
 	Sequence   uint64
 	Compaction bool
+	Storage    bool
 	UpdatedAt  time.Time
 }
 
-var transactionCols = []string{"group_id", "trace_id", "state", "asset_id", "receivers", "threshold", "amount", "memo", "raw", "hash", "refs", "sequence", "compaction", "updated_at"}
+var transactionCols = []string{"group_id", "trace_id", "state", "asset_id", "receivers", "threshold", "amount", "memo", "raw", "hash", "refs", "sequence", "compaction", "storage", "updated_at"}
 
 func (t *Transaction) values() []any {
 	var refs []string
 	for _, r := range t.References {
 		refs = append(refs, r.String())
 	}
-	return []any{t.GroupId, t.TraceId, t.State, t.AssetId, strings.Join(t.Receivers, ","), t.Threshold, t.Amount, t.Memo, t.Raw, t.Hash.String(), strings.Join(refs, ","), t.Sequence, t.Compaction, t.UpdatedAt}
+	return []any{t.GroupId, t.TraceId, t.State, t.AssetId, strings.Join(t.Receivers, ","), t.Threshold, t.Amount, t.Memo, t.Raw, t.Hash.String(), strings.Join(refs, ","), t.Sequence, t.Compaction, t.Storage, t.UpdatedAt}
 }
 
 func transactionFromRow(row Row) (*Transaction, error) {
 	var t Transaction
 	var hash, rs, refs string
-	err := row.Scan(&t.GroupId, &t.TraceId, &t.State, &t.AssetId, &rs, &t.Threshold, &t.Amount, &t.Memo, &t.Raw, &hash, &refs, &t.Sequence, &t.Compaction, &t.UpdatedAt)
+	err := row.Scan(&t.GroupId, &t.TraceId, &t.State, &t.AssetId, &rs, &t.Threshold, &t.Amount, &t.Memo, &t.Raw, &hash, &refs, &t.Sequence, &t.Compaction, &t.Storage, &t.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -104,6 +105,18 @@ func (grp *Group) BuildTransactionWithReference(traceId, groupId, assetId, amoun
 	t := grp.BuildTransaction(traceId, groupId, assetId, amount, memo, receivers, threshold)
 	t.References = []crypto.Hash{reference}
 	return t
+}
+
+func (grp *Group) BuildStorageTransaction(extra []byte) (*Transaction, error) {
+	if len(extra) > common.ExtraSizeStorageCapacity {
+		return nil, fmt.Errorf("too large extra %d > %d", len(extra), common.ExtraSizeStorageCapacity)
+	}
+	step := common.NewIntegerFromString(common.ExtraStoragePriceStep)
+	amount := step.Mul(len(extra)/common.ExtraSizeStorageStep + 1)
+	traceId := mixin.UniqueConversationID(StorageReceiverId, string(extra))
+	t := grp.BuildTransaction(traceId, grp.GroupId, StorageAssetId, amount.String(), string(extra), []string{StorageReceiverId}, 64)
+	t.Storage = true
+	return t, nil
 }
 
 func (t *Transaction) check(ctx context.Context) error {
@@ -351,6 +364,9 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 	}
 	ver := common.NewTransactionV5(crypto.Sha256Hash([]byte(tx.AssetId)))
 	ver.Extra = []byte(encodeMixinExtra(tx.GroupId, tx.TraceId, tx.Memo))
+	if tx.Storage {
+		ver.Extra = []byte(tx.Memo)
+	}
 	target := common.NewIntegerFromString(tx.Amount)
 
 	var total common.Integer
