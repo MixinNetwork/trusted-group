@@ -85,7 +85,7 @@ func transactionFromRow(row Row) (*Transaction, error) {
 	return &t, err
 }
 
-func (grp *Group) BuildTransaction(traceId, groupId, assetId, amount, memo string, receivers []string, threshold int) *Transaction {
+func (grp *Group) BuildTransaction(traceId, groupId, assetId, amount, memo string, receivers []string, threshold int, sequence uint64) *Transaction {
 	return &Transaction{
 		TraceId:   traceId,
 		GroupId:   groupId,
@@ -95,28 +95,43 @@ func (grp *Group) BuildTransaction(traceId, groupId, assetId, amount, memo strin
 		Receivers: receivers,
 		Threshold: threshold,
 		Memo:      memo,
+		Sequence:  sequence,
 	}
 }
 
-func (grp *Group) BuildTransactionWithReference(traceId, groupId, assetId, amount, memo string, receivers []string, threshold int, reference crypto.Hash) *Transaction {
+func (grp *Group) BuildTransactionWithReference(traceId, groupId, assetId, amount, memo string, receivers []string, threshold int, sequence uint64, reference crypto.Hash) *Transaction {
 	if !reference.HasValue() {
 		panic(reference)
 	}
-	t := grp.BuildTransaction(traceId, groupId, assetId, amount, memo, receivers, threshold)
+	t := grp.BuildTransaction(traceId, groupId, assetId, amount, memo, receivers, threshold, sequence)
 	t.References = []crypto.Hash{reference}
 	return t
 }
 
-func (grp *Group) BuildStorageTransaction(extra []byte) (*Transaction, error) {
+func (grp *Group) BuildStorageTransaction(ctx context.Context, extra []byte, sequence uint64) (*Transaction, error) {
+	sTraceId := crypto.Blake3Hash(extra).String()
+	sTraceId = mixin.UniqueConversationID(sTraceId, sTraceId)
+	old, err := grp.store.ReadTransactionByTraceId(ctx, sTraceId)
+	if err != nil || old != nil {
+		return old, err
+	}
 	if len(extra) > common.ExtraSizeStorageCapacity {
 		return nil, fmt.Errorf("too large extra %d > %d", len(extra), common.ExtraSizeStorageCapacity)
 	}
+
 	step := common.NewIntegerFromString(common.ExtraStoragePriceStep)
 	amount := step.Mul(len(extra)/common.ExtraSizeStorageStep + 1)
-	traceId := mixin.UniqueConversationID(StorageReceiverId, string(extra))
-	t := grp.BuildTransaction(traceId, "", StorageAssetId, amount.String(), string(extra), []string{StorageReceiverId}, 64)
+	total, err := grp.CheckAssetBalanceAt(ctx, grp.GroupId, StorageAssetId, sequence)
+	if err != nil {
+		return nil, err
+	}
+	if common.NewIntegerFromString(total.String()).Cmp(amount) < 0 {
+		return nil, fmt.Errorf("insufficient balance")
+	}
+
+	t := grp.BuildTransaction(sTraceId, "", StorageAssetId, amount.String(), string(extra), []string{StorageReceiverId}, 64, sequence)
 	t.Storage = true
-	return t, nil
+	return t, grp.store.writeStorageTransaction(ctx, t)
 }
 
 func (t *Transaction) check(ctx context.Context) error {

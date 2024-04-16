@@ -217,6 +217,28 @@ func (s *SQLite3Store) updateTxWithOutputs(ctx context.Context, t *Transaction, 
 	return tx.Commit()
 }
 
+func (s *SQLite3Store) writeStorageTransaction(ctx context.Context, t *Transaction) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if t.AssetId != StorageAssetId || t.Threshold != 64 || len(t.Receivers) != 1 || !t.Storage {
+		return fmt.Errorf("invalid storage transaction: %#v", t)
+	}
+
+	err = s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), t.values()...)
+	if err != nil {
+		return fmt.Errorf("INSERT storage transactions %v", err)
+	}
+
+	return tx.Commit()
+}
+
 func (s *SQLite3Store) finishTransaction(ctx context.Context, traceId string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -331,6 +353,12 @@ func (s *SQLite3Store) ListTransactions(ctx context.Context, state, limit int) (
 func (s *SQLite3Store) ReadTransactionByHash(ctx context.Context, hash crypto.Hash) (*Transaction, error) {
 	query := fmt.Sprintf("SELECT %s FROM transactions WHERE hash=?", strings.Join(transactionCols, ","))
 	row := s.db.QueryRowContext(ctx, query, hash.String())
+	return transactionFromRow(row)
+}
+
+func (s *SQLite3Store) ReadTransactionByTraceId(ctx context.Context, id string) (*Transaction, error) {
+	query := fmt.Sprintf("SELECT %s FROM transactions WHERE trace_id=?", strings.Join(transactionCols, ","))
+	row := s.db.QueryRowContext(ctx, query, id)
 	return transactionFromRow(row)
 }
 
