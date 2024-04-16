@@ -121,16 +121,17 @@ func (grp *Group) BuildStorageTransaction(ctx context.Context, extra []byte, seq
 
 	step := common.NewIntegerFromString(common.ExtraStoragePriceStep)
 	amount := step.Mul(len(extra)/common.ExtraSizeStorageStep + 1)
+	t := grp.BuildTransaction(sTraceId, "", StorageAssetId, amount.String(), string(extra), []string{StorageReceiverId}, 64, sequence)
+	t.Storage = true
+
 	total, err := grp.CheckAssetBalanceAt(ctx, grp.GroupId, StorageAssetId, sequence)
 	if err != nil {
 		return nil, err
 	}
 	if common.NewIntegerFromString(total.String()).Cmp(amount) < 0 {
-		return nil, fmt.Errorf("insufficient balance")
+		return t, fmt.Errorf("insufficient balance")
 	}
 
-	t := grp.BuildTransaction(sTraceId, "", StorageAssetId, amount.String(), string(extra), []string{StorageReceiverId}, 64, sequence)
-	t.Storage = true
 	return t, grp.store.writeStorageTransaction(ctx, t)
 }
 
