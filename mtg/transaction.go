@@ -453,7 +453,7 @@ func DecodeMixinExtra(memo string) (string, string, string) {
 	if err != nil {
 		return "", "", ""
 	}
-	data, err := base64.RawStdEncoding.DecodeString(string(extra))
+	data, err := base64.RawURLEncoding.DecodeString(string(extra))
 	if err != nil || len(data) < 32 {
 		return "", "", ""
 	}
