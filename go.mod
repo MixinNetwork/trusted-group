@@ -2,14 +2,13 @@ module github.com/MixinNetwork/trusted-group
 
 go 1.22.2
 
-replace github.com/dgraph-io/badger/v4 => github.com/MixinNetwork/badger/v4 v4.2.0-F1
-
 require (
-	github.com/MixinNetwork/mixin v0.18.4
+	github.com/MixinNetwork/mixin v0.18.5
 	github.com/fox-one/mixin-sdk-go/v2 v2.0.6
 	github.com/gofrs/uuid/v5 v5.1.0
+	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/pelletier/go-toml v1.9.5
-	github.com/shopspring/decimal v1.3.1
+	github.com/shopspring/decimal v1.4.0
 	github.com/stretchr/testify v1.9.0
 )
 
@@ -24,7 +23,6 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/gorilla/websocket v1.5.1 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.7 // indirect
-	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
@@ -34,6 +32,6 @@ require (
 	golang.org/x/sync v0.7.0 // indirect
 	golang.org/x/sys v0.19.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/protobuf v1.33.0 // indirect
+	google.golang.org/protobuf v1.34.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
