@@ -57,20 +57,21 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 	if groupId == "" {
 		groupId = grp.GroupId
 	}
-	act := output.Action(ActionStateInitial, traceId, groupId)
+	output.GroupId = groupId
+	output.TraceId = traceId
 
 	tx, err := grp.store.ReadTransactionByHash(ctx, output.TransactionHash)
 	if err != nil {
 		panic(err)
 	}
 	if tx != nil && tx.Compaction {
-		err = grp.store.restoreAction(ctx, act, tx)
+		err = grp.store.restoreAction(ctx, output, tx)
 		if err != nil {
 			panic(err)
 		}
 		return
 	}
-	grp.store.writeAction(ctx, act)
+	grp.store.writeAction(ctx, output, ActionStateInitial)
 }
 
 func (grp *Group) readDrainingCheckpoint(ctx context.Context) (uint64, error) {

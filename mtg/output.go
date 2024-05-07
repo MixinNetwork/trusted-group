@@ -1,6 +1,7 @@
 package mtg
 
 import (
+	"database/sql"
 	"strings"
 	"time"
 
@@ -42,33 +43,30 @@ type UnifiedOutput struct {
 	UpdatedAt          time.Time       `json:"updated_at"`
 	Signers            []string        `json:"signers"`
 	SignedBy           string          `json:"signed_by"`
+
+	SignedTx string
+	TraceId  string
+	GroupId  string
 }
 
-func (o *UnifiedOutput) Action(state ActionState, traceId, groupId string) *Action {
-	return &Action{
-		OutputId:           o.OutputId,
-		RequestId:          o.RequestId,
-		TransactionHash:    o.TransactionHash.String(),
-		OutputIndex:        o.OutputIndex,
-		AssetId:            o.AssetId,
-		KernelAssetId:      o.KernelAssetId,
-		Amount:             o.Amount,
-		Mask:               o.Mask,
-		Keys:               strings.Join(o.Keys, ","),
-		SendersThreshold:   o.SendersThreshold,
-		Senders:            strings.Join(o.Senders, ","),
-		ReceiversThreshold: o.ReceiversThreshold,
-		Receivers:          strings.Join(o.Receivers, ","),
-		Extra:              o.Extra,
-		State:              o.State,
-		Sequence:           o.Sequence,
-		CreatedAt:          o.CreatedAt,
-		UpdatedAt:          o.UpdatedAt,
-		Signers:            strings.Join(o.Signers, ","),
-		SignedBy:           o.SignedBy,
+var outputCols = []string{"output_id", "request_id", "transaction_hash", "output_index", "asset_id", "kernel_asset_id", "amount", "mask", "keys", "senders_threshold", "senders", "receivers_threshold", "receivers", "extra", "state", "sequence", "created_at", "updated_at", "signers", "signed_by", "signed_tx", "trace_id", "group_id"}
 
-		TraceId:     traceId,
-		GroupId:     groupId,
-		ActionState: state,
+func (o *UnifiedOutput) values() []any {
+	return []any{o.OutputId, o.RequestId, o.TransactionHash.String(), o.OutputIndex, o.AssetId, o.KernelAssetId, o.Amount, o.Mask, strings.Join(o.Keys, ","), o.SendersThreshold, strings.Join(o.Senders, ","), o.ReceiversThreshold, strings.Join(o.Receivers, ","), o.Extra, o.State, o.Sequence, o.CreatedAt, o.UpdatedAt, strings.Join(o.Signers, ","), o.SignedBy, o.SignedTx, o.TraceId, o.GroupId}
+}
+
+func outputFromRow(row Row) (*UnifiedOutput, error) {
+	var o UnifiedOutput
+	var hash, keys, senders, receivers, signers string
+	err := row.Scan(&o.OutputId, &o.RequestId, &hash, &o.OutputIndex, &o.AssetId, &o.KernelAssetId, &o.Amount, &o.Mask, &keys, &o.SendersThreshold, &senders, &o.ReceiversThreshold, &receivers, &o.Extra, &o.State, &o.Sequence, &o.CreatedAt, &o.UpdatedAt, &signers, &o.SignedBy, &o.SignedTx, &o.TraceId, &o.GroupId)
+	if err == sql.ErrNoRows {
+		return nil, nil
 	}
+	h, _ := crypto.HashFromString(hash)
+	o.TransactionHash = h
+	o.Keys = strings.Split(keys, ",")
+	o.Senders = strings.Split(senders, ",")
+	o.Receivers = strings.Split(receivers, ",")
+	o.Signers = strings.Split(signers, ",")
+	return &o, err
 }

@@ -1,4 +1,5 @@
 store-dir = "/tmp"
+project = "mtg-test"
 
 [app]
 app-id = "member-id-0"

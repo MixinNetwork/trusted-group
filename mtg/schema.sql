@@ -20,7 +20,7 @@ CREATE INDEX IF NOT EXISTS iterations_by_node_created ON iterations(node_id, cre
 
 
 
-CREATE TABLE IF NOT EXISTS actions (
+CREATE TABLE IF NOT EXISTS outputs (
   output_id            VARCHAR NOT NULL,
   request_id           VARCHAR NOT NULL,
   transaction_hash     VARCHAR NOT NULL,
@@ -41,18 +41,32 @@ CREATE TABLE IF NOT EXISTS actions (
   updated_at           TIMESTAMP NOT NULL,
   signers              VARCHAR NOT NULL,
   signed_by            VARCHAR NOT NULL,
+  signed_tx            VARCHAR NOT NULL,
   trace_id             VARCHAR NOT NULL,
   group_id             VARCHAR NOT NULL,
+  PRIMARY KEY ('output_id')
+);
+
+CREATE INDEX IF NOT EXISTS outputs_by_sequence ON outputs(sequence);
+CREATE INDEX IF NOT EXISTS outputs_by_state_sequence ON outputs(state, sequence);
+CREATE INDEX IF NOT EXISTS outputs_by_trace_sequence ON outputs(trace_id, sequence);
+CREATE INDEX IF NOT EXISTS outputs_by_group_state_asset_sequence ON outputs(group_id, asset_id, sequence, state);
+
+
+
+CREATE TABLE IF NOT EXISTS actions (
+  output_id            VARCHAR NOT NULL,
+  transaction_hash     VARCHAR NOT NULL,
   action_state         INTEGER NOT NULL,
-  signed_tx            VARCHAR NOT NULL,
-  restore_sequence     VARCHAR NOT NULL,
+  sequence             INTEGER NOT NULL,
+  restore_sequence     INTEGER NOT NULL,
   PRIMARY KEY ('output_id')
 );
 
 CREATE INDEX IF NOT EXISTS actions_by_sequence ON actions(sequence);
-CREATE INDEX IF NOT EXISTS actions_by_state_sequence ON actions(state, sequence);
-CREATE INDEX IF NOT EXISTS actions_by_trace_sequence ON actions(trace_id, sequence);
-CREATE INDEX IF NOT EXISTS actions_by_group_state_asset_sequence ON actions(group_id, asset_id, sequence, state);
+CREATE INDEX IF NOT EXISTS actions_by_id_sequence ON actions(output_id, sequence);
+CREATE INDEX IF NOT EXISTS actions_by_state_sequence ON actions(action_state, sequence);
+CREATE INDEX IF NOT EXISTS actions_by_state_hash ON actions(action_state, transaction_hash);
 
 
 

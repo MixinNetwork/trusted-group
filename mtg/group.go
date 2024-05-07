@@ -167,7 +167,7 @@ func (grp *Group) Run(ctx context.Context) {
 	}
 }
 
-func (grp *Group) ListOutputsForAsset(ctx context.Context, groupId, assetId string, sequence uint64, state SafeUtxoState, limit int) ([]*Action, error) {
+func (grp *Group) ListOutputsForAsset(ctx context.Context, groupId, assetId string, sequence uint64, state SafeUtxoState, limit int) ([]*UnifiedOutput, error) {
 	outputs, err := grp.store.ListOutputsForAsset(ctx, groupId, assetId, sequence, state, limit)
 	if err != nil {
 		return nil, err
@@ -175,7 +175,7 @@ func (grp *Group) ListOutputsForAsset(ctx context.Context, groupId, assetId stri
 	return outputs, nil
 }
 
-func (grp *Group) ListOutputsForTransaction(ctx context.Context, traceId string, sequence uint64) ([]*Action, error) {
+func (grp *Group) ListOutputsForTransaction(ctx context.Context, traceId string, sequence uint64) ([]*UnifiedOutput, error) {
 	outputs, err := grp.store.ListOutputsForTransaction(ctx, traceId, sequence)
 	if err != nil {
 		return nil, err

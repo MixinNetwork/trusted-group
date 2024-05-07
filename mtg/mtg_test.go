@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -81,8 +82,8 @@ func TestMTGCompaction(t *testing.T) {
 	assert.Nil(err)
 	assert.Len(as, 1)
 
-	act := testHandleCompactionTransaction(ctx, assert, node.Group, hash)
-	node.Group.processSafeOutput(ctx, act.Output())
+	out := testHandleCompactionTransaction(ctx, assert, node.Group, hash)
+	node.Group.processSafeOutput(ctx, out)
 	as, err = node.Group.store.ListActions(ctx, ActionStateInitial, 0)
 	assert.Nil(err)
 	assert.Len(as, 1)
@@ -98,7 +99,7 @@ func TestMTGCompaction(t *testing.T) {
 	assert.Len(ts, 1)
 }
 
-func testHandleCompactionTransaction(ctx context.Context, assert *assert.Assertions, group *Group, hash string) *Action {
+func testHandleCompactionTransaction(ctx context.Context, assert *assert.Assertions, group *Group, hash string) *UnifiedOutput {
 	ts, err := group.store.ListTransactions(ctx, TransactionStateInitial, 0)
 	assert.Nil(err)
 	assert.Len(ts, 1)
@@ -125,16 +126,13 @@ func testHandleCompactionTransaction(ctx context.Context, assert *assert.Asserti
 	err = group.store.updateTxWithOutputs(ctx, tx, consumed)
 	assert.Nil(err)
 
-	act := testBuildActionFromTx(assert, group, tx)
-	return act
+	return testBuildActionFromTx(assert, group, tx)
 }
 
-func testBuildActionFromTx(assert *assert.Assertions, group *Group, tx *Transaction) *Action {
+func testBuildActionFromTx(assert *assert.Assertions, group *Group, tx *Transaction) *UnifiedOutput {
 	extra := encodeMixinExtra(tx.GroupId, tx.TraceId, tx.Memo)
 	extra = hex.EncodeToString([]byte(extra))
-	out := testBuildOutput(group, assert, tx.Amount, extra, SafeUtxoStateUnspent, tx.Sequence+100, tx.Hash.String())
-	act := out.Action(ActionStateInitial, tx.TraceId, tx.GroupId)
-	return act
+	return testBuildOutput(group, assert, tx.Amount, extra, SafeUtxoStateUnspent, tx.Sequence+100, tx.Hash.String())
 }
 
 func testDrainInitialOutputs(ctx context.Context, assert *assert.Assertions, group *Group, amount string) {
@@ -151,8 +149,7 @@ func testDrainInitialOutputs(ctx context.Context, assert *assert.Assertions, gro
 		}
 		out := testBuildOutput(group, assert, "0.0001", extra, SafeUtxoStateUnspent, uint64(start+i+1), "")
 
-		act := out.Action(state, "", testGroupId)
-		err := group.store.writeAction(ctx, act)
+		err := group.store.writeAction(ctx, out, state)
 		assert.Nil(err)
 	}
 }
@@ -187,6 +184,7 @@ func testBuildOutput(group *Group, assert *assert.Assertions, amount string, ext
 		Sequence:           sequence,
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
+		GroupId:            group.GroupId,
 	}
 }
 
@@ -200,6 +198,12 @@ func testBuildGroup(assert *assert.Assertions) (context.Context, *Node) {
 	err := toml.Unmarshal(f, &conf)
 	assert.Nil(err)
 
+	root, err := os.MkdirTemp("", "mtg-test")
+	assert.Nil(err)
+	conf.StoreDir = root
+	if !(strings.HasPrefix(conf.StoreDir, "/tmp") || strings.HasPrefix(conf.StoreDir, "/var/folders")) {
+		panic(root)
+	}
 	store, err := OpenSQLite3Store(conf.StoreDir + "/mtg.sqlite3")
 	assert.Nil(err)
 

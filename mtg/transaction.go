@@ -373,7 +373,7 @@ func checkRetryableError(err error) bool {
 	return true
 }
 
-func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outputs []*Action) (*common.VersionedTransaction, []*Action, error) {
+func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput) (*common.VersionedTransaction, []*UnifiedOutput, error) {
 	old := decodeTransaction(outputs[0].SignedTx)
 	if old != nil && (old.AggregatedSignature != nil || len(old.SignaturesMap) > 0) {
 		return old, nil, nil
@@ -386,14 +386,10 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 	target := common.NewIntegerFromString(tx.Amount)
 
 	var total common.Integer
-	var consumed []*Action
+	var consumed []*UnifiedOutput
 	for _, out := range outputs {
-		hash, err := crypto.HashFromString(out.TransactionHash)
-		if err != nil {
-			panic(err)
-		}
 		total = total.Add(common.NewIntegerFromString(out.Amount.String()))
-		ver.AddInput(hash, uint(out.OutputIndex))
+		ver.AddInput(out.TransactionHash, uint(out.OutputIndex))
 		consumed = append(consumed, out)
 		if total.Cmp(target) >= 0 && len(consumed) >= grp.groupSize {
 			break
