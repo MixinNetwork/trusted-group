@@ -60,7 +60,7 @@ func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (
 		if err != nil {
 			return nil, err
 		}
-		_, err = client.UserMe(ctx)
+		_, err = c.UserMe(ctx)
 		if err != nil {
 			return nil, err
 		}
