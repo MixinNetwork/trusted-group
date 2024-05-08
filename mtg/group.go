@@ -51,7 +51,7 @@ func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (
 
 	var client *mixin.Client
 	if !CheckTestEnvironment(ctx) {
-		client, err := mixin.NewFromKeystore(&mixin.Keystore{
+		c, err := mixin.NewFromKeystore(&mixin.Keystore{
 			AppID:             conf.App.AppId,
 			SessionID:         conf.App.SessionId,
 			SessionPrivateKey: conf.App.SessionPrivateKey,
@@ -64,6 +64,7 @@ func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (
 		if err != nil {
 			return nil, err
 		}
+		client = c
 	}
 
 	id := generateGenesisId(conf)
