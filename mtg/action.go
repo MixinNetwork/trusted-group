@@ -79,11 +79,13 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 		return err
 	}
 	for _, a := range as {
+		var transactions []*Transaction
+		state := ActionStateDone
+
 		for _, wkr := range grp.workers {
 			if a.restoreSequence > a.Sequence {
 				a.Sequence = a.restoreSequence
 			}
-			state := ActionStateDone
 			ts, compactionAsset := wkr.ProcessOutput(ctx, a)
 			if compactionAsset != "" && len(ts) == 0 {
 				t, err := grp.buildCompactionTransaction(ctx, compactionAsset, a)
@@ -91,7 +93,8 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 					return err
 				}
 				state = ActionStateRrestorable
-				ts = []*Transaction{t}
+				transactions = []*Transaction{t}
+				break
 			} else if compactionAsset != "" {
 				panic(compactionAsset)
 			}
@@ -100,11 +103,12 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 				if err != nil {
 					panic(err)
 				}
+				transactions = append(transactions, t)
 			}
-			err = grp.store.finishAction(ctx, a.OutputId, state, ts)
-			if err != nil {
-				panic(err)
-			}
+		}
+		err = grp.store.finishAction(ctx, a.OutputId, state, transactions)
+		if err != nil {
+			panic(err)
 		}
 	}
 	return nil
