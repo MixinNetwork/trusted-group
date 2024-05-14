@@ -21,8 +21,15 @@ const (
 )
 
 type Worker interface {
-	// handle the output and a true return value interrupts workers loop
-	// txs to be handled or compaction asset id
+	// process the action in a queue and return transactions
+	// need to ensure enough balance with CheckAssetBalanceAt(ctx, a)
+	// before return any transactions, otherwise the transactions
+	// will be ignored when issuficient balance
+	//
+	// if we want to make a multi process worker, it's possible that
+	// we pass some RPC handle to the process, or we could build a
+	// whole state of the current sequence and send it to the process
+	// i.e. ProcessOutput(StateAtSequence, Action) []*Transaction
 	ProcessOutput(context.Context, *Action) ([]*Transaction, string)
 }
 
@@ -184,6 +191,7 @@ func (grp *Group) ListOutputsForTransaction(ctx context.Context, traceId string,
 	return outputs, nil
 }
 
+// this function or rpc should be used only in ProcessOutput
 func (grp *Group) CheckAssetBalanceAt(ctx context.Context, groupId, assetId string, sequence uint64) (decimal.Decimal, error) {
 	os, err := grp.store.ListOutputsForAsset(ctx, groupId, assetId, sequence, SafeUtxoStateUnspent, OutputsBatchSize)
 	if err != nil {

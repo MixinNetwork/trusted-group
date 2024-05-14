@@ -9,9 +9,9 @@ import (
 )
 
 const (
-	ActionStateInitial     ActionState = 10
-	ActionStateDone        ActionState = 11
-	ActionStateRrestorable ActionState = 12
+	ActionStateInitial    ActionState = 10
+	ActionStateDone       ActionState = 11
+	ActionStateRestorable ActionState = 12
 )
 
 type ActionState int
@@ -71,8 +71,7 @@ func actionJoinFromRow(row Row) (*Action, error) {
 	return &a, err
 }
 
-// actions queue is all the utxos ordered by their created time
-// this queue can only be queried after all utxos are drained from api
+// actions queue is all the utxos ordered by their sequence
 func (grp *Group) handleActionsQueue(ctx context.Context) error {
 	as, err := grp.store.ListActions(ctx, ActionStateInitial, 16)
 	if err != nil {
@@ -92,7 +91,7 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 				if err != nil {
 					return err
 				}
-				state = ActionStateRrestorable
+				state = ActionStateRestorable
 				transactions = []*Transaction{t}
 				break
 			} else if compactionAsset != "" {

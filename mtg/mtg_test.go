@@ -78,7 +78,7 @@ func TestMTGCompaction(t *testing.T) {
 	as, err = node.Group.store.ListActions(ctx, ActionStateInitial, 0)
 	assert.Nil(err)
 	assert.Len(as, 0)
-	as, err = node.Group.store.ListActions(ctx, ActionStateRrestorable, 0)
+	as, err = node.Group.store.ListActions(ctx, ActionStateRestorable, 0)
 	assert.Nil(err)
 	assert.Len(as, 1)
 

@@ -52,7 +52,7 @@ func (s *SQLite3Store) readRestorableAction(ctx context.Context, t *Transaction)
 	}
 	hash := t.References[0].String()
 	query := fmt.Sprintf("SELECT %s FROM actions WHERE action_state=? AND transaction_hash=?", strings.Join(actionCols, ","))
-	row := s.db.QueryRowContext(ctx, query, ActionStateRrestorable, hash)
+	row := s.db.QueryRowContext(ctx, query, ActionStateRestorable, hash)
 	return actionFromRow(row)
 }
 
@@ -181,7 +181,7 @@ func (s *SQLite3Store) restoreAction(ctx context.Context, out *UnifiedOutput, t 
 	}
 
 	query := "UPDATE actions SET action_state=?,restore_sequence=? WHERE output_id=? AND action_state=?"
-	err = s.execOne(ctx, tx, query, ActionStateInitial, out.Sequence, act.OutputId, ActionStateRrestorable)
+	err = s.execOne(ctx, tx, query, ActionStateInitial, out.Sequence, act.OutputId, ActionStateRestorable)
 	if err != nil {
 		return fmt.Errorf("UPDATE actions %v", err)
 	}

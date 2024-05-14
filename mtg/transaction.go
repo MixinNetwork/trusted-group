@@ -136,6 +136,7 @@ func (grp *Group) BuildStorageTransaction(ctx context.Context, extra []byte, seq
 }
 
 func (t *Transaction) check(ctx context.Context) error {
+	// TODO do CheckAssetBalanceAt
 	if len(t.References) > 2 {
 		return fmt.Errorf("invalid references length: %d", len(t.References))
 	}
