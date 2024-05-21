@@ -36,7 +36,7 @@ type Worker interface {
 type Group struct {
 	mixin        *mixin.Client
 	store        *SQLite3Store
-	workers      []Worker
+	workers      map[string]Worker
 	groupSize    int
 	waitDuration time.Duration
 
@@ -83,6 +83,7 @@ func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (
 		GroupId:         mixin.UniqueConversationID(id, conf.Project),
 		groupSize:       conf.GroupSize,
 		waitDuration:    time.Duration(conf.LoopWaitDuration),
+		workers:         make(map[string]Worker),
 	}
 	if grp.groupSize <= 0 {
 		grp.groupSize = OutputsBatchSize
@@ -138,8 +139,15 @@ func (grp *Group) Synced(ctx context.Context) (bool, error) {
 	return v == "1", err
 }
 
-func (grp *Group) AddWorker(wkr Worker) {
-	grp.workers = append(grp.workers, wkr)
+func (grp *Group) AttachWorker(groupId string, wkr Worker) {
+	if grp.FindWorker(groupId) != nil {
+		panic(groupId)
+	}
+	grp.workers[groupId] = wkr
+}
+
+func (grp *Group) FindWorker(groupId string) Worker {
+	return grp.workers[groupId]
 }
 
 func (node *Group) Index() int {
@@ -214,7 +222,7 @@ func (grp *Group) signTransactions(ctx context.Context) error {
 		raw, err := grp.signTransaction(ctx, tx)
 		logger.Verbosef("Group.signTransaction(%v) => %s %v", *tx, hex.EncodeToString(raw), err)
 		if err != nil {
-			continue
+			panic(err)
 		}
 	}
 

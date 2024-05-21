@@ -16,13 +16,12 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/pelletier/go-toml"
 	"github.com/shopspring/decimal"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
-	XINAssetId  = "c94ac88f-4671-3976-b60a-09064f1811e8"
-	testSender  = "e14c1573-3aca-48b1-b437-766b4757b50d"
-	testGroupId = "e14c1573-3aca-48b1-b437-766b4757b50e"
+	XINAssetId = "c94ac88f-4671-3976-b60a-09064f1811e8"
+	testSender = "e14c1573-3aca-48b1-b437-766b4757b50d"
 )
 
 type Node struct {
@@ -58,62 +57,64 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 }
 
 func TestMTGCompaction(t *testing.T) {
-	assert := assert.New(t)
-	ctx, node := testBuildGroup(assert)
-	assert.NotNil(node)
+	require := require.New(t)
+	ctx, node := testBuildGroup(require)
+	require.NotNil(node)
 	defer teardownTestDatabase(node.Group.store)
 
-	testDrainInitialOutputs(ctx, assert, node.Group, "0.0037")
+	testDrainInitialOutputs(ctx, require, node.Group, "0.0037")
 
 	as, err := node.Group.store.ListActions(ctx, ActionStateDone, 0)
-	assert.Nil(err)
-	assert.Len(as, OutputsBatchSize)
+	require.Nil(err)
+	require.Len(as, OutputsBatchSize)
 	as, err = node.Group.store.ListActions(ctx, ActionStateInitial, 0)
-	assert.Nil(err)
-	assert.Len(as, 1)
+	require.Nil(err)
+	require.Len(as, 1)
 	hash := as[0].TransactionHash
 
+	wkr := node.Group.FindWorker(as[0].GroupId)
+	require.NotNil(wkr)
 	err = node.Group.handleActionsQueue(ctx)
-	assert.Nil(err)
+	require.Nil(err)
 	as, err = node.Group.store.ListActions(ctx, ActionStateInitial, 0)
-	assert.Nil(err)
-	assert.Len(as, 0)
+	require.Nil(err)
+	require.Len(as, 0)
 	as, err = node.Group.store.ListActions(ctx, ActionStateRestorable, 0)
-	assert.Nil(err)
-	assert.Len(as, 1)
+	require.Nil(err)
+	require.Len(as, 1)
 
-	out := testHandleCompactionTransaction(ctx, assert, node.Group, hash)
+	out := testHandleCompactionTransaction(ctx, require, node.Group, hash)
 	node.Group.processSafeOutput(ctx, out)
 	as, err = node.Group.store.ListActions(ctx, ActionStateInitial, 0)
-	assert.Nil(err)
-	assert.Len(as, 1)
-	assert.Equal(as[0].TransactionHash, hash)
+	require.Nil(err)
+	require.Len(as, 1)
+	require.Equal(as[0].TransactionHash, hash)
 
 	err = node.Group.handleActionsQueue(ctx)
-	assert.Nil(err)
+	require.Nil(err)
 	as, err = node.Group.store.ListActions(ctx, ActionStateInitial, 0)
-	assert.Nil(err)
-	assert.Len(as, 0)
+	require.Nil(err)
+	require.Len(as, 0)
 	ts, err := node.Group.store.ListTransactions(ctx, TransactionStateInitial, 0)
-	assert.Nil(err)
-	assert.Len(ts, 1)
+	require.Nil(err)
+	require.Len(ts, 1)
 }
 
-func testHandleCompactionTransaction(ctx context.Context, assert *assert.Assertions, group *Group, hash string) *UnifiedOutput {
+func testHandleCompactionTransaction(ctx context.Context, require *require.Assertions, group *Group, hash string) *UnifiedOutput {
 	ts, err := group.store.ListTransactions(ctx, TransactionStateInitial, 0)
-	assert.Nil(err)
-	assert.Len(ts, 1)
+	require.Nil(err)
+	require.Len(ts, 1)
 
 	tx := ts[0]
-	assert.True(tx.Compaction)
+	require.True(tx.Compaction)
 	outputs, err := group.ListOutputsForAsset(ctx, tx.GroupId, tx.AssetId, tx.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
-	assert.Nil(err)
-	assert.Len(outputs, 36)
+	require.Nil(err)
+	require.Len(outputs, 36)
 	ver, consumed, err := group.buildRawTransaction(ctx, tx, outputs)
-	assert.Nil(err)
-	assert.Len(consumed, 36)
-	assert.Len(ver.References, 1)
-	assert.Equal(ver.References[0].String(), hash)
+	require.Nil(err)
+	require.Len(consumed, 36)
+	require.Len(ver.References, 1)
+	require.Equal(ver.References[0].String(), hash)
 
 	tx.Hash = ver.PayloadHash()
 	tx.Raw = ver.Marshal()
@@ -124,18 +125,18 @@ func testHandleCompactionTransaction(ctx context.Context, assert *assert.Asserti
 		out.SignedTx = hex.EncodeToString(tx.Raw)
 	}
 	err = group.store.updateTxWithOutputs(ctx, tx, consumed)
-	assert.Nil(err)
+	require.Nil(err)
 
-	return testBuildActionFromTx(assert, group, tx)
+	return testBuildActionFromTx(require, group, tx)
 }
 
-func testBuildActionFromTx(assert *assert.Assertions, group *Group, tx *Transaction) *UnifiedOutput {
+func testBuildActionFromTx(require *require.Assertions, group *Group, tx *Transaction) *UnifiedOutput {
 	extra := encodeMixinExtra(tx.GroupId, tx.TraceId, tx.Memo)
 	extra = hex.EncodeToString([]byte(extra))
-	return testBuildOutput(group, assert, tx.Amount, extra, SafeUtxoStateUnspent, tx.Sequence+100, tx.Hash.String())
+	return testBuildOutput(group, require, tx.Amount, extra, SafeUtxoStateUnspent, tx.Sequence+100, tx.Hash.String())
 }
 
-func testDrainInitialOutputs(ctx context.Context, assert *assert.Assertions, group *Group, amount string) {
+func testDrainInitialOutputs(ctx context.Context, require *require.Assertions, group *Group, amount string) {
 	count := OutputsBatchSize + 1
 	start := 4655228
 
@@ -147,20 +148,20 @@ func testDrainInitialOutputs(ctx context.Context, assert *assert.Assertions, gro
 			extra = hex.EncodeToString([]byte(extra))
 			state = ActionStateInitial
 		}
-		out := testBuildOutput(group, assert, "0.0001", extra, SafeUtxoStateUnspent, uint64(start+i+1), "")
+		out := testBuildOutput(group, require, "0.0001", extra, SafeUtxoStateUnspent, uint64(start+i+1), "")
 
 		err := group.store.writeAction(ctx, out, state)
-		assert.Nil(err)
+		require.Nil(err)
 	}
 }
 
-func testBuildOutput(group *Group, assert *assert.Assertions, amount string, extra string, state SafeUtxoState, sequence uint64, hash string) *UnifiedOutput {
+func testBuildOutput(group *Group, require *require.Assertions, amount string, extra string, state SafeUtxoState, sequence uint64, hash string) *UnifiedOutput {
 	oid := mixin.UniqueConversationID("output", fmt.Sprintf("%s:%s:%s:%s:%d", amount, extra, extra, state, sequence))
 	rid := mixin.UniqueConversationID("request", oid)
 	h := crypto.Sha256Hash(uuid.FromStringOrNil(oid).Bytes())
 	if hash != "" {
 		hash, err := crypto.HashFromString(hash)
-		assert.Nil(err)
+		require.Nil(err)
 		h = hash
 	}
 	amt, err := decimal.NewFromString(amount)
@@ -188,7 +189,7 @@ func testBuildOutput(group *Group, assert *assert.Assertions, amount string, ext
 	}
 }
 
-func testBuildGroup(assert *assert.Assertions) (context.Context, *Node) {
+func testBuildGroup(require *require.Assertions) (context.Context, *Node) {
 	logger.SetLevel(logger.INFO)
 	ctx := context.Background()
 	ctx = EnableTestEnvironment(ctx)
@@ -196,29 +197,29 @@ func testBuildGroup(assert *assert.Assertions) (context.Context, *Node) {
 	f, _ := os.ReadFile("./example.toml")
 	var conf Configuration
 	err := toml.Unmarshal(f, &conf)
-	assert.Nil(err)
+	require.Nil(err)
 
 	root, err := os.MkdirTemp("", "mtg-test")
-	assert.Nil(err)
+	require.Nil(err)
 	conf.StoreDir = root
 	if !(strings.HasPrefix(conf.StoreDir, "/tmp") || strings.HasPrefix(conf.StoreDir, "/var/folders")) {
 		panic(root)
 	}
 	store, err := OpenSQLite3Store(conf.StoreDir + "/mtg.sqlite3")
-	assert.Nil(err)
+	require.Nil(err)
 
 	group, err := BuildGroup(ctx, store, &conf)
-	assert.Nil(err)
+	require.Nil(err)
 	group.groupSize = 1
 
 	n := &Node{
 		Group: group,
 	}
-	group.AddWorker(n)
+	group.AttachWorker(group.GroupId, n)
 
 	ns, err := group.store.ListIterations(ctx)
-	assert.Nil(err)
-	assert.Len(ns, 5)
+	require.Nil(err)
+	require.Len(ns, 5)
 
 	return ctx, n
 }

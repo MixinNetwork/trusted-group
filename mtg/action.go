@@ -78,34 +78,40 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 		return err
 	}
 	for _, a := range as {
-		var transactions []*Transaction
-		state := ActionStateDone
+		wkr := grp.FindWorker(a.GroupId)
+		if wkr == nil {
+			err = grp.store.finishAction(ctx, a.OutputId, ActionStateDone, nil)
+			if err != nil {
+				panic(err)
+			}
+			continue
+		}
 
-		for _, wkr := range grp.workers {
-			if a.restoreSequence > a.Sequence {
-				a.Sequence = a.restoreSequence
+		if a.restoreSequence > a.Sequence {
+			a.Sequence = a.restoreSequence
+		}
+		state := ActionStateDone
+		txs, compactionAsset := wkr.ProcessOutput(ctx, a)
+		if compactionAsset != "" && len(txs) == 0 {
+			t, err := grp.buildCompactionTransaction(ctx, compactionAsset, a)
+			if err != nil {
+				return err
 			}
-			ts, compactionAsset := wkr.ProcessOutput(ctx, a)
-			if compactionAsset != "" && len(ts) == 0 {
-				t, err := grp.buildCompactionTransaction(ctx, compactionAsset, a)
-				if err != nil {
-					return err
-				}
-				state = ActionStateRestorable
-				transactions = []*Transaction{t}
-				break
-			} else if compactionAsset != "" {
-				panic(compactionAsset)
-			}
-			for _, t := range ts {
-				err = t.check(ctx)
-				if err != nil {
-					panic(err)
-				}
-				transactions = append(transactions, t)
+			state = ActionStateRestorable
+			txs = []*Transaction{t}
+		} else if compactionAsset != "" {
+			panic(compactionAsset)
+		}
+
+		// TODO should check the asset balance all together
+		for _, t := range txs {
+			err = t.check(ctx)
+			if err != nil {
+				panic(err)
 			}
 		}
-		err = grp.store.finishAction(ctx, a.OutputId, state, transactions)
+
+		err = grp.store.finishAction(ctx, a.OutputId, state, txs)
 		if err != nil {
 			panic(err)
 		}
