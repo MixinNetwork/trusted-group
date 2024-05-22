@@ -300,6 +300,7 @@ func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transa
 	}
 
 	for {
+		sort.Strings(tx.Receivers)
 		keys, err := grp.mixin.SafeCreateGhostKeys(ctx, []*mixin.GhostInput{{
 			Receivers: tx.Receivers,
 			Index:     0,
