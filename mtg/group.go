@@ -116,6 +116,8 @@ func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (
 	if err != nil {
 		return nil, err
 	}
+	sort.Strings(members)
+
 	grp.members = members
 	grp.threshold = threshold
 	grp.epoch = epoch

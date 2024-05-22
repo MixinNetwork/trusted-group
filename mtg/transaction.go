@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -86,6 +87,7 @@ func transactionFromRow(row Row) (*Transaction, error) {
 }
 
 func (grp *Group) BuildTransaction(traceId, groupId, assetId, amount, memo string, receivers []string, threshold int, sequence uint64) *Transaction {
+	sort.Strings(receivers)
 	return &Transaction{
 		TraceId:   traceId,
 		GroupId:   groupId,
