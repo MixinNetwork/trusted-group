@@ -331,8 +331,24 @@ func (grp *Group) createMultisigUntilSufficient(ctx context.Context, id, raw str
 	}
 }
 
+func (grp *Group) getSpendPublicKeyUntilSufficient(ctx context.Context) (string, error) {
+	for {
+		me, err := grp.mixin.UserMe(ctx)
+		logger.Verbosef("group.UserMe() => %v\n", err)
+		if err != nil && checkRetryableError(err) {
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		return me.SpendPublicKey, err
+	}
+}
+
 func (grp *Group) signMultisigUntilSufficient(ctx context.Context, input *mixin.SafeTransactionRequest) (*mixin.SafeTransactionRequest, error) {
-	key, err := mixinnet.KeyFromString(grp.spendPrivateKey)
+	spendPublicKey, err := grp.getSpendPublicKeyUntilSufficient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	key, err := mixinnet.ParseKeyWithPub(grp.spendPrivateKey, spendPublicKey)
 	if err != nil {
 		return nil, err
 	}
