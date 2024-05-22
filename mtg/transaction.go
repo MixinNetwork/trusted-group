@@ -304,11 +304,11 @@ func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transa
 		keys, err := grp.mixin.SafeCreateGhostKeys(ctx, []*mixin.GhostInput{{
 			Receivers: tx.Receivers,
 			Index:     0,
-			Hint:      tx.TraceId,
+			Hint:      mixin.UniqueConversationID(tx.TraceId, fmt.Sprintf("hint:%s;index:%d", tx.TraceId, 0)),
 		}, {
 			Receivers: grp.members,
 			Index:     1,
-			Hint:      tx.TraceId,
+			Hint:      mixin.UniqueConversationID(tx.TraceId, fmt.Sprintf("hint:%s;index:%d", tx.TraceId, 1)),
 		}})
 		logger.Verbosef("group.SafeCreateGhostKeys(%v) => %v %v\n", tx, keys, err)
 		if err != nil && checkRetryableError(err) {
