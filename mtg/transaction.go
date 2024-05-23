@@ -250,7 +250,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 		if tx.Compaction && len(ver.Outputs) != 1 {
 			return nil, fmt.Errorf("expired compaction transaction %v", tx)
 		}
-		var req *mixin.SafeTransactionRequest
+		var req *mixin.SafeMultisigRequest
 		switch {
 		case len(old.Signers) >= int(old.SendersThreshold) || slices.Contains(old.Signers, grp.mixin.ClientID):
 			req = old
@@ -285,7 +285,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	return grp.updateTxWithOutputs(ctx, tx, outputs, req)
 }
 
-func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput, req *mixin.SafeTransactionRequest) ([]byte, error) {
+func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput, req *mixin.SafeMultisigRequest) ([]byte, error) {
 	for _, out := range outputs {
 		out.TraceId = tx.TraceId
 		out.GroupId = tx.GroupId
@@ -359,9 +359,9 @@ func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transa
 	}
 }
 
-func (grp *Group) createMultisigUntilSufficient(ctx context.Context, id, raw string) (*mixin.SafeTransactionRequest, error) {
+func (grp *Group) createMultisigUntilSufficient(ctx context.Context, id, raw string) (*mixin.SafeMultisigRequest, error) {
 	for {
-		req, err := grp.mixin.SafeCreateTransactionRequest(ctx, &mixin.SafeTransactionRequestInput{
+		req, err := grp.mixin.SafeCreateMultisigRequest(ctx, &mixin.SafeTransactionRequestInput{
 			RequestID:      id,
 			RawTransaction: raw,
 		})
@@ -386,7 +386,7 @@ func (grp *Group) getSpendPublicKeyUntilSufficient(ctx context.Context) (string,
 	}
 }
 
-func (grp *Group) signMultisigUntilSufficient(ctx context.Context, input *mixin.SafeTransactionRequest) (*mixin.SafeTransactionRequest, error) {
+func (grp *Group) signMultisigUntilSufficient(ctx context.Context, input *mixin.SafeMultisigRequest) (*mixin.SafeMultisigRequest, error) {
 	spendPublicKey, err := grp.getSpendPublicKeyUntilSufficient(ctx)
 	if err != nil {
 		return nil, err
@@ -408,7 +408,7 @@ func (grp *Group) signMultisigUntilSufficient(ctx context.Context, input *mixin.
 		return nil, err
 	}
 	for {
-		req, err := grp.mixin.SafeSubmitTransactionRequest(ctx, &mixin.SafeTransactionRequestInput{
+		req, err := grp.mixin.SafeSignMultisigRequest(ctx, &mixin.SafeTransactionRequestInput{
 			RequestID:      input.RequestID,
 			RawTransaction: signedRaw,
 		})
@@ -421,13 +421,18 @@ func (grp *Group) signMultisigUntilSufficient(ctx context.Context, input *mixin.
 	}
 }
 
-func (grp *Group) readMultisigUntilSufficient(ctx context.Context, id string) (*mixin.SafeTransactionRequest, error) {
+func (grp *Group) readMultisigUntilSufficient(ctx context.Context, id string) (*mixin.SafeMultisigRequest, error) {
 	for {
-		req, err := grp.mixin.SafeReadTransactionRequest(ctx, id)
-		logger.Verbosef("group.SafeSignMultisigRequest(%s) => %v %v\n", id, req, err)
-		if err != nil && checkRetryableError(err) {
-			time.Sleep(3 * time.Second)
-			continue
+		req, err := grp.mixin.SafeReadMultisigRequests(ctx, id)
+		logger.Verbosef("group.SafeReadMultisigRequests(%s) => %v %v\n", id, req, err)
+		if err != nil {
+			if checkRetryableError(err) {
+				time.Sleep(3 * time.Second)
+				continue
+			}
+			if strings.Contains(err.Error(), "The endpoint is not found") {
+				return nil, nil
+			}
 		}
 		return req, err
 	}
