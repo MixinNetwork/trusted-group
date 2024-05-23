@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -224,16 +225,51 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 		return nil, fmt.Errorf("insufficient compaction transaction outputs %v %d", tx, len(outputs))
 	}
 
-	ver, outputs, err := grp.buildRawTransaction(ctx, tx, outputs)
-	logger.Verbosef("group.buildRawTransaction(%v) => %v %d %v\n", tx, ver, len(outputs), err)
+	old, err := grp.readMultisigUntilSufficient(ctx, tx.TraceId)
+	if err != nil {
+		return nil, err
+	}
+	if old != nil {
+		rb, _ := hex.DecodeString(old.RawTransaction)
+		ver, _ := common.UnmarshalVersionedTransaction(rb)
+		filter := make(map[string]bool)
+		for _, input := range ver.Inputs {
+			key := fmt.Sprintf("%s:%d", input.Hash.String(), input.Index)
+			filter[key] = true
+		}
+		var consumed []*UnifiedOutput
+		for _, out := range outputs {
+			key := fmt.Sprintf("%s:%d", out.TransactionHash.String(), out.OutputIndex)
+			if _, ok := filter[key]; ok {
+				consumed = append(consumed, out)
+			}
+		}
+		if len(consumed) != len(ver.Inputs) {
+			return nil, fmt.Errorf("inconsistent count of consumed and inputs: %d %d", len(consumed), len(ver.Inputs))
+		}
+		if tx.Compaction && len(ver.Outputs) != 1 {
+			return nil, fmt.Errorf("expired compaction transaction %v", tx)
+		}
+		var req *mixin.SafeTransactionRequest
+		switch {
+		case len(old.Signers) >= int(old.SendersThreshold) || slices.Contains(old.Signers, grp.mixin.ClientID):
+			req = old
+		default:
+			req, err = grp.signMultisigUntilSufficient(ctx, old)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return grp.updateTxWithOutputs(ctx, tx, consumed, req)
+	}
+
+	ver, consumed, err := grp.buildRawTransaction(ctx, tx, outputs)
+	logger.Verbosef("group.buildRawTransaction(%v) => %v %d %v\n", tx, ver, len(consumed), err)
 	if err != nil {
 		return nil, err
 	}
 	if tx.Compaction && len(ver.Outputs) != 1 {
 		return nil, fmt.Errorf("expired compaction transaction %v", tx)
-	}
-	if ver.AggregatedSignature != nil || len(ver.SignaturesMap) > 0 {
-		return ver.Marshal(), nil
 	}
 
 	raw := hex.EncodeToString(ver.Marshal())
@@ -246,11 +282,15 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 		return nil, err
 	}
 
+	return grp.updateTxWithOutputs(ctx, tx, outputs, req)
+}
+
+func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput, req *mixin.SafeTransactionRequest) ([]byte, error) {
 	for _, out := range outputs {
 		out.TraceId = tx.TraceId
 		out.GroupId = tx.GroupId
 		out.State = SafeUtxoStateSigned
-		out.SignedBy = ver.PayloadHash().String()
+		out.SignedBy = req.TransactionHash
 		out.SignedTx = req.RawTransaction
 	}
 
@@ -258,13 +298,13 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	if err != nil {
 		return nil, err
 	}
-	ver, _ = common.UnmarshalVersionedTransaction(rb)
+	ver, _ := common.UnmarshalVersionedTransaction(rb)
 	tx.Raw = rb
 	tx.Hash = ver.PayloadHash()
 	tx.UpdatedAt = time.Now()
 	tx.State = TransactionStateSigning
 
-	if ver.AggregatedSignature != nil || len(ver.SignaturesMap) > 0 {
+	if len(req.Signers) > 0 {
 		tx.State = TransactionStateSigned
 	} else {
 		t, g, _ := DecodeMixinExtra(string(ver.Extra))
@@ -373,6 +413,18 @@ func (grp *Group) signMultisigUntilSufficient(ctx context.Context, input *mixin.
 			RawTransaction: signedRaw,
 		})
 		logger.Verbosef("group.SafeSignMultisigRequest(%s %s) => %v %v\n", input.RequestID, signedRaw, req, err)
+		if err != nil && checkRetryableError(err) {
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		return req, err
+	}
+}
+
+func (grp *Group) readMultisigUntilSufficient(ctx context.Context, id string) (*mixin.SafeTransactionRequest, error) {
+	for {
+		req, err := grp.mixin.SafeReadTransactionRequest(ctx, id)
+		logger.Verbosef("group.SafeSignMultisigRequest(%s) => %v %v\n", id, req, err)
 		if err != nil && checkRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
