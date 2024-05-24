@@ -53,23 +53,29 @@ func (grp *Group) processSafeOutputs(ctx context.Context, filter map[string]bool
 }
 
 func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) {
-	groupId, traceId, _ := DecodeMixinExtra(output.Extra)
-	if groupId == "" {
-		groupId = grp.GroupId
+	appId, traceId, _ := DecodeMixinExtra(output.Extra)
+	if appId == "" {
+		appId = grp.GroupId
 	}
-	output.GroupId = groupId
+	output.AppId = appId
 	output.TraceId = traceId
 
 	tx, err := grp.store.ReadTransactionByHash(ctx, output.TransactionHash)
 	if err != nil {
 		panic(err)
 	}
-	if tx != nil && tx.Compaction {
-		err = grp.store.restoreAction(ctx, output, tx)
-		if err != nil {
-			panic(err)
+	if tx != nil {
+		if tx.Compaction {
+			err = grp.store.restoreAction(ctx, output, tx)
+			if err != nil {
+				panic(err)
+			}
+			return
 		}
-		return
+		if tx.State == TransactionStateSnapshot && output.OutputIndex == 1 {
+			output.AppId = tx.AppId
+			output.TraceId = tx.TraceId
+		}
 	}
 	grp.store.writeAction(ctx, output, ActionStateInitial)
 }

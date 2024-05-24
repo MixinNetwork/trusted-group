@@ -43,14 +43,14 @@ CREATE TABLE IF NOT EXISTS outputs (
   signed_by            VARCHAR NOT NULL,
   signed_tx            VARCHAR NOT NULL,
   trace_id             VARCHAR NOT NULL,
-  group_id             VARCHAR NOT NULL,
+  app_id               VARCHAR NOT NULL,
   PRIMARY KEY ('output_id')
 );
 
 CREATE INDEX IF NOT EXISTS outputs_by_sequence ON outputs(sequence);
 CREATE INDEX IF NOT EXISTS outputs_by_state_sequence ON outputs(state, sequence);
 CREATE INDEX IF NOT EXISTS outputs_by_trace_sequence ON outputs(trace_id, sequence);
-CREATE INDEX IF NOT EXISTS outputs_by_group_state_asset_sequence ON outputs(group_id, asset_id, sequence, state);
+CREATE INDEX IF NOT EXISTS outputs_by_group_state_asset_sequence ON outputs(app_id, asset_id, sequence, state);
 
 
 
@@ -71,7 +71,7 @@ CREATE INDEX IF NOT EXISTS actions_by_state_hash ON actions(action_state, transa
 
 
 CREATE TABLE IF NOT EXISTS transactions (
-  group_id             VARCHAR NOT NULL,
+  app_id               VARCHAR NOT NULL,
   trace_id             VARCHAR NOT NULL,
   state                INTEGER NOT NULL,
   asset_id             VARCHAR NOT NULL,

@@ -97,9 +97,9 @@ func (s *SQLite3Store) finishAction(ctx context.Context, id string, state Action
 }
 
 func (s *SQLite3Store) writeOutputAndAction(ctx context.Context, tx *sql.Tx, out *UnifiedOutput, state ActionState) error {
-	gid := uuid.Must(uuid.FromString(out.GroupId))
-	if gid.String() != out.GroupId {
-		panic(out.GroupId)
+	aid := uuid.Must(uuid.FromString(out.AppId))
+	if aid.String() != out.AppId {
+		panic(out.AppId)
 	}
 
 	oldAct, err := s.readAction(ctx, out.OutputId)
@@ -213,12 +213,12 @@ func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, traceId st
 	return os, nil
 }
 
-func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, groupId, assetId string, sequence uint64, state SafeUtxoState, limit int) ([]*UnifiedOutput, error) {
-	query := fmt.Sprintf("SELECT %s FROM outputs WHERE group_id=? AND asset_id=? AND sequence<=? AND state=? ORDER BY sequence ASC", strings.Join(outputCols, ","))
+func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, appId, assetId string, sequence uint64, state SafeUtxoState, limit int) ([]*UnifiedOutput, error) {
+	query := fmt.Sprintf("SELECT %s FROM outputs WHERE app_id=? AND asset_id=? AND sequence<=? AND state=? ORDER BY sequence ASC", strings.Join(outputCols, ","))
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
-	rows, err := s.db.QueryContext(ctx, query, groupId, assetId, sequence, state)
+	rows, err := s.db.QueryContext(ctx, query, appId, assetId, sequence, state)
 	if err != nil {
 		return nil, err
 	}

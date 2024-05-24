@@ -141,15 +141,15 @@ func (grp *Group) Synced(ctx context.Context) (bool, error) {
 	return v == "1", err
 }
 
-func (grp *Group) AttachWorker(groupId string, wkr Worker) {
-	if grp.FindWorker(groupId) != nil {
-		panic(groupId)
+func (grp *Group) AttachWorker(appId string, wkr Worker) {
+	if grp.FindWorker(appId) != nil {
+		panic(appId)
 	}
-	grp.workers[groupId] = wkr
+	grp.workers[appId] = wkr
 }
 
-func (grp *Group) FindWorker(groupId string) Worker {
-	return grp.workers[groupId]
+func (grp *Group) FindWorker(appId string) Worker {
+	return grp.workers[appId]
 }
 
 func (node *Group) Index() int {
@@ -185,8 +185,8 @@ func (grp *Group) Run(ctx context.Context) {
 	}
 }
 
-func (grp *Group) ListOutputsForAsset(ctx context.Context, groupId, assetId string, sequence uint64, state SafeUtxoState, limit int) ([]*UnifiedOutput, error) {
-	outputs, err := grp.store.ListOutputsForAsset(ctx, groupId, assetId, sequence, state, limit)
+func (grp *Group) ListOutputsForAsset(ctx context.Context, appId, assetId string, sequence uint64, state SafeUtxoState, limit int) ([]*UnifiedOutput, error) {
+	outputs, err := grp.store.ListOutputsForAsset(ctx, appId, assetId, sequence, state, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -202,8 +202,8 @@ func (grp *Group) ListOutputsForTransaction(ctx context.Context, traceId string,
 }
 
 // this function or rpc should be used only in ProcessOutput
-func (grp *Group) CheckAssetBalanceAt(ctx context.Context, groupId, assetId string, sequence uint64) (decimal.Decimal, error) {
-	os, err := grp.store.ListOutputsForAsset(ctx, groupId, assetId, sequence, SafeUtxoStateUnspent, OutputsBatchSize)
+func (grp *Group) CheckAssetBalanceAt(ctx context.Context, appId, assetId string, sequence uint64) (decimal.Decimal, error) {
+	os, err := grp.store.ListOutputsForAsset(ctx, appId, assetId, sequence, SafeUtxoStateUnspent, OutputsBatchSize)
 	if err != nil {
 		return decimal.Zero, err
 	}

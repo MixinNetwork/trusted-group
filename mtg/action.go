@@ -42,12 +42,12 @@ type Action struct {
 	SignedBy           string
 	SignedTx           string
 	TraceId            string
-	GroupId            string
+	AppId              string
 }
 
 var actionCols = []string{"output_id", "transaction_hash", "action_state", "sequence", "restore_sequence"}
 
-var actionJoinCols = []string{"actions.output_id", "actions.transaction_hash", "action_state", "actions.sequence", "restore_sequence", "request_id", "output_index", "asset_id", "kernel_asset_id", "amount", "mask", "keys", "senders_threshold", "senders", "receivers_threshold", "receivers", "extra", "state", "created_at", "updated_at", "signers", "signed_by", "signed_tx", "trace_id", "group_id"}
+var actionJoinCols = []string{"actions.output_id", "actions.transaction_hash", "action_state", "actions.sequence", "restore_sequence", "request_id", "output_index", "asset_id", "kernel_asset_id", "amount", "mask", "keys", "senders_threshold", "senders", "receivers_threshold", "receivers", "extra", "state", "created_at", "updated_at", "signers", "signed_by", "signed_tx", "trace_id", "app_id"}
 
 func (a *Action) values() []any {
 	return []any{a.OutputId, a.TransactionHash, a.ActionState, a.Sequence, a.restoreSequence}
@@ -64,7 +64,7 @@ func actionFromRow(row Row) (*Action, error) {
 
 func actionJoinFromRow(row Row) (*Action, error) {
 	var a Action
-	err := row.Scan(&a.OutputId, &a.TransactionHash, &a.ActionState, &a.Sequence, &a.restoreSequence, &a.RequestId, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.Mask, &a.Keys, &a.SendersThreshold, &a.Senders, &a.ReceiversThreshold, &a.Receivers, &a.Extra, &a.State, &a.CreatedAt, &a.UpdatedAt, &a.Signers, &a.SignedBy, &a.SignedTx, &a.TraceId, &a.GroupId)
+	err := row.Scan(&a.OutputId, &a.TransactionHash, &a.ActionState, &a.Sequence, &a.restoreSequence, &a.RequestId, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.Mask, &a.Keys, &a.SendersThreshold, &a.Senders, &a.ReceiversThreshold, &a.Receivers, &a.Extra, &a.State, &a.CreatedAt, &a.UpdatedAt, &a.Signers, &a.SignedBy, &a.SignedTx, &a.TraceId, &a.AppId)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -78,7 +78,7 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 		return err
 	}
 	for _, a := range as {
-		wkr := grp.FindWorker(a.GroupId)
+		wkr := grp.FindWorker(a.AppId)
 		if wkr == nil {
 			err = grp.store.finishAction(ctx, a.OutputId, ActionStateDone, nil)
 			if err != nil {

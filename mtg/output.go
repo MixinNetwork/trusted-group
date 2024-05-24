@@ -46,19 +46,19 @@ type UnifiedOutput struct {
 
 	SignedTx string
 	TraceId  string
-	GroupId  string
+	AppId    string
 }
 
-var outputCols = []string{"output_id", "request_id", "transaction_hash", "output_index", "asset_id", "kernel_asset_id", "amount", "mask", "keys", "senders_threshold", "senders", "receivers_threshold", "receivers", "extra", "state", "sequence", "created_at", "updated_at", "signers", "signed_by", "signed_tx", "trace_id", "group_id"}
+var outputCols = []string{"output_id", "request_id", "transaction_hash", "output_index", "asset_id", "kernel_asset_id", "amount", "mask", "keys", "senders_threshold", "senders", "receivers_threshold", "receivers", "extra", "state", "sequence", "created_at", "updated_at", "signers", "signed_by", "signed_tx", "trace_id", "app_id"}
 
 func (o *UnifiedOutput) values() []any {
-	return []any{o.OutputId, o.RequestId, o.TransactionHash.String(), o.OutputIndex, o.AssetId, o.KernelAssetId, o.Amount, o.Mask, strings.Join(o.Keys, ","), o.SendersThreshold, strings.Join(o.Senders, ","), o.ReceiversThreshold, strings.Join(o.Receivers, ","), o.Extra, o.State, o.Sequence, o.CreatedAt, o.UpdatedAt, strings.Join(o.Signers, ","), o.SignedBy, o.SignedTx, o.TraceId, o.GroupId}
+	return []any{o.OutputId, o.RequestId, o.TransactionHash.String(), o.OutputIndex, o.AssetId, o.KernelAssetId, o.Amount, o.Mask, strings.Join(o.Keys, ","), o.SendersThreshold, strings.Join(o.Senders, ","), o.ReceiversThreshold, strings.Join(o.Receivers, ","), o.Extra, o.State, o.Sequence, o.CreatedAt, o.UpdatedAt, strings.Join(o.Signers, ","), o.SignedBy, o.SignedTx, o.TraceId, o.AppId}
 }
 
 func outputFromRow(row Row) (*UnifiedOutput, error) {
 	var o UnifiedOutput
 	var hash, keys, senders, receivers, signers string
-	err := row.Scan(&o.OutputId, &o.RequestId, &hash, &o.OutputIndex, &o.AssetId, &o.KernelAssetId, &o.Amount, &o.Mask, &keys, &o.SendersThreshold, &senders, &o.ReceiversThreshold, &receivers, &o.Extra, &o.State, &o.Sequence, &o.CreatedAt, &o.UpdatedAt, &signers, &o.SignedBy, &o.SignedTx, &o.TraceId, &o.GroupId)
+	err := row.Scan(&o.OutputId, &o.RequestId, &hash, &o.OutputIndex, &o.AssetId, &o.KernelAssetId, &o.Amount, &o.Mask, &keys, &o.SendersThreshold, &senders, &o.ReceiversThreshold, &receivers, &o.Extra, &o.State, &o.Sequence, &o.CreatedAt, &o.UpdatedAt, &signers, &o.SignedBy, &o.SignedTx, &o.TraceId, &o.AppId)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

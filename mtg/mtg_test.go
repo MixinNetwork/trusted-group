@@ -42,7 +42,7 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 		return []*Transaction{}, ""
 	}
 
-	balance, err := n.Group.CheckAssetBalanceAt(ctx, a.GroupId, a.AssetId, a.Sequence)
+	balance, err := n.Group.CheckAssetBalanceAt(ctx, a.AppId, a.AssetId, a.Sequence)
 	if err != nil {
 		panic(err)
 	}
@@ -52,7 +52,7 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 
 	amount := amt.String()
 	id := mixin.UniqueConversationID(amount, testSender)
-	t := n.Group.BuildTransaction(id, a.GroupId, a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold(), a.Sequence)
+	t := n.Group.BuildTransaction(id, a.AppId, a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold(), a.Sequence)
 	return []*Transaction{t}, ""
 }
 
@@ -72,7 +72,7 @@ func TestMTGCompaction(t *testing.T) {
 	require.Len(as, 1)
 	hash := as[0].TransactionHash
 
-	wkr := node.Group.FindWorker(as[0].GroupId)
+	wkr := node.Group.FindWorker(as[0].AppId)
 	require.NotNil(wkr)
 	err = node.Group.handleActionsQueue(ctx)
 	require.Nil(err)
@@ -107,7 +107,7 @@ func testHandleCompactionTransaction(ctx context.Context, require *require.Asser
 
 	tx := ts[0]
 	require.True(tx.Compaction)
-	outputs, err := group.ListOutputsForAsset(ctx, tx.GroupId, tx.AssetId, tx.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
+	outputs, err := group.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, tx.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
 	require.Nil(err)
 	require.Len(outputs, 36)
 	ver, consumed, err := group.buildRawTransaction(ctx, tx, outputs)
@@ -131,7 +131,7 @@ func testHandleCompactionTransaction(ctx context.Context, require *require.Asser
 }
 
 func testBuildActionFromTx(require *require.Assertions, group *Group, tx *Transaction) *UnifiedOutput {
-	extra := encodeMixinExtra(tx.GroupId, tx.TraceId, tx.Memo)
+	extra := encodeMixinExtra(tx.AppId, tx.TraceId, tx.Memo)
 	extra = hex.EncodeToString([]byte(extra))
 	return testBuildOutput(group, require, tx.Amount, extra, SafeUtxoStateUnspent, tx.Sequence+100, tx.Hash.String())
 }
@@ -185,7 +185,7 @@ func testBuildOutput(group *Group, require *require.Assertions, amount string, e
 		Sequence:           sequence,
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
-		GroupId:            group.GroupId,
+		AppId:              group.GroupId,
 	}
 }
 
