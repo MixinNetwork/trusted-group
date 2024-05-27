@@ -127,7 +127,7 @@ func (grp *Group) BuildStorageTransaction(ctx context.Context, extra []byte, seq
 	t := grp.BuildTransaction(sTraceId, "", StorageAssetId, amount.String(), string(extra), []string{StorageReceiverId}, 64, sequence)
 	t.Storage = true
 
-	total, err := grp.CheckAssetBalanceAt(ctx, "", StorageAssetId, sequence)
+	total, err := grp.CheckAssetBalanceAt(ctx, grp.GroupId, StorageAssetId, sequence)
 	if err != nil {
 		return nil, err
 	}
