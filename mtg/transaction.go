@@ -57,7 +57,11 @@ func (t *Transaction) values() []any {
 	for _, r := range t.References {
 		refs = append(refs, r.String())
 	}
-	return []any{t.AppId, t.OpponentAppId, t.TraceId, t.State, t.AssetId, strings.Join(t.Receivers, ","), t.Threshold, t.Amount, t.Memo, t.Raw, t.Hash.String(), strings.Join(refs, ","), t.Sequence, t.Compaction, t.Storage, t.UpdatedAt}
+	hash := t.Hash.String()
+	if !t.Hash.HasValue() {
+		hash = ""
+	}
+	return []any{t.AppId, t.OpponentAppId, t.TraceId, t.State, t.AssetId, strings.Join(t.Receivers, ","), t.Threshold, t.Amount, t.Memo, t.Raw, hash, strings.Join(refs, ","), t.Sequence, t.Compaction, t.Storage, t.UpdatedAt}
 }
 
 func transactionFromRow(row Row) (*Transaction, error) {
