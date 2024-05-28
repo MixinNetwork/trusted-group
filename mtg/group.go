@@ -237,7 +237,7 @@ func (grp *Group) publishTransactions(ctx context.Context) error {
 		return err
 	}
 	for _, tx := range txs {
-		snapshot, err := grp.snapshotTransaction(ctx, tx.Hash)
+		snapshot, err := grp.snapshotTransaction(ctx, tx.TraceId)
 		if err != nil {
 			return err
 		} else if !snapshot {
@@ -248,16 +248,16 @@ func (grp *Group) publishTransactions(ctx context.Context) error {
 	return nil
 }
 
-func (grp *Group) snapshotTransaction(ctx context.Context, tx crypto.Hash) (bool, error) {
-	c := mixinnet.NewClient(mixinnet.Config{
-		Safe: true,
-	})
-	_, err := c.GetTransaction(ctx, mixinnet.Hash(tx))
-	logger.Verbosef("Group.GetTransaction(%s) => %v", tx.String(), err)
+func (grp *Group) snapshotTransaction(ctx context.Context, id string) (bool, error) {
+	req, err := grp.readTransactionUntilSufficient(ctx, id)
+	logger.Verbosef("group.readTransactionUntilSufficient(%s) => %v", id, err)
 	if err != nil {
 		return false, err
 	}
-	return true, nil
+	if req != nil && req.State == mixin.SafeUtxoStateSpent {
+		return true, nil
+	}
+	return false, nil
 }
 
 func generateGenesisId(conf *Configuration) string {
