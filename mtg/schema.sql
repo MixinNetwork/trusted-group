@@ -72,6 +72,7 @@ CREATE INDEX IF NOT EXISTS actions_by_state_hash ON actions(action_state, transa
 
 CREATE TABLE IF NOT EXISTS transactions (
   app_id               VARCHAR NOT NULL,
+  opponent_app_id      VARCHAR NOT NULL,
   trace_id             VARCHAR NOT NULL,
   state                INTEGER NOT NULL,
   asset_id             VARCHAR NOT NULL,

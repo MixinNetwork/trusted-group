@@ -52,7 +52,7 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 
 	amount := amt.String()
 	id := mixin.UniqueConversationID(amount, testSender)
-	t := n.Group.BuildTransaction(id, a.AppId, a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold(), a.Sequence)
+	t := n.Group.BuildTransaction(id, a.AppId, mixin.UniqueConversationID(a.AppId, "opponent"), a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold(), a.Sequence)
 	return []*Transaction{t}, ""
 }
 

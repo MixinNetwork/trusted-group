@@ -32,37 +32,38 @@ const (
 )
 
 type Transaction struct {
-	AppId      string
-	TraceId    string
-	State      int
-	AssetId    string
-	Receivers  []string
-	Threshold  int
-	Amount     string
-	Memo       string
-	Raw        []byte
-	Hash       crypto.Hash
-	References []crypto.Hash
-	Sequence   uint64
-	Compaction bool
-	Storage    bool
-	UpdatedAt  time.Time
+	AppId         string
+	OpponentAppId string
+	TraceId       string
+	State         int
+	AssetId       string
+	Receivers     []string
+	Threshold     int
+	Amount        string
+	Memo          string
+	Raw           []byte
+	Hash          crypto.Hash
+	References    []crypto.Hash
+	Sequence      uint64
+	Compaction    bool
+	Storage       bool
+	UpdatedAt     time.Time
 }
 
-var transactionCols = []string{"app_id", "trace_id", "state", "asset_id", "receivers", "threshold", "amount", "memo", "raw", "hash", "refs", "sequence", "compaction", "storage", "updated_at"}
+var transactionCols = []string{"app_id", "opponent_app_id", "trace_id", "state", "asset_id", "receivers", "threshold", "amount", "memo", "raw", "hash", "refs", "sequence", "compaction", "storage", "updated_at"}
 
 func (t *Transaction) values() []any {
 	var refs []string
 	for _, r := range t.References {
 		refs = append(refs, r.String())
 	}
-	return []any{t.AppId, t.TraceId, t.State, t.AssetId, strings.Join(t.Receivers, ","), t.Threshold, t.Amount, t.Memo, t.Raw, t.Hash.String(), strings.Join(refs, ","), t.Sequence, t.Compaction, t.Storage, t.UpdatedAt}
+	return []any{t.AppId, t.OpponentAppId, t.TraceId, t.State, t.AssetId, strings.Join(t.Receivers, ","), t.Threshold, t.Amount, t.Memo, t.Raw, t.Hash.String(), strings.Join(refs, ","), t.Sequence, t.Compaction, t.Storage, t.UpdatedAt}
 }
 
 func transactionFromRow(row Row) (*Transaction, error) {
 	var t Transaction
 	var hash, rs, refs string
-	err := row.Scan(&t.AppId, &t.TraceId, &t.State, &t.AssetId, &rs, &t.Threshold, &t.Amount, &t.Memo, &t.Raw, &hash, &refs, &t.Sequence, &t.Compaction, &t.Storage, &t.UpdatedAt)
+	err := row.Scan(&t.AppId, &t.OpponentAppId, &t.TraceId, &t.State, &t.AssetId, &rs, &t.Threshold, &t.Amount, &t.Memo, &t.Raw, &hash, &refs, &t.Sequence, &t.Compaction, &t.Storage, &t.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -87,26 +88,27 @@ func transactionFromRow(row Row) (*Transaction, error) {
 	return &t, err
 }
 
-func (grp *Group) BuildTransaction(traceId, appId, assetId, amount, memo string, receivers []string, threshold int, sequence uint64) *Transaction {
+func (grp *Group) BuildTransaction(traceId, appId, opponentAppId, assetId, amount, memo string, receivers []string, threshold int, sequence uint64) *Transaction {
 	sort.Strings(receivers)
 	return &Transaction{
-		TraceId:   traceId,
-		AppId:     appId,
-		State:     TransactionStateInitial,
-		AssetId:   assetId,
-		Amount:    amount,
-		Receivers: receivers,
-		Threshold: threshold,
-		Memo:      memo,
-		Sequence:  sequence,
+		TraceId:       traceId,
+		AppId:         appId,
+		OpponentAppId: opponentAppId,
+		State:         TransactionStateInitial,
+		AssetId:       assetId,
+		Amount:        amount,
+		Receivers:     receivers,
+		Threshold:     threshold,
+		Memo:          memo,
+		Sequence:      sequence,
 	}
 }
 
-func (grp *Group) BuildTransactionWithReference(traceId, appId, assetId, amount, memo string, receivers []string, threshold int, sequence uint64, reference crypto.Hash) *Transaction {
+func (grp *Group) BuildTransactionWithReference(traceId, appId, opponentAppId, assetId, amount, memo string, receivers []string, threshold int, sequence uint64, reference crypto.Hash) *Transaction {
 	if !reference.HasValue() {
 		panic(reference)
 	}
-	t := grp.BuildTransaction(traceId, appId, assetId, amount, memo, receivers, threshold, sequence)
+	t := grp.BuildTransaction(traceId, appId, opponentAppId, assetId, amount, memo, receivers, threshold, sequence)
 	t.References = []crypto.Hash{reference}
 	return t
 }
@@ -124,7 +126,7 @@ func (grp *Group) BuildStorageTransaction(ctx context.Context, extra []byte, seq
 
 	step := common.NewIntegerFromString(common.ExtraStoragePriceStep)
 	amount := step.Mul(len(extra)/common.ExtraSizeStorageStep + 1)
-	t := grp.BuildTransaction(sTraceId, "", StorageAssetId, amount.String(), string(extra), []string{StorageReceiverId}, 64, sequence)
+	t := grp.BuildTransaction(sTraceId, "", "", StorageAssetId, amount.String(), string(extra), []string{StorageReceiverId}, 64, sequence)
 	t.Storage = true
 
 	total, err := grp.CheckAssetBalanceAt(ctx, grp.GroupId, StorageAssetId, sequence)
@@ -167,7 +169,7 @@ func (t *Transaction) check(ctx context.Context) error {
 		}
 	}
 
-	s := encodeMixinExtra(t.AppId, t.TraceId, t.Memo)
+	s := encodeMixinExtra(t.OpponentAppId, t.TraceId, t.Memo)
 	if len(s) >= common.ExtraSizeGeneralLimit {
 		return fmt.Errorf("invalid extra length: %d", len(s))
 	}
@@ -191,17 +193,18 @@ func (grp *Group) buildCompactionTransaction(ctx context.Context, asset string, 
 	}
 
 	tx := &Transaction{
-		TraceId:    mixin.UniqueConversationID(act.OutputId, "compaction"),
-		AppId:      act.AppId,
-		State:      TransactionStateInitial,
-		AssetId:    asset,
-		Receivers:  grp.GetMembers(),
-		Threshold:  grp.GetThreshold(),
-		Amount:     total.String(),
-		Memo:       "",
-		References: []crypto.Hash{hash},
-		Compaction: true,
-		Sequence:   act.Sequence,
+		TraceId:       mixin.UniqueConversationID(act.OutputId, "compaction"),
+		AppId:         act.AppId,
+		OpponentAppId: act.AppId,
+		State:         TransactionStateInitial,
+		AssetId:       asset,
+		Receivers:     grp.GetMembers(),
+		Threshold:     grp.GetThreshold(),
+		Amount:        total.String(),
+		Memo:          "",
+		References:    []crypto.Hash{hash},
+		Compaction:    true,
+		Sequence:      act.Sequence,
 	}
 	return tx, nil
 }
@@ -288,7 +291,6 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput, req *mixin.SafeMultisigRequest) ([]byte, error) {
 	for _, out := range outputs {
 		out.TraceId = tx.TraceId
-		out.AppId = tx.AppId
 		out.State = SafeUtxoStateSigned
 		out.SignedBy = req.TransactionHash
 		out.SignedTx = req.RawTransaction
@@ -311,7 +313,7 @@ func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outp
 		if t != tx.TraceId {
 			panic(hex.EncodeToString(rb))
 		}
-		if g != tx.AppId {
+		if g != tx.OpponentAppId {
 			panic(hex.EncodeToString(rb))
 		}
 	}
@@ -456,7 +458,7 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 		return old, nil, nil
 	}
 	ver := common.NewTransactionV5(crypto.Sha256Hash([]byte(tx.AssetId)))
-	ver.Extra = []byte(encodeMixinExtra(tx.AppId, tx.TraceId, tx.Memo))
+	ver.Extra = []byte(encodeMixinExtra(tx.OpponentAppId, tx.TraceId, tx.Memo))
 	if tx.Storage {
 		ver.Extra = []byte(tx.Memo)
 	}
