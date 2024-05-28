@@ -87,6 +87,14 @@ func (s *SQLite3Store) finishAction(ctx context.Context, id string, state Action
 		if t.Sequence != sequence {
 			panic(t.Sequence)
 		}
+
+		existed, err := s.checkExistence(ctx, tx, "SELECT trace_id FROM transactions WHERE trace_id=?", t.TraceId)
+		if err != nil {
+			return err
+		}
+		if existed {
+			continue
+		}
 		err = s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), t.values()...)
 		if err != nil {
 			return fmt.Errorf("INSERT transactions %v", err)
