@@ -72,9 +72,12 @@ func transactionFromRow(row Row) (*Transaction, error) {
 		return nil, nil
 	}
 
-	h, err := crypto.HashFromString(hash)
-	if err != nil {
-		return nil, err
+	var h crypto.Hash
+	if hash != "" {
+		h, err = crypto.HashFromString(hash)
+		if err != nil {
+			return nil, err
+		}
 	}
 	t.Hash = h
 

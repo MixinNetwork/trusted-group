@@ -53,6 +53,8 @@ func (grp *Group) processSafeOutputs(ctx context.Context, filter map[string]bool
 }
 
 func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) {
+	logger.Verbosef("Group.processSafeOutput(%v) \n", output)
+
 	appId, traceId, _ := DecodeMixinExtra(output.Extra)
 	if appId == "" {
 		appId = grp.GroupId
