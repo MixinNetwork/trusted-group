@@ -282,10 +282,16 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 		return nil, fmt.Errorf("expired compaction transaction %v", tx)
 	}
 
-	raw := hex.EncodeToString(ver.Marshal())
-	req, err := grp.createMultisigUntilSufficient(ctx, tx.TraceId, raw)
+	req, err := grp.readMultisigUntilSufficient(ctx, tx.TraceId)
 	if err != nil {
 		return nil, err
+	}
+	if req == nil {
+		raw := hex.EncodeToString(ver.Marshal())
+		req, err = grp.createMultisigUntilSufficient(ctx, tx.TraceId, raw)
+		if err != nil {
+			return nil, err
+		}
 	}
 	req, err = grp.signMultisigUntilSufficient(ctx, req)
 	if err != nil {
