@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 )
 
@@ -74,9 +75,21 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 			}
 			return
 		}
-		if tx.State == TransactionStateSnapshot && output.OutputIndex == 1 {
-			output.AppId = tx.AppId
-			output.TraceId = tx.TraceId
+		if output.OutputIndex == 1 {
+			switch tx.State {
+			case TransactionStateSnapshot:
+				output.AppId = tx.AppId
+				output.TraceId = tx.TraceId
+			default:
+				req, err := grp.readTransactionUntilSufficient(ctx, output.TransactionHash.String())
+				if err != nil {
+					panic(err)
+				}
+				if req != nil && req.State == mixin.SafeUtxoStateSpent {
+					output.AppId = tx.AppId
+					output.TraceId = tx.TraceId
+				}
+			}
 		}
 	}
 	grp.store.writeAction(ctx, output, ActionStateInitial)

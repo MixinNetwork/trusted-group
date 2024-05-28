@@ -447,6 +447,23 @@ func (grp *Group) readMultisigUntilSufficient(ctx context.Context, id string) (*
 	}
 }
 
+func (grp *Group) readTransactionUntilSufficient(ctx context.Context, id string) (*mixin.SafeTransactionRequest, error) {
+	for {
+		req, err := grp.mixin.SafeReadTransactionRequest(ctx, id)
+		logger.Verbosef("group.SafeReadTransactionRequest(%s) => %v %v\n", id, req, err)
+		if err != nil {
+			if checkRetryableError(err) {
+				time.Sleep(3 * time.Second)
+				continue
+			}
+			if strings.Contains(err.Error(), "The endpoint is not found") {
+				return nil, nil
+			}
+		}
+		return req, err
+	}
+}
+
 func checkRetryableError(err error) bool {
 	es := err.Error()
 	switch {
