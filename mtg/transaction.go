@@ -458,9 +458,9 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 		return old, nil, nil
 	}
 	ver := common.NewTransactionV5(crypto.Sha256Hash([]byte(tx.AssetId)))
-	ver.Extra = []byte(encodeMixinExtra(tx.OpponentAppId, tx.TraceId, tx.Memo))
-	if tx.Storage {
-		ver.Extra = []byte(tx.Memo)
+	ver.Extra = []byte(tx.Memo)
+	if !tx.Storage {
+		ver.Extra = []byte(encodeMixinExtra(tx.OpponentAppId, tx.TraceId, tx.Memo))
 	}
 	target := common.NewIntegerFromString(tx.Amount)
 
