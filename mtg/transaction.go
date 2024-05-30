@@ -242,26 +242,17 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	if old != nil {
 		rb, _ := hex.DecodeString(old.RawTransaction)
 		ver, _ := common.UnmarshalVersionedTransaction(rb)
-		filter := make(map[string]bool)
-		for _, input := range ver.Inputs {
-			key := fmt.Sprintf("%s:%d", input.Hash.String(), input.Index)
-			filter[key] = true
-		}
-
-		outputs, err = grp.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, tx.Sequence, "", 0)
-		if err != nil {
-			return nil, err
-		}
 		var consumed []*UnifiedOutput
-		for _, out := range outputs {
-			key := fmt.Sprintf("%s:%d", out.TransactionHash.String(), out.OutputIndex)
-			if _, ok := filter[key]; ok {
-				consumed = append(consumed, out)
+		for _, input := range ver.Inputs {
+			output, err := grp.store.readOutputByHashAndIndex(ctx, input.Hash.String(), input.Index)
+			if err != nil {
+				return nil, err
+			}
+			if output == nil {
+				return nil, fmt.Errorf("output not found: %s:%d", input.Hash.String(), input.Index)
 			}
 		}
-		if len(consumed) != len(ver.Inputs) {
-			return nil, fmt.Errorf("inconsistent count of consumed and inputs: %d %d", len(consumed), len(ver.Inputs))
-		}
+
 		if tx.Compaction && len(ver.Outputs) != 1 {
 			return nil, fmt.Errorf("expired compaction transaction %v", tx)
 		}

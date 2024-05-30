@@ -40,6 +40,12 @@ func (s *SQLite3Store) readOutput(ctx context.Context, id string) (*UnifiedOutpu
 	return outputFromRow(row)
 }
 
+func (s *SQLite3Store) readOutputByHashAndIndex(ctx context.Context, hash string, index uint) (*UnifiedOutput, error) {
+	query := fmt.Sprintf("SELECT %s FROM outputs WHERE transaction_hash=? AND output_index=?", strings.Join(outputCols, ","))
+	row := s.db.QueryRowContext(ctx, query, hash, index)
+	return outputFromRow(row)
+}
+
 func (s *SQLite3Store) readAction(ctx context.Context, id string) (*Action, error) {
 	query := fmt.Sprintf("SELECT %s FROM actions WHERE output_id=?", strings.Join(actionCols, ","))
 	row := s.db.QueryRowContext(ctx, query, id)
