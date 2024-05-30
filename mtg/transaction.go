@@ -248,7 +248,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 			filter[key] = true
 		}
 
-		outputs, err = grp.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, tx.Sequence, SafeUtxoStateUnspent, 0)
+		outputs, err = grp.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, tx.Sequence, "", 0)
 		if err != nil {
 			return nil, err
 		}
