@@ -247,6 +247,11 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 			key := fmt.Sprintf("%s:%d", input.Hash.String(), input.Index)
 			filter[key] = true
 		}
+
+		outputs, err = grp.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, tx.Sequence, SafeUtxoStateUnspent, 0)
+		if err != nil {
+			return nil, err
+		}
 		var consumed []*UnifiedOutput
 		for _, out := range outputs {
 			key := fmt.Sprintf("%s:%d", out.TransactionHash.String(), out.OutputIndex)
