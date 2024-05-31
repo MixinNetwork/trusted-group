@@ -265,7 +265,7 @@ func (s *SQLite3Store) updateTxWithOutputs(ctx context.Context, t *Transaction, 
 	}
 
 	for _, o := range os {
-		err = s.execOne(ctx, tx, "UPDATE outputs SET state=?, signed_by=?, signed_tx=? WHERE output_id=?", o.State, o.SignedBy, o.SignedTx, o.OutputId)
+		err = s.execOne(ctx, tx, "UPDATE outputs SET trace_id=?, state=?, signed_by=?, signed_tx=? WHERE output_id=?", t.TraceId, o.State, o.SignedBy, o.SignedTx, o.OutputId)
 		if err != nil {
 			return fmt.Errorf("UPDATE outputs %v", err)
 		}
