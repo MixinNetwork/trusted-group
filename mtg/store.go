@@ -311,7 +311,7 @@ func (s *SQLite3Store) finishTransaction(ctx context.Context, traceId string) er
 		return fmt.Errorf("UPDATE transactions %v", err)
 	}
 
-	err = s.execOne(ctx, tx, "UPDATE outputs SET state=? WHERE trace_id=?", SafeUtxoStateSpent, traceId)
+	_, err = tx.ExecContext(ctx, "UPDATE outputs SET state=? WHERE trace_id=?", SafeUtxoStateSpent, traceId)
 	if err != nil {
 		return fmt.Errorf("UPDATE outputs %v", err)
 	}
