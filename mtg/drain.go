@@ -60,6 +60,15 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 	if appId == "" {
 		appId = grp.GroupId
 	}
+	switch output.State {
+	case SafeUtxoStateUnspent:
+	case SafeUtxoStateSigned, SafeUtxoStateSpent:
+		req, err := grp.readMultisigUntilSufficient(ctx, output.SignedBy)
+		if err != nil {
+			panic(err)
+		}
+		traceId = req.RequestID
+	}
 	output.AppId = appId
 	output.TraceId = traceId
 
