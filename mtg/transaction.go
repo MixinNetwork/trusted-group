@@ -294,7 +294,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 		return nil, err
 	}
 
-	return grp.updateTxWithOutputs(ctx, tx, outputs, req)
+	return grp.updateTxWithOutputs(ctx, tx, consumed, req)
 }
 
 func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput, req *mixin.SafeMultisigRequest) ([]byte, error) {
