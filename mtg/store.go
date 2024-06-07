@@ -259,13 +259,15 @@ func (s *SQLite3Store) updateTxWithOutputs(ctx context.Context, t *Transaction, 
 	}
 	defer tx.Rollback()
 
-	err = s.execOne(ctx, tx, "UPDATE transactions SET raw=?, hash=?, state=?, updated_at=? WHERE trace_id=?", hex.EncodeToString(t.Raw), t.Hash.String(), t.State, t.UpdatedAt, t.TraceId)
+	err = s.execOne(ctx, tx, "UPDATE transactions SET raw=?, hash=?, state=?, updated_at=? WHERE trace_id=? AND state=?",
+		hex.EncodeToString(t.Raw), t.Hash.String(), t.State, t.UpdatedAt, t.TraceId, TransactionStateInitial)
 	if err != nil {
 		return fmt.Errorf("UPDATE transactions %v", err)
 	}
 
 	for _, o := range os {
-		err = s.execOne(ctx, tx, "UPDATE outputs SET trace_id=?, state=?, signed_by=?, signed_tx=? WHERE output_id=?", t.TraceId, o.State, o.SignedBy, o.SignedTx, o.OutputId)
+		err = s.execOne(ctx, tx, "UPDATE outputs SET trace_id=?, state=?, signed_by=?, signed_tx=? WHERE output_id=? AND state=?",
+			t.TraceId, o.State, o.SignedBy, o.SignedTx, o.OutputId, SafeUtxoStateUnspent)
 		if err != nil {
 			return fmt.Errorf("UPDATE outputs %v", err)
 		}
@@ -306,12 +308,14 @@ func (s *SQLite3Store) finishTransaction(ctx context.Context, traceId string) er
 	}
 	defer tx.Rollback()
 
-	err = s.execOne(ctx, tx, "UPDATE transactions SET state=?, updated_at=? WHERE trace_id=?", TransactionStateSnapshot, time.Now(), traceId)
+	err = s.execOne(ctx, tx, "UPDATE transactions SET state=?, updated_at=? WHERE trace_id=? AND state=?",
+		TransactionStateSnapshot, time.Now(), traceId, TransactionStateSigned)
 	if err != nil {
 		return fmt.Errorf("UPDATE transactions %v", err)
 	}
 
-	_, err = tx.ExecContext(ctx, "UPDATE outputs SET state=? WHERE trace_id=?", SafeUtxoStateSpent, traceId)
+	_, err = tx.ExecContext(ctx, "UPDATE outputs SET state=? WHERE trace_id=? AND state=?",
+		SafeUtxoStateSpent, traceId, SafeUtxoStateSigned)
 	if err != nil {
 		return fmt.Errorf("UPDATE outputs %v", err)
 	}
