@@ -217,7 +217,17 @@ func (grp *Group) buildCompactionTransaction(ctx context.Context, asset string, 
 }
 
 func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte, error) {
-	logger.Verbosef("group.signTransaction(%v)\n", tx)
+	logger.Printf("group.signTransaction(%v)\n", tx)
+
+	txs, err := grp.store.listPreviousInitialTransactions(ctx, tx.AssetId, tx.Sequence)
+	logger.Verbosef("store.listPreviousInitialTransactions(%s %d) => %d %v\n", tx.AssetId, tx.Sequence, len(txs), err)
+	if err != nil {
+		return nil, err
+	}
+	if len(txs) > 0 {
+		return nil, nil
+	}
+
 	if tx.StorageTraceId != "" {
 		storageTx, err := grp.store.ReadTransactionByTraceId(ctx, tx.StorageTraceId)
 		if err != nil || storageTx == nil || !storageTx.Storage {
