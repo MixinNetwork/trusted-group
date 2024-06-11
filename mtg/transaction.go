@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -235,40 +234,6 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 		return nil, fmt.Errorf("insufficient compaction transaction outputs %v %d", tx, len(outputs))
 	}
 
-	old, err := grp.readMultisigUntilSufficient(ctx, tx.TraceId)
-	if err != nil {
-		return nil, err
-	}
-	if old != nil {
-		rb, _ := hex.DecodeString(old.RawTransaction)
-		ver, _ := common.UnmarshalVersionedTransaction(rb)
-		var consumed []*UnifiedOutput
-		for _, input := range ver.Inputs {
-			output, err := grp.store.readOutputByHashAndIndex(ctx, input.Hash.String(), input.Index)
-			if err != nil {
-				return nil, err
-			}
-			if output == nil {
-				return nil, fmt.Errorf("output not found: %s:%d", input.Hash.String(), input.Index)
-			}
-		}
-
-		if tx.Compaction && len(ver.Outputs) != 1 {
-			return nil, fmt.Errorf("expired compaction transaction %v", tx)
-		}
-		var req *mixin.SafeMultisigRequest
-		switch {
-		case len(old.Signers) >= int(old.SendersThreshold) || slices.Contains(old.Signers, grp.mixin.ClientID):
-			req = old
-		default:
-			req, err = grp.signMultisigUntilSufficient(ctx, old)
-			if err != nil {
-				return nil, err
-			}
-		}
-		return grp.updateTxWithOutputs(ctx, tx, consumed, req)
-	}
-
 	ver, consumed, err := grp.buildRawTransaction(ctx, tx, outputs)
 	logger.Verbosef("group.buildRawTransaction(%v) => %v %d %v\n", tx, ver, len(consumed), err)
 	if err != nil {
@@ -278,16 +243,10 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 		return nil, fmt.Errorf("expired compaction transaction %v", tx)
 	}
 
-	req, err := grp.readMultisigUntilSufficient(ctx, tx.TraceId)
+	raw := hex.EncodeToString(ver.Marshal())
+	req, err := grp.createMultisigUntilSufficient(ctx, tx.TraceId, raw)
 	if err != nil {
 		return nil, err
-	}
-	if req == nil {
-		raw := hex.EncodeToString(ver.Marshal())
-		req, err = grp.createMultisigUntilSufficient(ctx, tx.TraceId, raw)
-		if err != nil {
-			return nil, err
-		}
 	}
 	req, err = grp.signMultisigUntilSufficient(ctx, req)
 	if err != nil {
@@ -360,7 +319,7 @@ func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transa
 			Receivers: grp.members,
 			Index:     1,
 			Hint:      mixin.UniqueConversationID(grp.mixin.ClientID, fmt.Sprintf("hint:%s;index:%d", tx.TraceId, 1)),
-		}})
+		}}, grp.members...)
 		logger.Verbosef("group.SafeCreateGhostKeys(%v) => %v %v\n", tx, keys, err)
 		if err != nil && checkRetryableError(err) {
 			time.Sleep(3 * time.Second)
