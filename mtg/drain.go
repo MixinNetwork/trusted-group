@@ -57,6 +57,9 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 	logger.Verbosef("Group.processSafeOutput(%v) \n", output)
 
 	appId, traceId, _ := DecodeMixinExtra(output.Extra)
+	if output.Deposit != nil {
+		appId = grp.FindAppByEntry(output.Deposit.Destination)
+	}
 	if appId == "" {
 		appId = grp.GroupId
 	}

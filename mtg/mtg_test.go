@@ -215,7 +215,14 @@ func testBuildGroup(require *require.Assertions) (context.Context, *Node) {
 	n := &Node{
 		Group: group,
 	}
-	group.AttachWorker(group.GroupId, n)
+	group.AttachWorker(group.GroupId, "0xabcdefg", n)
+
+	app := group.FindAppByEntry("")
+	require.Equal("", app)
+	app = group.FindAppByEntry("0xabcdefgh")
+	require.Equal("", app)
+	app = group.FindAppByEntry("0xabcdefg")
+	require.Equal(group.GroupId, app)
 
 	ns, err := group.store.ListIterations(ctx)
 	require.Nil(err)

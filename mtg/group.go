@@ -37,6 +37,7 @@ type Group struct {
 	mixin        *mixin.Client
 	store        *SQLite3Store
 	workers      map[string]Worker
+	entries      map[string]string
 	groupSize    int
 	waitDuration time.Duration
 
@@ -84,6 +85,7 @@ func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (
 		groupSize:       conf.GroupSize,
 		waitDuration:    time.Duration(conf.LoopWaitDuration),
 		workers:         make(map[string]Worker),
+		entries:         make(map[string]string),
 	}
 	if grp.groupSize <= 0 {
 		grp.groupSize = OutputsBatchSize
@@ -141,15 +143,23 @@ func (grp *Group) Synced(ctx context.Context) (bool, error) {
 	return v == "1", err
 }
 
-func (grp *Group) AttachWorker(appId string, wkr Worker) {
+func (grp *Group) AttachWorker(appId, depositEntry string, wkr Worker) {
 	if grp.FindWorker(appId) != nil {
 		panic(appId)
 	}
+	if grp.FindAppByEntry(depositEntry) != "" {
+		panic(depositEntry)
+	}
 	grp.workers[appId] = wkr
+	grp.entries[depositEntry] = appId
 }
 
 func (grp *Group) FindWorker(appId string) Worker {
 	return grp.workers[appId]
+}
+
+func (grp *Group) FindAppByEntry(entry string) string {
+	return grp.entries[entry]
 }
 
 func (node *Group) Index() int {
