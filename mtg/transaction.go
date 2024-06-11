@@ -31,25 +31,26 @@ const (
 )
 
 type Transaction struct {
-	AppId         string
-	OpponentAppId string
-	TraceId       string
-	State         int
-	AssetId       string
-	Receivers     []string
-	Threshold     int
-	Amount        string
-	Memo          string
-	Raw           []byte
-	Hash          crypto.Hash
-	References    []crypto.Hash
-	Sequence      uint64
-	Compaction    bool
-	Storage       bool
-	UpdatedAt     time.Time
+	AppId          string
+	OpponentAppId  string
+	TraceId        string
+	State          int
+	AssetId        string
+	Receivers      []string
+	Threshold      int
+	Amount         string
+	Memo           string
+	Raw            []byte
+	Hash           crypto.Hash
+	References     []crypto.Hash
+	Sequence       uint64
+	Compaction     bool
+	Storage        bool
+	StorageTraceId string
+	UpdatedAt      time.Time
 }
 
-var transactionCols = []string{"app_id", "opponent_app_id", "trace_id", "state", "asset_id", "receivers", "threshold", "amount", "memo", "raw", "hash", "refs", "sequence", "compaction", "storage", "updated_at"}
+var transactionCols = []string{"app_id", "opponent_app_id", "trace_id", "state", "asset_id", "receivers", "threshold", "amount", "memo", "raw", "hash", "refs", "sequence", "compaction", "storage", "storage_trace_id", "updated_at"}
 
 func (t *Transaction) values() []any {
 	var refs []string
@@ -60,13 +61,13 @@ func (t *Transaction) values() []any {
 	if !t.Hash.HasValue() {
 		hash = ""
 	}
-	return []any{t.AppId, t.OpponentAppId, t.TraceId, t.State, t.AssetId, strings.Join(t.Receivers, ","), t.Threshold, t.Amount, t.Memo, t.Raw, hash, strings.Join(refs, ","), t.Sequence, t.Compaction, t.Storage, t.UpdatedAt}
+	return []any{t.AppId, t.OpponentAppId, t.TraceId, t.State, t.AssetId, strings.Join(t.Receivers, ","), t.Threshold, t.Amount, t.Memo, t.Raw, hash, strings.Join(refs, ","), t.Sequence, t.Compaction, t.Storage, t.StorageTraceId, t.UpdatedAt}
 }
 
 func transactionFromRow(row Row) (*Transaction, error) {
 	var t Transaction
 	var hash, rs, refs string
-	err := row.Scan(&t.AppId, &t.OpponentAppId, &t.TraceId, &t.State, &t.AssetId, &rs, &t.Threshold, &t.Amount, &t.Memo, &t.Raw, &hash, &refs, &t.Sequence, &t.Compaction, &t.Storage, &t.UpdatedAt)
+	err := row.Scan(&t.AppId, &t.OpponentAppId, &t.TraceId, &t.State, &t.AssetId, &rs, &t.Threshold, &t.Amount, &t.Memo, &t.Raw, &hash, &refs, &t.Sequence, &t.Compaction, &t.Storage, &t.StorageTraceId, &t.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -216,6 +217,26 @@ func (grp *Group) buildCompactionTransaction(ctx context.Context, asset string, 
 }
 
 func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte, error) {
+	logger.Verbosef("group.signTransaction(%v)\n", tx)
+	if tx.StorageTraceId != "" {
+		storageTx, err := grp.store.ReadTransactionByTraceId(ctx, tx.StorageTraceId)
+		if err != nil || storageTx == nil || !storageTx.Storage {
+			return nil, fmt.Errorf("store.ReadTransactionByTraceId(%s) => %v %v", tx.StorageTraceId, storageTx, err)
+		}
+		if storageTx.State != TransactionStateSnapshot {
+			return nil, nil
+		}
+		t, err := grp.readTransactionUntilSufficient(ctx, tx.StorageTraceId)
+		if err != nil {
+			return nil, err
+		}
+		ref, err := crypto.HashFromString(t.TransactionHash)
+		if err != nil {
+			return nil, err
+		}
+		tx.References = []crypto.Hash{ref}
+	}
+
 	outputs, err := grp.ListOutputsForTransaction(ctx, tx.TraceId, tx.Sequence)
 	if err != nil {
 		panic(err)

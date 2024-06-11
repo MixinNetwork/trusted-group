@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   sequence             INTEGER NOT NULL,
   compaction           BOOLEAN NOT NULL,
   storage              BOOLEAN NOT NULL,
+  storage_trace_id     VARCHAR,
   updated_at           TIMESTAMP NOT NULL,
   PRIMARY KEY ('trace_id')
 );
