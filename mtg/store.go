@@ -390,7 +390,7 @@ func (s *SQLite3Store) WriteIteration(ctx context.Context, ir *Iteration) error 
 }
 
 func (s *SQLite3Store) listPreviousInitialTransactions(ctx context.Context, asset string, sequence uint64) ([]*Transaction, error) {
-	query := fmt.Sprintf("SELECT %s FROM transactions where asset_id=? AND sequence<=? AND state=? ORDER BY sequence ASC", strings.Join(transactionCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM transactions where asset_id=? AND state=? AND sequence<? ORDER BY sequence ASC", strings.Join(transactionCols, ","))
 	rows, err := s.db.QueryContext(ctx, query, asset, sequence, TransactionStateInitial)
 	if err != nil {
 		return nil, err

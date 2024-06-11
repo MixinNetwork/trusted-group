@@ -93,3 +93,4 @@ CREATE TABLE IF NOT EXISTS transactions (
 
 CREATE INDEX IF NOT EXISTS transactions_by_hash ON transactions(hash);
 CREATE INDEX IF NOT EXISTS transactions_by_state_sequence ON transactions(state, sequence);
+CREATE INDEX IF NOT EXISTS transactions_by_asset_state_sequence ON transactions(asset_id, state, sequence);
