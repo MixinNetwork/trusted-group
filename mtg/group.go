@@ -81,7 +81,7 @@ func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (
 		store:           store,
 		spendPrivateKey: conf.App.SpendPrivateKey,
 		id:              id,
-		GroupId:         mixin.UniqueConversationID(id, conf.Project),
+		GroupId:         UniqueId(id, conf.Project),
 		groupSize:       conf.GroupSize,
 		waitDuration:    time.Duration(conf.LoopWaitDuration),
 		workers:         make(map[string]Worker),

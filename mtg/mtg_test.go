@@ -12,7 +12,6 @@ import (
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/gofrs/uuid/v5"
 	"github.com/pelletier/go-toml"
 	"github.com/shopspring/decimal"
@@ -64,12 +63,12 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 			}
 
 			amount := amt.String()
-			id := mixin.UniqueConversationID(amount, testSender)
+			id := UniqueId(amount, testSender)
 			var t *Transaction
 			if storageTraceId != "" {
-				t = n.Group.BuildTransactionWithStorageTraceId(id, a.AppId, mixin.UniqueConversationID(a.AppId, "opponent"), a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold(), a.Sequence, storageTraceId)
+				t = n.Group.BuildTransactionWithStorageTraceId(id, a.AppId, UniqueId(a.AppId, "opponent"), a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold(), a.Sequence, storageTraceId)
 			} else {
-				t = n.Group.BuildTransaction(id, a.AppId, mixin.UniqueConversationID(a.AppId, "opponent"), a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold(), a.Sequence)
+				t = n.Group.BuildTransaction(id, a.AppId, UniqueId(a.AppId, "opponent"), a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold(), a.Sequence)
 			}
 			txs = append(txs, t)
 		}
@@ -250,8 +249,8 @@ func testDrainInitialOutputs(ctx context.Context, require *require.Assertions, g
 }
 
 func testBuildOutput(group *Group, require *require.Assertions, asset, amount string, extra string, state SafeUtxoState, sequence uint64, hash string) *UnifiedOutput {
-	oid := mixin.UniqueConversationID("output", fmt.Sprintf("%s:%s:%s:%s:%d", amount, extra, extra, state, sequence))
-	rid := mixin.UniqueConversationID("request", oid)
+	oid := UniqueId("output", fmt.Sprintf("%s:%s:%s:%s:%d", amount, extra, extra, state, sequence))
+	rid := UniqueId("request", oid)
 	h := crypto.Sha256Hash(uuid.FromStringOrNil(oid).Bytes())
 	if hash != "" {
 		hash, err := crypto.HashFromString(hash)
