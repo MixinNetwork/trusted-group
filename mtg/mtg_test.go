@@ -95,13 +95,13 @@ func TestMTGCompaction(t *testing.T) {
 	as, err = node.Group.store.ListActions(ctx, ActionStateInitial, 0)
 	require.Nil(err)
 	require.Len(as, 0)
-	ts, err := node.Group.store.ListTransactions(ctx, TransactionStateInitial, 0)
+	ts, _, err := node.Group.store.ListTransactions(ctx, TransactionStateInitial, 0)
 	require.Nil(err)
 	require.Len(ts, 1)
 }
 
 func testHandleCompactionTransaction(ctx context.Context, require *require.Assertions, group *Group, hash string) *UnifiedOutput {
-	ts, err := group.store.ListTransactions(ctx, TransactionStateInitial, 0)
+	ts, _, err := group.store.ListTransactions(ctx, TransactionStateInitial, 0)
 	require.Nil(err)
 	require.Len(ts, 1)
 

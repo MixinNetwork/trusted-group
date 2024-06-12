@@ -408,26 +408,28 @@ func (s *SQLite3Store) listPreviousInitialTransactions(ctx context.Context, asse
 	return ts, nil
 }
 
-func (s *SQLite3Store) ListTransactions(ctx context.Context, state, limit int) ([]*Transaction, error) {
+func (s *SQLite3Store) ListTransactions(ctx context.Context, state, limit int) ([]*Transaction, map[string][]*Transaction, error) {
 	query := fmt.Sprintf("SELECT %s FROM transactions where state=? ORDER BY sequence ASC", strings.Join(transactionCols, ","))
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
 	rows, err := s.db.QueryContext(ctx, query, state)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer rows.Close()
 
 	var ts []*Transaction
+	assetTxMap := make(map[string][]*Transaction)
 	for rows.Next() {
 		t, err := transactionFromRow(rows)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		ts = append(ts, t)
+		assetTxMap[t.AssetId] = append(assetTxMap[t.AssetId], t)
 	}
-	return ts, nil
+	return ts, assetTxMap, nil
 }
 
 func (s *SQLite3Store) ReadTransactionByHash(ctx context.Context, hash crypto.Hash) (*Transaction, error) {

@@ -225,11 +225,8 @@ func (grp *Group) CheckAssetBalanceAt(ctx context.Context, appId, assetId string
 	return total, nil
 }
 
-func (grp *Group) signTransactions(ctx context.Context) error {
-	txs, err := grp.store.ListTransactions(ctx, TransactionStateInitial, 0)
-	if err != nil {
-		return err
-	}
+func (grp *Group) signTransactionWithAsset(ctx context.Context, asset string, txs []*Transaction) {
+	logger.Verbosef("Group.signTransactionWithAsset(%s)", asset)
 	for _, tx := range txs {
 		raw, err := grp.signTransaction(ctx, tx)
 		logger.Verbosef("Group.signTransaction(%v) => %s %v", *tx, hex.EncodeToString(raw), err)
@@ -237,12 +234,42 @@ func (grp *Group) signTransactions(ctx context.Context) error {
 			panic(err)
 		}
 	}
+}
+
+func (grp *Group) signTransactions(ctx context.Context) error {
+	txs, assetTxMap, err := grp.store.ListTransactions(ctx, TransactionStateInitial, 0)
+	if err != nil {
+		return err
+	}
+
+	for asset, txs := range assetTxMap {
+		go grp.signTransactionWithAsset(ctx, asset, txs)
+	}
+
+	for {
+		time.Sleep(3 * time.Second)
+		done := true
+
+		for _, tx := range txs {
+			tx, err := grp.store.ReadTransactionByTraceId(ctx, tx.TraceId)
+			if err != nil {
+				panic(err)
+			}
+			if tx.State != TransactionStateSigned {
+				done = false
+				break
+			}
+		}
+		if done {
+			break
+		}
+	}
 
 	return nil
 }
 
 func (grp *Group) publishTransactions(ctx context.Context) error {
-	txs, err := grp.store.ListTransactions(ctx, TransactionStateSigned, 0)
+	txs, _, err := grp.store.ListTransactions(ctx, TransactionStateSigned, 0)
 	if err != nil || len(txs) == 0 {
 		return err
 	}
