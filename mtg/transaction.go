@@ -129,7 +129,7 @@ func (grp *Group) BuildTransactionWithStorageTraceId(traceId, appId, opponentApp
 	return t
 }
 
-func (grp *Group) BuildStorageTransaction(ctx context.Context, extra []byte, sequence uint64) (*Transaction, error) {
+func (grp *Group) BuildStorageTransaction(ctx context.Context, appId string, extra []byte, sequence uint64) (*Transaction, error) {
 	sTraceId := crypto.Blake3Hash(extra).String()
 	sTraceId = mixin.UniqueConversationID(sTraceId, sTraceId)
 	old, err := grp.store.ReadTransactionByTraceId(ctx, sTraceId)
@@ -142,10 +142,10 @@ func (grp *Group) BuildStorageTransaction(ctx context.Context, extra []byte, seq
 
 	step := common.NewIntegerFromString(common.ExtraStoragePriceStep)
 	amount := step.Mul(len(extra)/common.ExtraSizeStorageStep + 1)
-	t := grp.BuildTransaction(sTraceId, "", "", StorageAssetId, amount.String(), string(extra), []string{StorageReceiverId}, 64, sequence)
+	t := grp.BuildTransaction(sTraceId, appId, "", StorageAssetId, amount.String(), string(extra), []string{StorageReceiverId}, 64, sequence)
 	t.Storage = true
 
-	total, err := grp.CheckAssetBalanceAt(ctx, grp.GroupId, StorageAssetId, sequence)
+	total, err := grp.CheckAssetBalanceAt(ctx, appId, StorageAssetId, sequence)
 	if err != nil {
 		return nil, err
 	}
@@ -157,6 +157,7 @@ func (grp *Group) BuildStorageTransaction(ctx context.Context, extra []byte, seq
 }
 
 func (t *Transaction) check(ctx context.Context) error {
+	logger.Debugf("Group.checkTransaction(%v)\n", t)
 	if len(t.References) > 2 {
 		return fmt.Errorf("invalid references length: %d", len(t.References))
 	}
@@ -225,7 +226,7 @@ func (grp *Group) buildCompactionTransaction(ctx context.Context, asset string, 
 }
 
 func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte, error) {
-	logger.Printf("group.signTransaction(%v)\n", tx)
+	logger.Printf("Group.signTransaction(%v)\n", tx)
 
 	txs, err := grp.store.listPreviousInitialTransactions(ctx, tx.AssetId, tx.Sequence)
 	logger.Verbosef("store.listPreviousInitialTransactions(%s %d) => %d %v\n", tx.AssetId, tx.Sequence, len(txs), err)
@@ -265,7 +266,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	if err != nil {
 		panic(err)
 	}
-	logger.Verbosef("group.ListOutputsForTransaction(%s) => %d %v\n", tx.TraceId, len(outputs), err)
+	logger.Verbosef("Group.ListOutputsForTransaction(%s) => %d %v\n", tx.TraceId, len(outputs), err)
 	if len(outputs) == 0 {
 		return nil, fmt.Errorf("empty outputs %s", tx.Amount)
 	}
@@ -274,7 +275,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte,
 	}
 
 	ver, consumed, err := grp.buildRawTransaction(ctx, tx, outputs)
-	logger.Verbosef("group.buildRawTransaction(%v) => %v %d %v\n", tx, ver, len(consumed), err)
+	logger.Verbosef("Group.buildRawTransaction(%v) => %v %d %v\n", tx, ver, len(consumed), err)
 	if err != nil {
 		return nil, err
 	}
@@ -315,7 +316,7 @@ func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outp
 
 	if len(req.Signers) > 0 {
 		tx.State = TransactionStateSigned
-	} else {
+	} else if !tx.Storage {
 		t, g, _ := DecodeMixinExtra(string(ver.Extra))
 		if t != tx.TraceId {
 			panic(hex.EncodeToString(rb))
@@ -359,7 +360,7 @@ func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transa
 			Index:     1,
 			Hint:      mixin.UniqueConversationID(grp.mixin.ClientID, fmt.Sprintf("hint:%s;index:%d", tx.TraceId, 1)),
 		}}, grp.members...)
-		logger.Verbosef("group.SafeCreateGhostKeys(%v) => %v %v\n", tx, keys, err)
+		logger.Verbosef("Group.SafeCreateGhostKeys(%v) => %v %v\n", tx, keys, err)
 		if err != nil && checkRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
@@ -369,12 +370,22 @@ func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transa
 }
 
 func (grp *Group) createMultisigUntilSufficient(ctx context.Context, id, raw string) (*mixin.SafeMultisigRequest, error) {
+	if CheckTestEnvironment(ctx) {
+		rb, _ := hex.DecodeString(raw)
+		ver, _ := common.UnmarshalVersionedTransaction(rb)
+		hash := ver.PayloadHash()
+		return &mixin.SafeMultisigRequest{
+			RequestID:       id,
+			RawTransaction:  raw,
+			TransactionHash: hash.String(),
+		}, nil
+	}
 	for {
 		req, err := grp.mixin.SafeCreateMultisigRequest(ctx, &mixin.SafeTransactionRequestInput{
 			RequestID:      id,
 			RawTransaction: raw,
 		})
-		logger.Verbosef("group.SafeCreateTransactionRequest(%s, %s) => %v %v\n", id, raw, req, err)
+		logger.Verbosef("Group.SafeCreateTransactionRequest(%s, %s) => %v %v\n", id, raw, req, err)
 		if err != nil && checkRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
@@ -386,7 +397,7 @@ func (grp *Group) createMultisigUntilSufficient(ctx context.Context, id, raw str
 func (grp *Group) getSpendPublicKeyUntilSufficient(ctx context.Context) (string, error) {
 	for {
 		me, err := grp.mixin.UserMe(ctx)
-		logger.Verbosef("group.UserMe() => %v\n", err)
+		logger.Verbosef("Group.UserMe() => %v\n", err)
 		if err != nil && checkRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
@@ -396,6 +407,17 @@ func (grp *Group) getSpendPublicKeyUntilSufficient(ctx context.Context) (string,
 }
 
 func (grp *Group) signMultisigUntilSufficient(ctx context.Context, input *mixin.SafeMultisigRequest) (*mixin.SafeMultisigRequest, error) {
+	if CheckTestEnvironment(ctx) {
+		rb, _ := hex.DecodeString(input.RawTransaction)
+		ver, _ := common.UnmarshalVersionedTransaction(rb)
+		hash := ver.PayloadHash()
+		return &mixin.SafeMultisigRequest{
+			RequestID:       input.RequestID,
+			RawTransaction:  input.RawTransaction,
+			TransactionHash: hash.String(),
+			Signers:         []string{grp.GroupId},
+		}, nil
+	}
 	spendPublicKey, err := grp.getSpendPublicKeyUntilSufficient(ctx)
 	if err != nil {
 		return nil, err
@@ -421,7 +443,7 @@ func (grp *Group) signMultisigUntilSufficient(ctx context.Context, input *mixin.
 			RequestID:      input.RequestID,
 			RawTransaction: signedRaw,
 		})
-		logger.Verbosef("group.SafeSignMultisigRequest(%s %s) => %v %v\n", input.RequestID, signedRaw, req, err)
+		logger.Verbosef("Group.SafeSignMultisigRequest(%s %s) => %v %v\n", input.RequestID, signedRaw, req, err)
 		if err != nil && checkRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
@@ -433,7 +455,7 @@ func (grp *Group) signMultisigUntilSufficient(ctx context.Context, input *mixin.
 func (grp *Group) readMultisigUntilSufficient(ctx context.Context, id string) (*mixin.SafeMultisigRequest, error) {
 	for {
 		req, err := grp.mixin.SafeReadMultisigRequests(ctx, id)
-		logger.Verbosef("group.SafeReadMultisigRequests(%s) => %v %v\n", id, req, err)
+		logger.Verbosef("Group.SafeReadMultisigRequests(%s) => %v %v\n", id, req, err)
 		if err != nil {
 			if checkRetryableError(err) {
 				time.Sleep(3 * time.Second)
@@ -448,9 +470,21 @@ func (grp *Group) readMultisigUntilSufficient(ctx context.Context, id string) (*
 }
 
 func (grp *Group) readTransactionUntilSufficient(ctx context.Context, id string) (*mixin.SafeTransactionRequest, error) {
+	if CheckTestEnvironment(ctx) {
+		tx, err := grp.store.ReadTransactionByTraceId(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		return &mixin.SafeTransactionRequest{
+			RequestID:       tx.TraceId,
+			RawTransaction:  string(tx.Raw),
+			TransactionHash: tx.Hash.String(),
+			Signers:         []string{grp.GroupId},
+		}, nil
+	}
 	for {
 		req, err := grp.mixin.SafeReadTransactionRequest(ctx, id)
-		logger.Verbosef("group.SafeReadTransactionRequest(%s) => %v %v\n", id, req, err)
+		logger.Verbosef("Group.SafeReadTransactionRequest(%s) => %v %v\n", id, req, err)
 		if err != nil {
 			if checkRetryableError(err) {
 				time.Sleep(3 * time.Second)

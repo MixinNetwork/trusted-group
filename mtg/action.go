@@ -77,14 +77,14 @@ func actionJoinFromRow(row Row) (*Action, error) {
 func (grp *Group) handleActionsQueue(ctx context.Context) error {
 	as, err := grp.store.ListActions(ctx, ActionStateInitial, 16)
 	if err != nil {
-		return err
+		return fmt.Errorf("store.ListInitialActions() => %v", err)
 	}
 	for _, a := range as {
 		wkr := grp.FindWorker(a.AppId)
 		if wkr == nil {
 			err = grp.store.finishAction(ctx, a.OutputId, ActionStateDone, nil)
 			if err != nil {
-				panic(err)
+				return fmt.Errorf("store.finishAction(%s) => %v", a.OutputId, err)
 			}
 			continue
 		}
@@ -97,22 +97,22 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 		if compactionAsset != "" && len(txs) == 0 {
 			t, err := grp.buildCompactionTransaction(ctx, compactionAsset, a)
 			if err != nil {
-				return err
+				return fmt.Errorf("group.buildCompactionTransaction(%s %v) => %v", compactionAsset, a, err)
 			}
 			state = ActionStateRestorable
 			txs = []*Transaction{t}
 		} else if compactionAsset != "" {
-			panic(compactionAsset)
+			return fmt.Errorf("invalid compactionAsset: %s", compactionAsset)
 		}
 
 		err = grp.checkTransactions(ctx, a, txs)
 		if err != nil {
-			panic(err)
+			return fmt.Errorf("group.checkTransactions(%v) => %v", a, err)
 		}
 
 		err = grp.store.finishAction(ctx, a.OutputId, state, txs)
 		if err != nil {
-			panic(err)
+			return fmt.Errorf("store.finishAction(%s %d) => %v", a.OutputId, state, err)
 		}
 	}
 	return nil

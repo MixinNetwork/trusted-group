@@ -259,8 +259,13 @@ func (s *SQLite3Store) updateTxWithOutputs(ctx context.Context, t *Transaction, 
 	}
 	defer tx.Rollback()
 
-	err = s.execOne(ctx, tx, "UPDATE transactions SET raw=?, hash=?, state=?, updated_at=? WHERE trace_id=? AND state=?",
-		hex.EncodeToString(t.Raw), t.Hash.String(), t.State, t.UpdatedAt, t.TraceId, TransactionStateInitial)
+	var refs []string
+	for _, r := range t.References {
+		refs = append(refs, r.String())
+	}
+
+	err = s.execOne(ctx, tx, "UPDATE transactions SET raw=?, hash=?, refs=?, state=?, updated_at=? WHERE trace_id=? AND state=?",
+		hex.EncodeToString(t.Raw), t.Hash.String(), strings.Join(refs, ","), t.State, t.UpdatedAt, t.TraceId, TransactionStateInitial)
 	if err != nil {
 		return fmt.Errorf("UPDATE transactions %v", err)
 	}

@@ -183,7 +183,10 @@ func (grp *Group) Run(ctx context.Context) {
 
 		// handle the utxos queue by sequence
 		logger.Verbosef("Group.Run(handleActionsQueue)\n")
-		grp.handleActionsQueue(ctx)
+		err := grp.handleActionsQueue(ctx)
+		if err != nil {
+			panic(err)
+		}
 
 		// sign any possible transactions from BuildTransaction
 		logger.Verbosef("Group.Run(signTransactions)\n")
@@ -239,7 +242,7 @@ func (grp *Group) signTransactionWithAsset(ctx context.Context, asset string, tx
 func (grp *Group) signTransactions(ctx context.Context) error {
 	txs, assetTxMap, err := grp.store.ListTransactions(ctx, TransactionStateInitial, 0)
 	if err != nil {
-		return err
+		panic(err)
 	}
 
 	for asset, txs := range assetTxMap {

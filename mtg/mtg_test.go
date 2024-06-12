@@ -20,8 +20,8 @@ import (
 )
 
 const (
-	XINAssetId = "c94ac88f-4671-3976-b60a-09064f1811e8"
-	testSender = "e14c1573-3aca-48b1-b437-766b4757b50d"
+	USDTAssetId = "218bc6f4-7927-3f8e-8568-3a3725b74361"
+	testSender  = "e14c1573-3aca-48b1-b437-766b4757b50d"
 )
 
 type Node struct {
@@ -37,23 +37,44 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 	if err != nil {
 		return []*Transaction{}, ""
 	}
-	amt, err := decimal.NewFromString(string(b))
-	if err != nil {
-		return []*Transaction{}, ""
-	}
+	memo := string(b)
+	items := strings.Split(memo, ",")
 
-	balance, err := n.Group.CheckAssetBalanceAt(ctx, a.AppId, a.AssetId, a.Sequence)
-	if err != nil {
-		panic(err)
-	}
-	if balance.Cmp(amt) < 0 {
-		return nil, XINAssetId
-	}
+	var txs []*Transaction
+	var storageTraceId string
+	for _, tx := range items {
+		if tx == "storage" {
+			t, err := n.Group.BuildStorageTransaction(ctx, a.AppId, []byte("storage-memo"), a.Sequence)
+			if err != nil {
+				panic(err)
+			}
+			storageTraceId = t.TraceId
+		} else {
+			amt, err := decimal.NewFromString(tx)
+			if err != nil {
+				return []*Transaction{}, ""
+			}
 
-	amount := amt.String()
-	id := mixin.UniqueConversationID(amount, testSender)
-	t := n.Group.BuildTransaction(id, a.AppId, mixin.UniqueConversationID(a.AppId, "opponent"), a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold(), a.Sequence)
-	return []*Transaction{t}, ""
+			balance, err := n.Group.CheckAssetBalanceAt(ctx, a.AppId, a.AssetId, a.Sequence)
+			if err != nil {
+				panic(err)
+			}
+			if balance.Cmp(amt) < 0 {
+				return nil, USDTAssetId
+			}
+
+			amount := amt.String()
+			id := mixin.UniqueConversationID(amount, testSender)
+			var t *Transaction
+			if storageTraceId != "" {
+				t = n.Group.BuildTransactionWithStorageTraceId(id, a.AppId, mixin.UniqueConversationID(a.AppId, "opponent"), a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold(), a.Sequence, storageTraceId)
+			} else {
+				t = n.Group.BuildTransaction(id, a.AppId, mixin.UniqueConversationID(a.AppId, "opponent"), a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold(), a.Sequence)
+			}
+			txs = append(txs, t)
+		}
+	}
+	return txs, ""
 }
 
 func TestMTGCompaction(t *testing.T) {
@@ -66,7 +87,7 @@ func TestMTGCompaction(t *testing.T) {
 
 	as, err := node.Group.store.ListActions(ctx, ActionStateDone, 0)
 	require.Nil(err)
-	require.Len(as, OutputsBatchSize)
+	require.Len(as, OutputsBatchSize+1)
 	as, err = node.Group.store.ListActions(ctx, ActionStateInitial, 0)
 	require.Nil(err)
 	require.Len(as, 1)
@@ -98,6 +119,75 @@ func TestMTGCompaction(t *testing.T) {
 	ts, _, err := node.Group.store.ListTransactions(ctx, TransactionStateInitial, 0)
 	require.Nil(err)
 	require.Len(ts, 1)
+}
+
+func TestMTGCheckTxs(t *testing.T) {
+	require := require.New(t)
+	ctx, node := testBuildGroup(require)
+	require.NotNil(node)
+	defer teardownTestDatabase(node.Group.store)
+
+	testDrainInitialOutputs(ctx, require, node.Group, "0.003,0.0008")
+
+	as, err := node.Group.store.ListActions(ctx, ActionStateDone, 0)
+	require.Nil(err)
+	require.Len(as, OutputsBatchSize+1)
+	as, err = node.Group.store.ListActions(ctx, ActionStateInitial, 0)
+	require.Nil(err)
+	require.Len(as, 1)
+
+	wkr := node.Group.FindWorker(as[0].AppId)
+	require.NotNil(wkr)
+	err = node.Group.handleActionsQueue(ctx)
+	require.NotNil(err)
+	require.True(strings.Contains(err.Error(), "insufficient balance"))
+}
+
+func TestMTGStorage(t *testing.T) {
+	require := require.New(t)
+	ctx, node := testBuildGroup(require)
+	require.NotNil(node)
+	defer teardownTestDatabase(node.Group.store)
+
+	testDrainInitialOutputs(ctx, require, node.Group, "storage,0.0001")
+
+	as, err := node.Group.store.ListActions(ctx, ActionStateDone, 0)
+	require.Nil(err)
+	require.Len(as, OutputsBatchSize+1)
+	as, err = node.Group.store.ListActions(ctx, ActionStateInitial, 0)
+	require.Nil(err)
+	require.Len(as, 1)
+
+	wkr := node.Group.FindWorker(as[0].AppId)
+	require.NotNil(wkr)
+	err = node.Group.handleActionsQueue(ctx)
+	require.Nil(err)
+
+	txs, _, err := node.Group.store.ListTransactions(ctx, TransactionStateInitial, 0)
+	require.Nil(err)
+	require.Len(txs, 2)
+	require.True(txs[0].Storage)
+	require.Equal(txs[0].TraceId, txs[1].StorageTraceId)
+
+	_, err = node.Group.signTransaction(ctx, txs[1])
+	require.Nil(err)
+	tx, err := node.Group.store.ReadTransactionByTraceId(ctx, txs[1].TraceId)
+	require.Nil(err)
+	require.Equal(TransactionStateInitial, tx.State)
+
+	_, err = node.Group.signTransaction(ctx, txs[0])
+	require.Nil(err)
+	err = node.Group.store.finishTransaction(ctx, txs[0].TraceId)
+	require.Nil(err)
+	_, err = node.Group.signTransaction(ctx, txs[1])
+	require.Nil(err)
+
+	storage, err := node.Group.store.ReadTransactionByTraceId(ctx, txs[0].TraceId)
+	require.Nil(err)
+	tx, err = node.Group.store.ReadTransactionByTraceId(ctx, txs[1].TraceId)
+	require.Nil(err)
+	require.NotEqual(TransactionStateInitial, tx.State)
+	require.Equal(storage.Hash.String(), tx.References[0].String())
 }
 
 func testHandleCompactionTransaction(ctx context.Context, require *require.Assertions, group *Group, hash string) *UnifiedOutput {
@@ -133,29 +223,33 @@ func testHandleCompactionTransaction(ctx context.Context, require *require.Asser
 func testBuildActionFromTx(require *require.Assertions, group *Group, tx *Transaction) *UnifiedOutput {
 	extra := encodeMixinExtra(tx.AppId, tx.TraceId, tx.Memo)
 	extra = hex.EncodeToString([]byte(extra))
-	return testBuildOutput(group, require, tx.Amount, extra, SafeUtxoStateUnspent, tx.Sequence+100, tx.Hash.String())
+	return testBuildOutput(group, require, tx.AssetId, tx.Amount, extra, SafeUtxoStateUnspent, tx.Sequence+100, tx.Hash.String())
 }
 
-func testDrainInitialOutputs(ctx context.Context, require *require.Assertions, group *Group, amount string) {
+func testDrainInitialOutputs(ctx context.Context, require *require.Assertions, group *Group, memo string) {
 	count := OutputsBatchSize + 1
 	start := 4655228
+
+	out := testBuildOutput(group, require, StorageAssetId, "1", "", SafeUtxoStateUnspent, uint64(start), "")
+	err := group.store.writeAction(ctx, out, ActionStateDone)
+	require.Nil(err)
 
 	for i := range count {
 		extra := ""
 		state := ActionStateDone
 		if i+1 == count {
-			extra = base64.RawStdEncoding.EncodeToString([]byte(amount))
+			extra = base64.RawStdEncoding.EncodeToString([]byte(memo))
 			extra = hex.EncodeToString([]byte(extra))
 			state = ActionStateInitial
 		}
-		out := testBuildOutput(group, require, "0.0001", extra, SafeUtxoStateUnspent, uint64(start+i+1), "")
+		out := testBuildOutput(group, require, USDTAssetId, "0.0001", extra, SafeUtxoStateUnspent, uint64(start+i+1), "")
 
 		err := group.store.writeAction(ctx, out, state)
 		require.Nil(err)
 	}
 }
 
-func testBuildOutput(group *Group, require *require.Assertions, amount string, extra string, state SafeUtxoState, sequence uint64, hash string) *UnifiedOutput {
+func testBuildOutput(group *Group, require *require.Assertions, asset, amount string, extra string, state SafeUtxoState, sequence uint64, hash string) *UnifiedOutput {
 	oid := mixin.UniqueConversationID("output", fmt.Sprintf("%s:%s:%s:%s:%d", amount, extra, extra, state, sequence))
 	rid := mixin.UniqueConversationID("request", oid)
 	h := crypto.Sha256Hash(uuid.FromStringOrNil(oid).Bytes())
@@ -174,7 +268,7 @@ func testBuildOutput(group *Group, require *require.Assertions, amount string, e
 		RequestId:          rid,
 		TransactionHash:    h,
 		OutputIndex:        0,
-		AssetId:            XINAssetId,
+		AssetId:            asset,
 		Amount:             amt,
 		SendersThreshold:   int64(1),
 		Senders:            []string{testSender},
