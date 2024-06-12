@@ -3,8 +3,10 @@ package mtg
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
+	"github.com/MixinNetwork/mixin/common"
 	"github.com/shopspring/decimal"
 )
 
@@ -103,17 +105,45 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 			panic(compactionAsset)
 		}
 
-		// TODO should check the asset balance all together
-		for _, t := range txs {
-			err = t.check(ctx)
-			if err != nil {
-				panic(err)
-			}
+		err = grp.checkTransactions(ctx, a, txs)
+		if err != nil {
+			panic(err)
 		}
 
 		err = grp.store.finishAction(ctx, a.OutputId, state, txs)
 		if err != nil {
 			panic(err)
+		}
+	}
+	return nil
+}
+
+func (grp *Group) checkTransactions(ctx context.Context, act *Action, txs []*Transaction) error {
+	totalAmount := make(map[string]common.Integer)
+	for _, t := range txs {
+		err := t.check(ctx)
+		if err != nil {
+			return err
+		}
+
+		amount, ok := totalAmount[t.AssetId]
+		if !ok {
+			amount = common.NewInteger(0)
+		}
+		totalAmount[t.AssetId] = amount.Add(common.NewIntegerFromString(t.Amount))
+	}
+
+	for asset, amount := range totalAmount {
+		outputs, err := grp.ListOutputsForAsset(ctx, act.AppId, asset, act.Sequence, SafeUtxoStateUnspent, 0)
+		if err != nil {
+			return err
+		}
+		total := common.NewInteger(0)
+		for _, os := range outputs {
+			total = total.Add(common.NewIntegerFromString(os.Amount.String()))
+		}
+		if total.Cmp(amount) < 0 {
+			return fmt.Errorf("insufficient balance for asset %s: %s %s", asset, total.String(), amount.String())
 		}
 	}
 	return nil
