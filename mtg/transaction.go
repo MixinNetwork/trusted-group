@@ -120,6 +120,15 @@ func (grp *Group) BuildTransactionWithReference(traceId, appId, opponentAppId, a
 	return t
 }
 
+func (grp *Group) BuildTransactionWithStorageTraceId(traceId, appId, opponentAppId, assetId, amount, memo string, receivers []string, threshold int, sequence uint64, storageTraceId string) *Transaction {
+	if _, err := uuid.FromString(storageTraceId); err != nil {
+		panic(err)
+	}
+	t := grp.BuildTransaction(traceId, appId, opponentAppId, assetId, amount, memo, receivers, threshold, sequence)
+	t.StorageTraceId = storageTraceId
+	return t
+}
+
 func (grp *Group) BuildStorageTransaction(ctx context.Context, extra []byte, sequence uint64) (*Transaction, error) {
 	sTraceId := crypto.Blake3Hash(extra).String()
 	sTraceId = mixin.UniqueConversationID(sTraceId, sTraceId)
