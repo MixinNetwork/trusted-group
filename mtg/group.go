@@ -147,11 +147,14 @@ func (grp *Group) AttachWorker(appId, depositEntry string, wkr Worker) {
 	if grp.FindWorker(appId) != nil {
 		panic(appId)
 	}
-	if grp.FindAppByEntry(depositEntry) != "" {
-		panic(depositEntry)
-	}
 	grp.workers[appId] = wkr
-	grp.entries[depositEntry] = appId
+
+	if depositEntry != "" {
+		if grp.FindAppByEntry(depositEntry) != "" {
+			panic(depositEntry)
+		}
+		grp.entries[depositEntry] = appId
+	}
 }
 
 func (grp *Group) FindWorker(appId string) Worker {
