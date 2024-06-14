@@ -166,6 +166,9 @@ func (grp *Group) BuildStorageTransaction(ctx context.Context, appId string, ext
 
 func (t *Transaction) check(ctx context.Context) error {
 	logger.Debugf("Group.checkTransaction(%v)\n", t)
+	if _, err := uuid.FromString(t.AppId); err != nil {
+		panic(err)
+	}
 	if len(t.References) > 2 {
 		return fmt.Errorf("invalid references length: %d", len(t.References))
 	}
@@ -373,7 +376,10 @@ func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transa
 			})
 		} else {
 			seed := make([]byte, 64)
-			crypto.ReadRand(seed)
+			seed = append(seed, uuid.FromStringOrNil(tx.TraceId).Bytes()...)
+			seed = append(seed, uuid.FromStringOrNil(tx.AssetId).Bytes()...)
+			seed = append(seed, uuid.FromStringOrNil(tx.AppId).Bytes()...)
+			seed = append(seed, uuid.FromStringOrNil(tx.OpponentAppId).Bytes()...)
 			r, err := mixinnet.KeyFromSeed(hex.EncodeToString(seed))
 			if err != nil {
 				return nil, err
