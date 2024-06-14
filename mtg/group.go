@@ -244,7 +244,7 @@ func (grp *Group) signTransactionWithAsset(ctx context.Context, asset string, tx
 }
 
 func (grp *Group) signTransactions(ctx context.Context) error {
-	txs, assetTxMap, err := grp.store.ListTransactions(ctx, TransactionStateInitial, 0)
+	_, assetTxMap, err := grp.store.ListTransactions(ctx, TransactionStateInitial, 0)
 	if err != nil {
 		panic(err)
 	}
@@ -252,26 +252,6 @@ func (grp *Group) signTransactions(ctx context.Context) error {
 	for asset, txs := range assetTxMap {
 		go grp.signTransactionWithAsset(ctx, asset, txs)
 	}
-
-	for {
-		time.Sleep(3 * time.Second)
-		done := true
-
-		for _, tx := range txs {
-			tx, err := grp.store.ReadTransactionByTraceId(ctx, tx.TraceId)
-			if err != nil {
-				panic(err)
-			}
-			if tx.State != TransactionStateSigned {
-				done = false
-				break
-			}
-		}
-		if done {
-			break
-		}
-	}
-
 	return nil
 }
 
