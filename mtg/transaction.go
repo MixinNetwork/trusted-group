@@ -206,6 +206,9 @@ func (grp *Group) buildCompactionTransaction(ctx context.Context, asset string, 
 	if err != nil {
 		return nil, err
 	}
+	if len(compaction) != OutputsBatchSize {
+		return nil, fmt.Errorf("insufficient outputs to build compaction transaction: %d", len(compaction))
+	}
 	total := decimal.NewFromInt(0)
 	for _, out := range compaction {
 		total = total.Add(out.Amount)
