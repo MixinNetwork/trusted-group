@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
@@ -232,8 +233,9 @@ func (grp *Group) CheckAssetBalanceAt(ctx context.Context, appId, assetId string
 	return total, nil
 }
 
-func (grp *Group) signTransactionWithAsset(ctx context.Context, asset string, txs []*Transaction) {
+func (grp *Group) signTransactionWithAsset(ctx context.Context, wg *sync.WaitGroup, asset string, txs []*Transaction) {
 	logger.Verbosef("Group.signTransactionWithAsset(%s)", asset)
+	defer wg.Done()
 	for _, tx := range txs {
 		raw, err := grp.signTransaction(ctx, tx)
 		logger.Verbosef("Group.signTransaction(%v) => %s %v", *tx, hex.EncodeToString(raw), err)
@@ -249,9 +251,12 @@ func (grp *Group) signTransactions(ctx context.Context) error {
 		panic(err)
 	}
 
+	var wg sync.WaitGroup
 	for asset, txs := range assetTxMap {
-		go grp.signTransactionWithAsset(ctx, asset, txs)
+		wg.Add(1)
+		go grp.signTransactionWithAsset(ctx, &wg, asset, txs)
 	}
+	wg.Wait()
 	return nil
 }
 
