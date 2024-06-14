@@ -365,7 +365,7 @@ func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transa
 		members := r.MixAddress.Members()
 		if r.UuidMember {
 			sort.Strings(members)
-			hint := UniqueId(grp.mixin.ClientID, fmt.Sprintf("hint:%s;index:%d", tx.TraceId, i))
+			hint := UniqueId(tx.TraceId, fmt.Sprintf("index:%d", i))
 			uuidGkrs = append(uuidGkrs, &mixin.GhostInput{
 				Receivers: members,
 				Index:     uint8(i),
