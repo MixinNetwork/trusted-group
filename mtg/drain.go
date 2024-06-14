@@ -58,7 +58,14 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 
 	appId, traceId, _ := DecodeMixinExtra(output.Extra)
 	if output.Deposit != nil {
-		appId = grp.FindAppByEntry(output.Deposit.Destination)
+		d, err := grp.readOutputDepositUntilSufficient(ctx, output.OutputId)
+		if err != nil {
+			panic(err)
+		}
+		appId = grp.FindAppByEntry(DepositEntry{
+			Destination: d.Destination,
+			Tag:         d.Tag,
+		}.String())
 	}
 	if appId == "" {
 		appId = grp.GroupId

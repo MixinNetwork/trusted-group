@@ -19,13 +19,10 @@ const (
 
 type SafeUtxoState string
 
-// TODO wait and check field
 type KernelDepositView struct {
 	Chain        string `json:"chain"`
 	DepositHash  string `json:"deposit_hash"`
 	DepositIndex int64  `json:"deposit_index"`
-	Destination  string `json:"destination"`
-	Tag          string `json:"tag"`
 }
 
 type UnifiedOutput struct {

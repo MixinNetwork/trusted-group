@@ -143,18 +143,19 @@ func (grp *Group) Synced(ctx context.Context) (bool, error) {
 	return v == "1", err
 }
 
-func (grp *Group) AttachWorker(appId, depositEntry string, wkr Worker) {
+func (grp *Group) AttachWorker(appId string, wkr Worker) {
 	if grp.FindWorker(appId) != nil {
 		panic(appId)
 	}
 	grp.workers[appId] = wkr
+}
 
-	if depositEntry != "" {
-		if grp.FindAppByEntry(depositEntry) != "" {
-			panic(depositEntry)
-		}
-		grp.entries[depositEntry] = appId
+func (grp *Group) RegisterDepositEntry(appId string, entry DepositEntry) {
+	key := entry.String()
+	if grp.FindWorker(appId) == nil || grp.FindAppByEntry(key) != "" {
+		panic(appId)
 	}
+	grp.entries[key] = appId
 }
 
 func (grp *Group) FindWorker(appId string) Worker {

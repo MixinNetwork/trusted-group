@@ -308,13 +308,17 @@ func testBuildGroup(require *require.Assertions) (context.Context, *Node) {
 	n := &Node{
 		Group: group,
 	}
-	group.AttachWorker(group.GroupId, "0xabcdefg", n)
+	group.AttachWorker(group.GroupId, n)
+
+	d := DepositEntry{
+		Destination: "213",
+		Tag:         "",
+	}
+	group.RegisterDepositEntry(group.GroupId, d)
 
 	app := group.FindAppByEntry("")
 	require.Equal("", app)
-	app = group.FindAppByEntry("0xabcdefgh")
-	require.Equal("", app)
-	app = group.FindAppByEntry("0xabcdefg")
+	app = group.FindAppByEntry(d.String())
 	require.Equal(group.GroupId, app)
 
 	ns, err := group.store.ListIterations(ctx)
