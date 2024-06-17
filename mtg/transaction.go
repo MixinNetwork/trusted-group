@@ -385,13 +385,13 @@ func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transa
 				return nil, err
 			}
 			keys := make([]mixinnet.Key, len(members))
-			for _, a := range members {
+			for i, a := range members {
 				addr, err := mixinnet.AddressFromString(a)
 				if err != nil {
 					return nil, err
 				}
 				key := mixinnet.DeriveGhostPublicKey(mixinnet.TxVersionHashSignature, &r, &addr.PublicViewKey, &addr.PublicSpendKey, uint8(i))
-				keys = append(keys, *key)
+				keys[i] = *key
 			}
 			gkm[i] = &mixin.GhostKeys{
 				Mask: r.Public(),
