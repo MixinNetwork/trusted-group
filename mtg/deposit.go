@@ -3,6 +3,7 @@ package mtg
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/logger"
@@ -30,9 +31,14 @@ func (grp *Group) readOutputDepositUntilSufficient(ctx context.Context, id strin
 		var deposit *SafeDepositView
 		err := grp.mixin.Get(ctx, fmt.Sprintf("/safe/outputs/%s/deposit", id), nil, &deposit)
 		logger.Verbosef("Group.readOutputDeposit(%s) => %v %v\n", id, deposit, err)
-		if err != nil && CheckRetryableError(err) {
-			time.Sleep(3 * time.Second)
-			continue
+		if err != nil {
+			if CheckRetryableError(err) {
+				time.Sleep(3 * time.Second)
+				continue
+			}
+			if strings.Contains(err.Error(), "The endpoint is not found") {
+				return nil, nil
+			}
 		}
 		return deposit, err
 	}

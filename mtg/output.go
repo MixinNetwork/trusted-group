@@ -19,37 +19,30 @@ const (
 
 type SafeUtxoState string
 
-type KernelDepositView struct {
-	Chain        string `json:"chain"`
-	DepositHash  string `json:"deposit_hash"`
-	DepositIndex int64  `json:"deposit_index"`
-}
-
 type UnifiedOutput struct {
-	Type               string             `json:"type"`
-	OutputId           string             `json:"output_id"`
-	RequestId          string             `json:"request_id,omitempty"`
-	TransactionHash    crypto.Hash        `json:"transaction_hash"`
-	OutputIndex        int                `json:"output_index"`
-	AssetId            string             `json:"asset_id"`
-	KernelAssetId      string             `json:"kernel_asset_id"`
-	Amount             decimal.Decimal    `json:"amount"`
-	Mask               string             `json:"mask"`
-	Keys               []string           `json:"keys"`
-	SendersHash        string             `json:"senders_hash"`
-	SendersThreshold   int64              `json:"senders_threshold"`
-	Senders            []string           `json:"senders"`
-	ReceiversHash      string             `json:"receivers_hash"`
-	ReceiversThreshold int64              `json:"receivers_threshold"`
-	Receivers          []string           `json:"receivers"`
-	Extra              string             `json:"extra"`
-	State              SafeUtxoState      `json:"state"`
-	Sequence           uint64             `json:"sequence"`
-	CreatedAt          time.Time          `json:"created_at"`
-	UpdatedAt          time.Time          `json:"updated_at"`
-	Signers            []string           `json:"signers"`
-	SignedBy           string             `json:"signed_by"`
-	Deposit            *KernelDepositView `json:"deposit,omitempty"`
+	Type               string          `json:"type"`
+	OutputId           string          `json:"output_id"`
+	RequestId          string          `json:"request_id,omitempty"`
+	TransactionHash    crypto.Hash     `json:"transaction_hash"`
+	OutputIndex        int             `json:"output_index"`
+	AssetId            string          `json:"asset_id"`
+	KernelAssetId      string          `json:"kernel_asset_id"`
+	Amount             decimal.Decimal `json:"amount"`
+	Mask               string          `json:"mask"`
+	Keys               []string        `json:"keys"`
+	SendersHash        string          `json:"senders_hash"`
+	SendersThreshold   int64           `json:"senders_threshold"`
+	Senders            []string        `json:"senders"`
+	ReceiversHash      string          `json:"receivers_hash"`
+	ReceiversThreshold int64           `json:"receivers_threshold"`
+	Receivers          []string        `json:"receivers"`
+	Extra              string          `json:"extra"`
+	State              SafeUtxoState   `json:"state"`
+	Sequence           uint64          `json:"sequence"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
+	Signers            []string        `json:"signers"`
+	SignedBy           string          `json:"signed_by"`
 
 	SignedTx string
 	TraceId  string

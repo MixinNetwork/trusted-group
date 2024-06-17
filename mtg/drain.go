@@ -57,15 +57,17 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 	logger.Verbosef("Group.processSafeOutput(%v) \n", output)
 
 	appId, traceId, _ := DecodeMixinExtra(output.Extra)
-	if output.Deposit != nil {
+	if output.RequestId == "" {
 		d, err := grp.readOutputDepositUntilSufficient(ctx, output.OutputId)
 		if err != nil {
 			panic(err)
 		}
-		appId = grp.FindAppByEntry(DepositEntry{
-			Destination: d.Destination,
-			Tag:         d.Tag,
-		}.String())
+		if d != nil {
+			appId = grp.FindAppByEntry(DepositEntry{
+				Destination: d.Destination,
+				Tag:         d.Tag,
+			}.String())
+		}
 	}
 	if appId == "" {
 		appId = grp.GroupId
