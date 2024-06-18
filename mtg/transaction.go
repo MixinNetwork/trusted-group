@@ -159,7 +159,7 @@ func (grp *Group) BuildStorageTransaction(ctx context.Context, appId string, ext
 
 	addr := common.NewAddressFromSeed(make([]byte, 64))
 	receivers := []string{addr.String()}
-	t := grp.BuildTransaction(sTraceId, appId, "", StorageAssetId, amount.String(), string(extra), receivers, 64, sequence)
+	t := grp.BuildTransaction(sTraceId, appId, appId, StorageAssetId, amount.String(), string(extra), receivers, 64, sequence)
 	t.Storage = true
 	return t, grp.store.writeStorageTransaction(ctx, t)
 }
@@ -375,15 +375,12 @@ func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transa
 				Hint:      hint,
 			})
 		} else {
-			seed := make([]byte, 64)
-			seed = append(seed, uuid.FromStringOrNil(tx.TraceId).Bytes()...)
+			seed := uuid.FromStringOrNil(tx.TraceId).Bytes()
 			seed = append(seed, uuid.FromStringOrNil(tx.AssetId).Bytes()...)
 			seed = append(seed, uuid.FromStringOrNil(tx.AppId).Bytes()...)
 			seed = append(seed, uuid.FromStringOrNil(tx.OpponentAppId).Bytes()...)
-			r, err := mixinnet.KeyFromSeed(hex.EncodeToString(seed))
-			if err != nil {
-				return nil, err
-			}
+			r := mixinnet.KeyFromBytes(seed)
+
 			keys := make([]mixinnet.Key, len(members))
 			for i, a := range members {
 				addr, err := mixinnet.AddressFromString(a)
