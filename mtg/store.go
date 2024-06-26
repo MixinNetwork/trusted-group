@@ -13,7 +13,7 @@ import (
 )
 
 func (s *SQLite3Store) ListActions(ctx context.Context, state ActionState, limit int) ([]*Action, error) {
-	query := fmt.Sprintf("SELECT %s FROM actions JOIN outputs ON actions.output_id = outputs.output_id WHERE action_state=? ORDER BY actions.sequence ASC", strings.Join(actionJoinCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM actions JOIN outputs ON actions.output_id=outputs.output_id WHERE action_state=? ORDER BY actions.sequence ASC", strings.Join(actionJoinCols, ","))
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
@@ -34,25 +34,25 @@ func (s *SQLite3Store) ListActions(ctx context.Context, state ActionState, limit
 	return as, nil
 }
 
-func (s *SQLite3Store) readOutput(ctx context.Context, id string) (*UnifiedOutput, error) {
+func (s *SQLite3Store) readOutput(ctx context.Context, tx *sql.Tx, id string) (*UnifiedOutput, error) {
 	query := fmt.Sprintf("SELECT %s FROM outputs WHERE output_id=?", strings.Join(outputCols, ","))
-	row := s.db.QueryRowContext(ctx, query, id)
+	row := tx.QueryRowContext(ctx, query, id)
 	return outputFromRow(row)
 }
 
-func (s *SQLite3Store) readAction(ctx context.Context, id string) (*Action, error) {
+func (s *SQLite3Store) readAction(ctx context.Context, tx *sql.Tx, id string) (*Action, error) {
 	query := fmt.Sprintf("SELECT %s FROM actions WHERE output_id=?", strings.Join(actionCols, ","))
-	row := s.db.QueryRowContext(ctx, query, id)
+	row := tx.QueryRowContext(ctx, query, id)
 	return actionFromRow(row)
 }
 
-func (s *SQLite3Store) readRestorableAction(ctx context.Context, t *Transaction) (*Action, error) {
+func (s *SQLite3Store) readRestorableAction(ctx context.Context, txn *sql.Tx, t *Transaction) (*Action, error) {
 	if len(t.References) != 1 {
 		return nil, nil
 	}
 	hash := t.References[0].String()
 	query := fmt.Sprintf("SELECT %s FROM actions WHERE action_state=? AND transaction_hash=?", strings.Join(actionCols, ","))
-	row := s.db.QueryRowContext(ctx, query, ActionStateRestorable, hash)
+	row := txn.QueryRowContext(ctx, query, ActionStateRestorable, hash)
 	return actionFromRow(row)
 }
 
@@ -66,8 +66,8 @@ func (s *SQLite3Store) finishAction(ctx context.Context, id string, state Action
 	}
 	defer tx.Rollback()
 
-	act, err := s.readAction(ctx, id)
-	if err != nil {
+	act, err := s.readAction(ctx, tx, id)
+	if err != nil || act.ActionState != ActionStateInitial {
 		return err
 	}
 
@@ -87,14 +87,6 @@ func (s *SQLite3Store) finishAction(ctx context.Context, id string, state Action
 		if t.Sequence != sequence {
 			panic(t.Sequence)
 		}
-
-		existed, err := s.checkExistence(ctx, tx, "SELECT trace_id FROM transactions WHERE trace_id=?", t.TraceId)
-		if err != nil {
-			return err
-		}
-		if existed {
-			continue
-		}
 		err = s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), t.values()...)
 		if err != nil {
 			return fmt.Errorf("INSERT transactions %v", err)
@@ -110,11 +102,11 @@ func (s *SQLite3Store) writeOutputAndAction(ctx context.Context, tx *sql.Tx, out
 		panic(out.AppId)
 	}
 
-	oldAct, err := s.readAction(ctx, out.OutputId)
+	oldAct, err := s.readAction(ctx, tx, out.OutputId)
 	if err != nil {
 		return err
 	}
-	oldOutput, err := s.readOutput(ctx, out.OutputId)
+	oldOutput, err := s.readOutput(ctx, tx, out.OutputId)
 	if err != nil {
 		return err
 	}
@@ -178,12 +170,12 @@ func (s *SQLite3Store) restoreAction(ctx context.Context, out *UnifiedOutput, t 
 	}
 	defer tx.Rollback()
 
-	old, err := s.readAction(ctx, out.OutputId)
+	old, err := s.readAction(ctx, tx, out.OutputId)
 	if err != nil || old != nil {
 		return err
 	}
 
-	act, err := s.readRestorableAction(ctx, t)
+	act, err := s.readRestorableAction(ctx, tx, t)
 	if err != nil || act == nil {
 		return err
 	}
@@ -322,9 +314,9 @@ func (s *SQLite3Store) finishTransaction(ctx context.Context, traceId string) er
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) readIteration(ctx context.Context, id string) (*Iteration, error) {
+func (s *SQLite3Store) readIteration(ctx context.Context, txn *sql.Tx, id string) (*Iteration, error) {
 	query := fmt.Sprintf("SELECT %s FROM iterations WHERE node_id=?", strings.Join(iterationCols, ","))
-	row := s.db.QueryRowContext(ctx, query, id)
+	row := txn.QueryRowContext(ctx, query, id)
 	return iterationFromRow(row)
 }
 
@@ -357,15 +349,7 @@ func (s *SQLite3Store) WriteIteration(ctx context.Context, ir *Iteration) error 
 	}
 	defer tx.Rollback()
 
-	olds, err := s.ListIterations(ctx)
-	if err != nil {
-		return err
-	}
-	if len(olds) > 0 && olds[len(olds)-1].CreatedAt > ir.CreatedAt {
-		panic(ir.CreatedAt)
-	}
-
-	old, err := s.readIteration(ctx, ir.NodeId)
+	old, err := s.readIteration(ctx, tx, ir.NodeId)
 	if err != nil {
 		return err
 	}
