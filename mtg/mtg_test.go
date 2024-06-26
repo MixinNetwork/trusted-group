@@ -333,6 +333,7 @@ func teardownTestDatabase(store *SQLite3Store) {
 		DROP TABLE IF EXISTS properties;
 		DROP TABLE IF EXISTS iterations;
 		DROP TABLE IF EXISTS actions;
+		DROP TABLE IF EXISTS outputs;
 		DROP TABLE IF EXISTS transactions;
 	`
 	_, err := store.db.Exec(dropTablesDDL)

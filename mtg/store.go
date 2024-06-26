@@ -203,7 +203,7 @@ func (s *SQLite3Store) restoreAction(ctx context.Context, out *UnifiedOutput, t 
 }
 
 func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, traceId string, sequence uint64) ([]*UnifiedOutput, error) {
-	query := fmt.Sprintf("SELECT %s FROM outputs WHERE trace_id=? AND sequence<=? ORDER BY sequence ASC", strings.Join(outputCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM outputs WHERE trace_id=? AND sequence<=? ORDER BY trace_id, sequence ASC", strings.Join(outputCols, ","))
 	rows, err := s.db.QueryContext(ctx, query, traceId, sequence)
 	if err != nil {
 		return nil, err
@@ -222,11 +222,11 @@ func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, traceId st
 }
 
 func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, appId, assetId string, sequence uint64, state SafeUtxoState, limit int) ([]*UnifiedOutput, error) {
-	query := fmt.Sprintf("SELECT %s FROM outputs WHERE app_id=? AND asset_id=? AND sequence<=? AND state=? ORDER BY sequence ASC", strings.Join(outputCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM outputs WHERE app_id=? AND asset_id=? AND state=? AND sequence<=? ORDER BY app_id, asset_id, state, sequence ASC", strings.Join(outputCols, ","))
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
-	rows, err := s.db.QueryContext(ctx, query, appId, assetId, sequence, state)
+	rows, err := s.db.QueryContext(ctx, query, appId, assetId, state, sequence)
 	if err != nil {
 		return nil, err
 	}
@@ -389,7 +389,7 @@ func (s *SQLite3Store) WriteIteration(ctx context.Context, ir *Iteration) error 
 }
 
 func (s *SQLite3Store) listPreviousInitialTransactions(ctx context.Context, asset string, sequence uint64) ([]*Transaction, error) {
-	query := fmt.Sprintf("SELECT %s FROM transactions where asset_id=? AND state=? AND sequence<? ORDER BY sequence ASC", strings.Join(transactionCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM transactions where asset_id=? AND state=? AND sequence<? ORDER BY asset_id, state, sequence ASC", strings.Join(transactionCols, ","))
 	rows, err := s.db.QueryContext(ctx, query, asset, sequence, TransactionStateInitial)
 	if err != nil {
 		return nil, err
@@ -408,7 +408,7 @@ func (s *SQLite3Store) listPreviousInitialTransactions(ctx context.Context, asse
 }
 
 func (s *SQLite3Store) ListTransactions(ctx context.Context, state, limit int) ([]*Transaction, map[string][]*Transaction, error) {
-	query := fmt.Sprintf("SELECT %s FROM transactions where state=? ORDER BY sequence ASC", strings.Join(transactionCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM transactions where state=? ORDER BY state, sequence ASC", strings.Join(transactionCols, ","))
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}

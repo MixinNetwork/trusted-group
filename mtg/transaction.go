@@ -154,7 +154,7 @@ func (grp *Group) BuildStorageTransaction(ctx context.Context, appId string, ext
 		return nil, err
 	}
 	if common.NewIntegerFromString(total.String()).Cmp(amount) < 0 {
-		return nil, fmt.Errorf("insufficient balance")
+		return nil, fmt.Errorf("insufficient balance %s %s", total, amount)
 	}
 
 	addr := common.NewAddressFromSeed(make([]byte, 64))
