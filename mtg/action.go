@@ -4,10 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
+	"strings"
 
 	"github.com/MixinNetwork/mixin/common"
-	"github.com/shopspring/decimal"
 )
 
 const (
@@ -25,26 +24,7 @@ type Action struct {
 	Sequence        uint64
 	restoreSequence uint64
 
-	RequestId          string
-	OutputIndex        int
-	AssetId            string
-	KernelAssetId      string
-	Amount             decimal.Decimal
-	Mask               string
-	Keys               string
-	SendersThreshold   int64
-	Senders            string
-	ReceiversThreshold int64
-	Receivers          string
-	Extra              string
-	State              SafeUtxoState
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
-	Signers            string
-	SignedBy           string
-	SignedTx           string
-	TraceId            string
-	AppId              string
+	UnifiedOutput
 }
 
 var actionCols = []string{"output_id", "transaction_hash", "action_state", "sequence", "restore_sequence"}
@@ -66,10 +46,15 @@ func actionFromRow(row Row) (*Action, error) {
 
 func actionJoinFromRow(row Row) (*Action, error) {
 	var a Action
-	err := row.Scan(&a.OutputId, &a.TransactionHash, &a.ActionState, &a.Sequence, &a.restoreSequence, &a.RequestId, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.Mask, &a.Keys, &a.SendersThreshold, &a.Senders, &a.ReceiversThreshold, &a.Receivers, &a.Extra, &a.State, &a.CreatedAt, &a.UpdatedAt, &a.Signers, &a.SignedBy, &a.SignedTx, &a.TraceId, &a.AppId)
+	var keys, senders, receivers, signers string
+	err := row.Scan(&a.OutputId, &a.TransactionHash, &a.ActionState, &a.Sequence, &a.restoreSequence, &a.RequestId, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.Mask, &keys, &a.SendersThreshold, &senders, &a.ReceiversThreshold, &receivers, &a.Extra, &a.State, &a.CreatedAt, &a.UpdatedAt, &signers, &a.SignedBy, &a.SignedTx, &a.TraceId, &a.AppId)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
+	a.Keys = strings.Split(keys, ",")
+	a.Senders = strings.Split(senders, ",")
+	a.Receivers = strings.Split(receivers, ",")
+	a.Signers = strings.Split(signers, ",")
 	return &a, err
 }
 
