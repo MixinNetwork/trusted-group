@@ -63,29 +63,35 @@ func (t *Transaction) values() []any {
 	for _, r := range t.References {
 		refs = append(refs, r.String())
 	}
-	hash := t.Hash.String()
-	if !t.Hash.HasValue() {
-		hash = ""
+	var hash, raw sql.NullString
+	if t.Hash.HasValue() {
+		hash = sql.NullString{Valid: true, String: t.Hash.String()}
+		raw = sql.NullString{Valid: true, String: hex.EncodeToString(t.Raw)}
 	}
-	return []any{t.AppId, t.OpponentAppId, t.TraceId, t.State, t.AssetId, strings.Join(t.Receivers, ","), t.Threshold, t.Amount, t.Memo, t.Raw, hash, strings.Join(refs, ","), t.Sequence, t.Compaction, t.Storage, t.StorageTraceId, t.UpdatedAt}
+	return []any{t.AppId, t.OpponentAppId, t.TraceId, t.State, t.AssetId, strings.Join(t.Receivers, ","), t.Threshold, t.Amount, t.Memo, raw, hash, strings.Join(refs, ","), t.Sequence, t.Compaction, t.Storage, t.StorageTraceId, t.UpdatedAt}
 }
 
 func transactionFromRow(row Row) (*Transaction, error) {
 	var t Transaction
-	var hash, rs, refs string
-	err := row.Scan(&t.AppId, &t.OpponentAppId, &t.TraceId, &t.State, &t.AssetId, &rs, &t.Threshold, &t.Amount, &t.Memo, &t.Raw, &hash, &refs, &t.Sequence, &t.Compaction, &t.Storage, &t.StorageTraceId, &t.UpdatedAt)
+	var rs, refs string
+	var hash, raw sql.NullString
+	err := row.Scan(&t.AppId, &t.OpponentAppId, &t.TraceId, &t.State, &t.AssetId, &rs, &t.Threshold, &t.Amount, &t.Memo, &raw, &hash, &refs, &t.Sequence, &t.Compaction, &t.Storage, &t.StorageTraceId, &t.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 
-	var h crypto.Hash
-	if hash != "" {
-		h, err = crypto.HashFromString(hash)
+	if hash.Valid {
+		h, err := crypto.HashFromString(hash.String)
 		if err != nil {
-			return nil, err
+			panic(hash.String)
 		}
+		r, err := hex.DecodeString(raw.String)
+		if err != nil {
+			panic(raw.String)
+		}
+		t.Hash = h
+		t.Raw = r
 	}
-	t.Hash = h
 
 	t.Receivers = strings.Split(rs, ",")
 	for _, r := range strings.Split(refs, ",") {
