@@ -389,7 +389,7 @@ func (s *SQLite3Store) ListPreviousInitialTransactions(ctx context.Context, asse
 }
 
 func (s *SQLite3Store) ListTransactions(ctx context.Context, state, limit int) ([]*Transaction, map[string][]*Transaction, error) {
-	query := fmt.Sprintf("SELECT %s FROM transactions where state=? ORDER BY state, sequence ASC", strings.Join(transactionCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM transactions where state=? ORDER BY state,sequence,trace_id ASC", strings.Join(transactionCols, ","))
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}

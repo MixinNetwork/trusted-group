@@ -168,10 +168,13 @@ func (grp *Group) BuildStorageTransaction(ctx context.Context, appId string, ext
 	return t, grp.store.WriteStorageTransaction(ctx, t)
 }
 
-func (t *Transaction) check(ctx context.Context) error {
+func (t *Transaction) check(ctx context.Context, act *Action) error {
 	logger.Debugf("Group.checkTransaction(%v)\n", t)
 	if _, err := uuid.FromString(t.AppId); err != nil {
 		panic(err)
+	}
+	if t.AppId != act.AppId || t.Sequence != act.Sequence {
+		return fmt.Errorf("invalid action origin: %s %d", t.AppId, t.Sequence)
 	}
 	if len(t.References) > 2 {
 		return fmt.Errorf("invalid references length: %d", len(t.References))
@@ -331,6 +334,9 @@ func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outp
 	tx.Hash = ver.PayloadHash()
 	tx.UpdatedAt = time.Now()
 	tx.State = TransactionStateSigning
+	if tx.Hash.String() != req.TransactionHash {
+		panic(req.TransactionHash)
+	}
 
 	if len(req.Signers) > 0 {
 		tx.State = TransactionStateSigned
