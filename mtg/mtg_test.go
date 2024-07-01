@@ -76,6 +76,17 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 	return txs, ""
 }
 
+func TestMTGExtra(t *testing.T) {
+	require := require.New(t)
+	id := uuid.Must(uuid.NewV4()).String()
+	memo := "123"
+
+	extra := EncodeMixinExtra(id, memo)
+	a, m := DecodeMixinExtra(hex.EncodeToString([]byte(extra)))
+	require.Equal(id, a)
+	require.Equal(memo, m)
+}
+
 func TestMTGCompaction(t *testing.T) {
 	require := require.New(t)
 	ctx, node := testBuildGroup(require)
@@ -223,7 +234,7 @@ func testHandleCompactionTransaction(ctx context.Context, require *require.Asser
 }
 
 func testBuildActionFromTx(require *require.Assertions, group *Group, tx *Transaction) *UnifiedOutput {
-	extra := encodeMixinExtra(tx.AppId, tx.TraceId, tx.Memo)
+	extra := encodeMixinExtra(tx.AppId, tx.Memo)
 	extra = hex.EncodeToString([]byte(extra))
 	return testBuildOutput(group, require, tx.AssetId, tx.Amount, extra, SafeUtxoStateUnspent, tx.Sequence+100, tx.Hash.String())
 }

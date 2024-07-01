@@ -55,7 +55,7 @@ func (grp *Group) processSafeOutputs(ctx context.Context, filter map[string]bool
 func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) {
 	logger.Verbosef("Group.processSafeOutput(%v) \n", output)
 
-	appId, traceId, _ := DecodeMixinExtra(output.Extra)
+	appId, _ := DecodeMixinExtra(output.Extra)
 	if output.RequestId == "" {
 		d, err := grp.readOutputDepositUntilSufficient(ctx, output.OutputId)
 		if err != nil {
@@ -72,7 +72,6 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 		appId = grp.GroupId
 	}
 	output.AppId = appId
-	output.TraceId = traceId
 
 	tx, err := grp.store.ReadTransactionByHash(ctx, output.TransactionHash)
 	if err != nil {

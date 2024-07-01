@@ -202,7 +202,7 @@ func (t *Transaction) check(ctx context.Context) error {
 		}
 	}
 
-	s := encodeMixinExtra(t.OpponentAppId, t.TraceId, t.Memo)
+	s := encodeMixinExtra(t.OpponentAppId, t.Memo)
 	if len(s) >= common.ExtraSizeGeneralLimit {
 		return fmt.Errorf("invalid extra length: %d", len(s))
 	}
@@ -337,11 +337,8 @@ func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outp
 	if len(req.Signers) > 0 {
 		tx.State = TransactionStateSigned
 	} else if !tx.Storage {
-		t, g, _ := DecodeMixinExtra(string(ver.Extra))
-		if t != tx.TraceId {
-			panic(hex.EncodeToString(rb))
-		}
-		if g != tx.OpponentAppId {
+		aid, _ := DecodeMixinExtra(string(ver.Extra))
+		if aid != tx.OpponentAppId {
 			panic(hex.EncodeToString(rb))
 		}
 	}
@@ -619,7 +616,7 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 	ver.References = tx.References
 	ver.Extra = []byte(tx.Memo)
 	if !tx.Storage {
-		ver.Extra = []byte(encodeMixinExtra(tx.OpponentAppId, tx.TraceId, tx.Memo))
+		ver.Extra = []byte(encodeMixinExtra(tx.OpponentAppId, tx.Memo))
 	}
 
 	if l := ver.AsVersioned().GetExtraLimit(); len(ver.Extra) >= l {
@@ -628,43 +625,33 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 	return ver.AsVersioned(), inputs, nil
 }
 
-func DecodeMixinExtra(memo string) (string, string, string) {
+func DecodeMixinExtra(memo string) (string, string) {
 	extra, err := hex.DecodeString(memo)
 	if err != nil {
-		return "", "", ""
+		return "", ""
 	}
 	data, err := base64.RawURLEncoding.DecodeString(string(extra))
-	if err != nil || len(data) < 32 {
-		return "", "", ""
+	if err != nil || len(data) < 16 {
+		return "", ""
 	}
 	aid := uuid.FromBytesOrNil(data[0:16])
-	tid := uuid.FromBytesOrNil(data[16:32])
-	m := string(data[32:])
-	return aid.String(), tid.String(), m
+	m := string(data[16:])
+	return aid.String(), m
 }
 
-func encodeMixinExtra(appId, traceId, memo string) string {
-	var gid uuid.UUID
-	var err error
-	if appId != "" {
-		gid, err = uuid.FromString(appId)
-		if err != nil {
-			panic(err)
-		}
-	}
-	tid, err := uuid.FromString(traceId)
+func encodeMixinExtra(appId, memo string) string {
+	gid, err := uuid.FromString(appId)
 	if err != nil {
 		panic(err)
 	}
 	data := gid.Bytes()
-	data = append(data, tid.Bytes()...)
 	data = append(data, []byte(memo)...)
 	s := base64.RawURLEncoding.EncodeToString(data)
 	return s
 }
 
-func EncodeMixinExtra(appId, traceId, memo string) string {
-	s := encodeMixinExtra(appId, traceId, memo)
+func EncodeMixinExtra(appId, memo string) string {
+	s := encodeMixinExtra(appId, memo)
 	if len(s) >= common.ExtraSizeGeneralLimit {
 		panic(memo)
 	}
