@@ -9,8 +9,8 @@ CREATE TABLE IF NOT EXISTS properties (
 
 
 CREATE TABLE IF NOT EXISTS iterations (
-  action           INTEGER NOT NULL,
   node_id          VARCHAR NOT NULL,
+  action           INTEGER NOT NULL,
   threshold        INTEGER NOT NULL,
   created_at       INTEGER NOT NULL,
   PRIMARY KEY ('node_id')

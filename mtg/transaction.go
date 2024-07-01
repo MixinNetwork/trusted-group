@@ -167,7 +167,7 @@ func (grp *Group) BuildStorageTransaction(ctx context.Context, appId string, ext
 	receivers := []string{addr.String()}
 	t := grp.BuildTransaction(sTraceId, appId, appId, StorageAssetId, amount.String(), string(extra), receivers, 64, sequence)
 	t.Storage = true
-	return t, grp.store.writeStorageTransaction(ctx, t)
+	return t, grp.store.WriteStorageTransaction(ctx, t)
 }
 
 func (t *Transaction) check(ctx context.Context) error {
@@ -248,8 +248,8 @@ func (grp *Group) buildCompactionTransaction(ctx context.Context, asset string, 
 func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte, error) {
 	logger.Printf("Group.signTransaction(%v)\n", tx)
 
-	txs, err := grp.store.listPreviousInitialTransactions(ctx, tx.AssetId, tx.Sequence)
-	logger.Verbosef("store.listPreviousInitialTransactions(%s %d) => %d %v\n", tx.AssetId, tx.Sequence, len(txs), err)
+	txs, err := grp.store.ListPreviousInitialTransactions(ctx, tx.AssetId, tx.Sequence)
+	logger.Verbosef("store.ListPreviousInitialTransactions(%s %d) => %d %v\n", tx.AssetId, tx.Sequence, len(txs), err)
 	if err != nil {
 		return nil, err
 	}
@@ -346,7 +346,7 @@ func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outp
 		}
 	}
 
-	err = grp.store.updateTxWithOutputs(ctx, tx, outputs)
+	err = grp.store.UpdateTxWithOutputs(ctx, tx, outputs)
 	if err != nil {
 		panic(err)
 	}

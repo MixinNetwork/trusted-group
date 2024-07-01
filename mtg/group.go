@@ -272,7 +272,7 @@ func (grp *Group) publishTransactions(ctx context.Context) error {
 		} else if !snapshot {
 			continue
 		}
-		grp.store.finishTransaction(ctx, tx.TraceId)
+		grp.store.FinishTransaction(ctx, tx.TraceId)
 	}
 	return nil
 }

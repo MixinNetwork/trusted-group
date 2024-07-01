@@ -56,7 +56,7 @@ func (s *SQLite3Store) readRestorableAction(ctx context.Context, txn *sql.Tx, t 
 	return actionFromRow(row)
 }
 
-func (s *SQLite3Store) finishAction(ctx context.Context, id string, state ActionState, ts []*Transaction) error {
+func (s *SQLite3Store) FinishAction(ctx context.Context, id string, state ActionState, ts []*Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -142,7 +142,7 @@ func (s *SQLite3Store) writeOutputAndAction(ctx context.Context, tx *sql.Tx, out
 	return nil
 }
 
-func (s *SQLite3Store) writeAction(ctx context.Context, out *UnifiedOutput, state ActionState) error {
+func (s *SQLite3Store) WriteAction(ctx context.Context, out *UnifiedOutput, state ActionState) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -160,7 +160,7 @@ func (s *SQLite3Store) writeAction(ctx context.Context, out *UnifiedOutput, stat
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) restoreAction(ctx context.Context, out *UnifiedOutput, t *Transaction) error {
+func (s *SQLite3Store) RestoreAction(ctx context.Context, out *UnifiedOutput, t *Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -235,7 +235,7 @@ func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, appId, assetId s
 	return os, nil
 }
 
-func (s *SQLite3Store) updateTxWithOutputs(ctx context.Context, t *Transaction, os []*UnifiedOutput) error {
+func (s *SQLite3Store) UpdateTxWithOutputs(ctx context.Context, t *Transaction, os []*UnifiedOutput) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -267,7 +267,7 @@ func (s *SQLite3Store) updateTxWithOutputs(ctx context.Context, t *Transaction, 
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) writeStorageTransaction(ctx context.Context, t *Transaction) error {
+func (s *SQLite3Store) WriteStorageTransaction(ctx context.Context, t *Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -289,7 +289,7 @@ func (s *SQLite3Store) writeStorageTransaction(ctx context.Context, t *Transacti
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) finishTransaction(ctx context.Context, traceId string) error {
+func (s *SQLite3Store) FinishTransaction(ctx context.Context, traceId string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -321,7 +321,7 @@ func (s *SQLite3Store) readIteration(ctx context.Context, txn *sql.Tx, id string
 }
 
 func (s *SQLite3Store) ListIterations(ctx context.Context) ([]*Iteration, error) {
-	query := fmt.Sprintf("SELECT %s FROM iterations ORDER BY node_id,created_at ASC LIMIT 255", strings.Join(iterationCols, ","))
+	query := fmt.Sprintf("SELECT %s FROM iterations ORDER BY node_id,created_at ASC", strings.Join(iterationCols, ","))
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -372,8 +372,8 @@ func (s *SQLite3Store) WriteIteration(ctx context.Context, ir *Iteration) error 
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) listPreviousInitialTransactions(ctx context.Context, asset string, sequence uint64) ([]*Transaction, error) {
-	query := fmt.Sprintf("SELECT %s FROM transactions where asset_id=? AND state=? AND sequence<? ORDER BY asset_id, state, sequence ASC", strings.Join(transactionCols, ","))
+func (s *SQLite3Store) ListPreviousInitialTransactions(ctx context.Context, asset string, sequence uint64) ([]*Transaction, error) {
+	query := fmt.Sprintf("SELECT %s FROM transactions where asset_id=? AND state=? AND sequence<=? ORDER BY asset_id, state, sequence ASC", strings.Join(transactionCols, ","))
 	rows, err := s.db.QueryContext(ctx, query, asset, sequence, TransactionStateInitial)
 	if err != nil {
 		return nil, err

@@ -67,9 +67,9 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 	for _, a := range as {
 		wkr := grp.FindWorker(a.AppId)
 		if wkr == nil {
-			err = grp.store.finishAction(ctx, a.OutputId, ActionStateDone, nil)
+			err = grp.store.FinishAction(ctx, a.OutputId, ActionStateDone, nil)
 			if err != nil {
-				return fmt.Errorf("store.finishAction(%s) => %v", a.OutputId, err)
+				return fmt.Errorf("store.FinishAction(%s) => %v", a.OutputId, err)
 			}
 			continue
 		}
@@ -95,9 +95,9 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 			return fmt.Errorf("group.checkTransactions(%v) => %v", a, err)
 		}
 
-		err = grp.store.finishAction(ctx, a.OutputId, state, txs)
+		err = grp.store.FinishAction(ctx, a.OutputId, state, txs)
 		if err != nil {
-			return fmt.Errorf("store.finishAction(%s %d) => %v", a.OutputId, state, err)
+			return fmt.Errorf("store.FinishAction(%s %d) => %v", a.OutputId, state, err)
 		}
 	}
 	return nil

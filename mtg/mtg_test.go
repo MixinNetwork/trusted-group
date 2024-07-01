@@ -176,7 +176,7 @@ func TestMTGStorage(t *testing.T) {
 
 	_, err = node.Group.signTransaction(ctx, txs[0])
 	require.Nil(err)
-	err = node.Group.store.finishTransaction(ctx, txs[0].TraceId)
+	err = node.Group.store.FinishTransaction(ctx, txs[0].TraceId)
 	require.Nil(err)
 	_, err = node.Group.signTransaction(ctx, txs[1])
 	require.Nil(err)
@@ -213,7 +213,7 @@ func testHandleCompactionTransaction(ctx context.Context, require *require.Asser
 		out.SignedBy = tx.Hash.String()
 		out.SignedTx = hex.EncodeToString(tx.Raw)
 	}
-	err = group.store.updateTxWithOutputs(ctx, tx, consumed)
+	err = group.store.UpdateTxWithOutputs(ctx, tx, consumed)
 	require.Nil(err)
 
 	return testBuildActionFromTx(require, group, tx)
@@ -230,7 +230,7 @@ func testDrainInitialOutputs(ctx context.Context, require *require.Assertions, g
 	start := 4655228
 
 	out := testBuildOutput(group, require, StorageAssetId, "1", "", SafeUtxoStateUnspent, uint64(start), "")
-	err := group.store.writeAction(ctx, out, ActionStateDone)
+	err := group.store.WriteAction(ctx, out, ActionStateDone)
 	require.Nil(err)
 
 	for i := range count {
@@ -243,7 +243,7 @@ func testDrainInitialOutputs(ctx context.Context, require *require.Assertions, g
 		}
 		out := testBuildOutput(group, require, USDTAssetId, "0.0001", extra, SafeUtxoStateUnspent, uint64(start+i+1), "")
 
-		err := group.store.writeAction(ctx, out, state)
+		err := group.store.WriteAction(ctx, out, state)
 		require.Nil(err)
 	}
 }

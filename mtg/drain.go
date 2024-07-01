@@ -90,7 +90,7 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 	}
 	if tx != nil {
 		if tx.Compaction {
-			err = grp.store.restoreAction(ctx, output, tx)
+			err = grp.store.RestoreAction(ctx, output, tx)
 			if err != nil {
 				panic(err)
 			}
@@ -113,7 +113,7 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 			}
 		}
 	}
-	grp.store.writeAction(ctx, output, ActionStateInitial)
+	grp.store.WriteAction(ctx, output, ActionStateInitial)
 }
 
 func (grp *Group) readDrainingCheckpoint(ctx context.Context) (uint64, error) {
