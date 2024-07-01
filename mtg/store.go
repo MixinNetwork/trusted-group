@@ -131,9 +131,6 @@ func (s *SQLite3Store) writeOutputAndAction(ctx context.Context, tx *sql.Tx, out
 		Sequence:        out.Sequence,
 		restoreSequence: 0,
 	}
-	if !CheckTestEnvironment(ctx) && state != ActionStateInitial {
-		panic(state)
-	}
 	err = s.execOne(ctx, tx, buildInsertionSQL("actions", actionCols), a.values()...)
 	if err != nil {
 		return fmt.Errorf("INSERT actions %v", err)
