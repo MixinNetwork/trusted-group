@@ -22,7 +22,7 @@ type SafeDepositView struct {
 	Tag          string `json:"tag"`
 }
 
-func (e DepositEntry) String() string {
+func (e DepositEntry) UniqueKey() string {
 	return fmt.Sprintf("%s:%s", e.Destination, e.Tag)
 }
 
@@ -36,7 +36,7 @@ func (grp *Group) readOutputDepositUntilSufficient(ctx context.Context, id strin
 				time.Sleep(3 * time.Second)
 				continue
 			}
-			if strings.Contains(err.Error(), "The endpoint is not found") {
+			if strings.Contains(err.Error(), "not found") {
 				return nil, nil
 			}
 		}

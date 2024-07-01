@@ -65,7 +65,7 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 			appId = grp.FindAppByEntry(DepositEntry{
 				Destination: d.Destination,
 				Tag:         d.Tag,
-			}.String())
+			}.UniqueKey())
 		}
 	}
 	if appId == "" {
@@ -85,6 +85,8 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 			}
 			return
 		}
+		// we must always ensure there are at most 2 outputs,
+		// and the last one is the change output
 		if output.OutputIndex == 1 {
 			output.AppId = tx.AppId
 		}

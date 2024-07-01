@@ -152,7 +152,7 @@ func (grp *Group) AttachWorker(appId string, wkr Worker) {
 }
 
 func (grp *Group) RegisterDepositEntry(appId string, entry DepositEntry) {
-	key := entry.String()
+	key := entry.UniqueKey()
 	if grp.FindWorker(appId) == nil || grp.FindAppByEntry(key) != "" {
 		panic(appId)
 	}

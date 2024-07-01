@@ -332,7 +332,7 @@ func testBuildGroup(require *require.Assertions) (context.Context, *Node) {
 
 	app := group.FindAppByEntry("")
 	require.Equal("", app)
-	app = group.FindAppByEntry(d.String())
+	app = group.FindAppByEntry(d.UniqueKey())
 	require.Equal(group.GroupId, app)
 
 	ns, err := group.store.ListIterations(ctx)

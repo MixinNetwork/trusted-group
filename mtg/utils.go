@@ -2,10 +2,19 @@ package mtg
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/hex"
+	"fmt"
+	"sort"
 	"strings"
+	"time"
 
+	"github.com/MixinNetwork/mixin/common"
+	"github.com/MixinNetwork/mixin/crypto"
+	"github.com/MixinNetwork/mixin/logger"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
+	"github.com/gofrs/uuid/v5"
 )
 
 const (
@@ -69,4 +78,243 @@ func NewMixAddress(ctx context.Context, members []string, threshold byte, storag
 	}
 	ma.Threshold = thr
 	return ma, isUuidMembers, nil
+}
+
+func DecodeMixinExtra(memo string) (string, string) {
+	extra, err := hex.DecodeString(memo)
+	if err != nil {
+		return "", ""
+	}
+	data, err := base64.RawURLEncoding.DecodeString(string(extra))
+	if err != nil || len(data) < 16 {
+		return "", ""
+	}
+	aid := uuid.FromBytesOrNil(data[0:16])
+	m := string(data[16:])
+	return aid.String(), m
+}
+
+func encodeMixinExtra(appId, memo string) string {
+	gid, err := uuid.FromString(appId)
+	if err != nil {
+		panic(err)
+	}
+	data := gid.Bytes()
+	data = append(data, []byte(memo)...)
+	s := base64.RawURLEncoding.EncodeToString(data)
+	return s
+}
+
+func EncodeMixinExtra(appId, memo string) string {
+	s := encodeMixinExtra(appId, memo)
+	if len(s) >= common.ExtraSizeGeneralLimit {
+		panic(memo)
+	}
+	return s
+}
+
+func newCommonOutput(out *mixinnet.Output) *common.Output {
+	cout := &common.Output{
+		Type:   common.OutputTypeScript,
+		Amount: common.NewIntegerFromString(out.Amount.String()),
+		Script: common.Script(out.Script),
+		Mask:   crypto.Key(out.Mask),
+	}
+	for _, k := range out.Keys {
+		ck := crypto.Key(k)
+		cout.Keys = append(cout.Keys, &ck)
+	}
+	return cout
+}
+
+func (grp *Group) getSpendPublicKeyUntilSufficient(ctx context.Context) (string, error) {
+	for {
+		me, err := grp.mixin.UserMe(ctx)
+		logger.Verbosef("Group.UserMe() => %v\n", err)
+		if err != nil && CheckRetryableError(err) {
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		return me.SpendPublicKey, err
+	}
+}
+
+func (grp *Group) readMultisigUntilSufficient(ctx context.Context, id string) (*mixin.SafeMultisigRequest, error) {
+	for {
+		req, err := grp.mixin.SafeReadMultisigRequests(ctx, id)
+		logger.Verbosef("Group.SafeReadMultisigRequests(%s) => %v %v\n", id, req, err)
+		if err != nil {
+			if CheckRetryableError(err) {
+				time.Sleep(3 * time.Second)
+				continue
+			}
+			if strings.Contains(err.Error(), "not found") {
+				return nil, nil
+			}
+		}
+		return req, err
+	}
+}
+
+func (grp *Group) readTransactionUntilSufficient(ctx context.Context, id string) (*mixin.SafeTransactionRequest, error) {
+	if CheckTestEnvironment(ctx) {
+		tx, err := grp.store.ReadTransactionByTraceId(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		return &mixin.SafeTransactionRequest{
+			RequestID:       tx.TraceId,
+			RawTransaction:  string(tx.Raw),
+			TransactionHash: tx.Hash.String(),
+			Signers:         []string{grp.GroupId},
+		}, nil
+	}
+	for {
+		req, err := grp.mixin.SafeReadTransactionRequest(ctx, id)
+		logger.Verbosef("Group.SafeReadTransactionRequest(%s) => %v %v\n", id, req, err)
+		if err != nil {
+			if CheckRetryableError(err) {
+				time.Sleep(3 * time.Second)
+				continue
+			}
+			if strings.Contains(err.Error(), "not found") {
+				return nil, nil
+			}
+		}
+		return req, err
+	}
+}
+
+func (grp *Group) getTransactionInputsAndRecipients(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput) ([]*UnifiedOutput, []*TransactionRecipient, error) {
+	ma, uuidMember, err := NewMixAddress(ctx, tx.Receivers, byte(tx.Threshold), tx.Storage)
+	if err != nil {
+		return nil, nil, err
+	}
+	tr := []*TransactionRecipient{
+		{
+			MixAddress: ma,
+			Amount:     tx.Amount,
+			UuidMember: uuidMember,
+		},
+	}
+
+	target := common.NewIntegerFromString(tx.Amount)
+	var total common.Integer
+	var consumed []*UnifiedOutput
+	for _, out := range outputs {
+		total = total.Add(common.NewIntegerFromString(out.Amount.String()))
+		consumed = append(consumed, out)
+		if total.Cmp(target) >= 0 && len(consumed) >= grp.groupSize {
+			break
+		}
+	}
+
+	change := total.Sub(target)
+	if change.Sign() < 0 {
+		return nil, nil, fmt.Errorf("insufficient %d %s %s", len(outputs), total, tx.Amount)
+	} else if change.Sign() > 0 {
+		ma, uuidMember, err := NewMixAddress(ctx, grp.GetMembers(), byte(grp.GetThreshold()), false)
+		if err != nil {
+			return nil, nil, err
+		}
+		tr = append(tr, &TransactionRecipient{
+			MixAddress: ma,
+			Amount:     change.String(),
+			UuidMember: uuidMember,
+		})
+	}
+	return consumed, tr, nil
+}
+
+func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transaction, tr []*TransactionRecipient) (map[int]*mixin.GhostKeys, error) {
+	gkm := make(map[int]*mixin.GhostKeys, len(tr))
+	if CheckTestEnvironment(ctx) {
+		key1, err := testGetGhostKeys(tx, 0)
+		if err != nil {
+			return nil, err
+		}
+		key2, err := testGetGhostKeys(tx, 1)
+		if err != nil {
+			return nil, err
+		}
+		gkm[0] = key1
+		gkm[1] = key2
+		return gkm, nil
+	}
+
+	var uuidGkrs []*mixin.GhostInput
+	for i, r := range tr {
+		members := r.MixAddress.Members()
+		if r.UuidMember {
+			sort.Strings(members)
+			hint := UniqueId(tx.TraceId, fmt.Sprintf("index:%d", i))
+			uuidGkrs = append(uuidGkrs, &mixin.GhostInput{
+				Receivers: members,
+				Index:     uint8(i),
+				Hint:      hint,
+			})
+		} else {
+			seed := uuid.FromStringOrNil(tx.TraceId).Bytes()
+			seed = append(seed, uuid.FromStringOrNil(tx.AssetId).Bytes()...)
+			seed = append(seed, uuid.FromStringOrNil(tx.AppId).Bytes()...)
+			seed = append(seed, uuid.FromStringOrNil(tx.OpponentAppId).Bytes()...)
+			r := mixinnet.KeyFromBytes(seed)
+
+			keys := make([]mixinnet.Key, len(members))
+			for i, a := range members {
+				addr, err := mixinnet.AddressFromString(a)
+				if err != nil {
+					return nil, err
+				}
+				key := mixinnet.DeriveGhostPublicKey(mixinnet.TxVersionHashSignature, &r, &addr.PublicViewKey, &addr.PublicSpendKey, uint8(i))
+				keys[i] = *key
+			}
+			gkm[i] = &mixin.GhostKeys{
+				Mask: r.Public(),
+				Keys: keys,
+			}
+		}
+	}
+	if len(uuidGkrs) == 0 {
+		return gkm, nil
+	}
+
+	for {
+		keys, err := grp.mixin.SafeCreateGhostKeys(ctx, uuidGkrs, grp.members...)
+		logger.Verbosef("Group.SafeCreateGhostKeys(%s) => %v %v\n", tx.TraceId, keys, err)
+		if err != nil && CheckRetryableError(err) {
+			time.Sleep(3 * time.Second)
+			continue
+		}
+		for i, g := range keys {
+			index := uuidGkrs[i].Index
+			gkm[int(index)] = g
+		}
+		return gkm, err
+	}
+}
+
+func testGetGhostKeys(tx *Transaction, index int) (*mixin.GhostKeys, error) {
+	k := &mixin.GhostKeys{}
+	for _, r := range tx.Receivers {
+		id := UniqueId(r, tx.TraceId)
+		id = UniqueId(id, fmt.Sprint(index))
+		bs := uuid.FromStringOrNil(id).Bytes()
+		bs = append(bs, bs...)
+		key, err := mixinnet.KeyFromSeed(hex.EncodeToString(bs))
+		if err != nil {
+			return nil, err
+		}
+		k.Keys = append(k.Keys, key)
+	}
+
+	id := UniqueId(tx.TraceId, fmt.Sprint(index))
+	bs := uuid.FromStringOrNil(id).Bytes()
+	bs = append(bs, bs...)
+	m, err := mixinnet.KeyFromSeed(hex.EncodeToString(bs))
+	if err != nil {
+		return nil, err
+	}
+	k.Mask = m
+	return k, nil
 }
