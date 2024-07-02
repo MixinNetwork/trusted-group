@@ -199,7 +199,10 @@ func (t *Transaction) check(ctx context.Context, act *Action) error {
 		}
 		id, _ := uuid.FromString(r)
 		if id.String() == uuid.Nil.String() {
-			return fmt.Errorf("invalid receiver %s", r)
+			_, err := mixinnet.AddressFromString(r)
+			if err != nil {
+				return fmt.Errorf("invalid receiver %s", r)
+			}
 		}
 	}
 
