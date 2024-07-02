@@ -206,8 +206,12 @@ func (t *Transaction) check(ctx context.Context, act *Action) error {
 		}
 	}
 
+	limit := common.ExtraSizeGeneralLimit
+	if t.Storage {
+		limit = common.ExtraSizeStorageCapacity
+	}
 	s := encodeMixinExtra(t.OpponentAppId, t.Memo)
-	if len(s) >= common.ExtraSizeGeneralLimit {
+	if len(s) >= limit {
 		return fmt.Errorf("invalid extra length: %d", len(s))
 	}
 
