@@ -3,6 +3,7 @@ package mtg
 import (
 	"context"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"sort"
@@ -254,10 +255,13 @@ func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transa
 				Hint:      hint,
 			})
 		} else {
+			index := make([]byte, 16)
+			binary.BigEndian.PutUint16(index, uint16(i))
+
 			seed := uuid.FromStringOrNil(tx.TraceId).Bytes()
 			seed = append(seed, uuid.FromStringOrNil(tx.AssetId).Bytes()...)
-			seed = append(seed, uuid.FromStringOrNil(tx.AppId).Bytes()...)
 			seed = append(seed, uuid.FromStringOrNil(tx.OpponentAppId).Bytes()...)
+			seed = append(seed, index...)
 			r := mixinnet.KeyFromBytes(seed)
 
 			keys := make([]mixinnet.Key, len(members))
