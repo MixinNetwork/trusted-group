@@ -48,6 +48,7 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 				panic(err)
 			}
 			storageTraceId = t.TraceId
+			txs = append(txs, t)
 		} else {
 			amt, err := decimal.NewFromString(tx)
 			if err != nil {
@@ -66,9 +67,9 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 			id := UniqueId(amount, testSender)
 			var t *Transaction
 			if storageTraceId != "" {
-				t = n.Group.BuildTransactionWithStorageTraceId(id, a.AppId, UniqueId(a.AppId, "opponent"), a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold(), a.Sequence, storageTraceId)
+				t = n.Group.BuildTransactionWithStorageTraceId(id, UniqueId(a.AppId, "opponent"), a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold(), storageTraceId)
 			} else {
-				t = n.Group.BuildTransaction(id, a.AppId, UniqueId(a.AppId, "opponent"), a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold(), a.Sequence)
+				t = n.Group.BuildTransaction(id, UniqueId(a.AppId, "opponent"), a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold())
 			}
 			txs = append(txs, t)
 		}
@@ -179,25 +180,25 @@ func TestMTGStorage(t *testing.T) {
 	txs, _, err := node.Group.store.ListTransactions(ctx, TransactionStateInitial, 0)
 	require.Nil(err)
 	require.Len(txs, 2)
-	require.True(txs[0].Storage)
-	require.Equal(txs[0].TraceId, txs[1].StorageTraceId)
-
-	_, err = node.Group.signTransaction(ctx, txs[1])
-	require.Nil(err)
-	tx, err := node.Group.store.ReadTransactionByTraceId(ctx, txs[1].TraceId)
-	require.Nil(err)
-	require.Equal(TransactionStateInitial, tx.State)
+	require.True(txs[1].Storage)
+	require.Equal(txs[1].TraceId, txs[0].StorageTraceId)
 
 	_, err = node.Group.signTransaction(ctx, txs[0])
 	require.Nil(err)
-	err = node.Group.store.FinishTransaction(ctx, txs[0].TraceId)
+	tx, err := node.Group.store.ReadTransactionByTraceId(ctx, txs[0].TraceId)
 	require.Nil(err)
+	require.Equal(TransactionStateInitial, tx.State)
+
 	_, err = node.Group.signTransaction(ctx, txs[1])
 	require.Nil(err)
-
-	storage, err := node.Group.store.ReadTransactionByTraceId(ctx, txs[0].TraceId)
+	err = node.Group.store.FinishTransaction(ctx, txs[1].TraceId)
 	require.Nil(err)
-	tx, err = node.Group.store.ReadTransactionByTraceId(ctx, txs[1].TraceId)
+	_, err = node.Group.signTransaction(ctx, txs[0])
+	require.Nil(err)
+
+	storage, err := node.Group.store.ReadTransactionByTraceId(ctx, txs[1].TraceId)
+	require.Nil(err)
+	tx, err = node.Group.store.ReadTransactionByTraceId(ctx, txs[0].TraceId)
 	require.Nil(err)
 	require.NotEqual(TransactionStateInitial, tx.State)
 	require.Equal(storage.Hash.String(), tx.References[0].String())

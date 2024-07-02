@@ -80,6 +80,11 @@ func (s *SQLite3Store) FinishAction(ctx context.Context, id string, state Action
 		if t.State != TransactionStateInitial {
 			panic(t.State)
 		}
+		if t.Storage {
+			if t.AssetId != StorageAssetId || t.Threshold != 64 || len(t.Receivers) != 1 {
+				return fmt.Errorf("invalid storage transaction: %#v", t)
+			}
+		}
 		sequence := act.Sequence
 		if act.restoreSequence > act.Sequence {
 			sequence = act.restoreSequence
@@ -259,28 +264,6 @@ func (s *SQLite3Store) UpdateTxWithOutputs(ctx context.Context, t *Transaction, 
 		if err != nil {
 			return fmt.Errorf("UPDATE outputs %v", err)
 		}
-	}
-
-	return tx.Commit()
-}
-
-func (s *SQLite3Store) WriteStorageTransaction(ctx context.Context, t *Transaction) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	if t.AssetId != StorageAssetId || t.Threshold != 64 || len(t.Receivers) != 1 || !t.Storage {
-		return fmt.Errorf("invalid storage transaction: %#v", t)
-	}
-
-	err = s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), t.values()...)
-	if err != nil {
-		return fmt.Errorf("INSERT storage transactions %v", err)
 	}
 
 	return tx.Commit()

@@ -95,21 +95,22 @@ func transactionFromRow(row Row) (*Transaction, error) {
 	}
 
 	t.Receivers = strings.Split(rs, ",")
-	for _, r := range strings.Split(refs, ",") {
-		ref, err := crypto.HashFromString(r)
-		if err != nil {
-			return nil, err
+	if refs != "" {
+		for _, r := range strings.Split(refs, ",") {
+			ref, err := crypto.HashFromString(r)
+			if err != nil {
+				return nil, err
+			}
+			t.References = append(t.References, ref)
 		}
-		t.References = append(t.References, ref)
 	}
 	return &t, nil
 }
 
-func (grp *Group) BuildTransaction(traceId, appId, opponentAppId, assetId, amount, memo string, receivers []string, threshold int, sequence uint64) *Transaction {
+func (grp *Group) BuildTransaction(traceId, opponentAppId, assetId, amount, memo string, receivers []string, threshold int) *Transaction {
 	sort.Strings(receivers)
 	return &Transaction{
 		TraceId:       traceId,
-		AppId:         appId,
 		OpponentAppId: opponentAppId,
 		State:         TransactionStateInitial,
 		AssetId:       assetId,
@@ -117,24 +118,23 @@ func (grp *Group) BuildTransaction(traceId, appId, opponentAppId, assetId, amoun
 		Receivers:     receivers,
 		Threshold:     threshold,
 		Memo:          memo,
-		Sequence:      sequence,
 	}
 }
 
-func (grp *Group) BuildTransactionWithReference(traceId, appId, opponentAppId, assetId, amount, memo string, receivers []string, threshold int, sequence uint64, reference crypto.Hash) *Transaction {
+func (grp *Group) BuildTransactionWithReference(traceId, opponentAppId, assetId, amount, memo string, receivers []string, threshold int, reference crypto.Hash) *Transaction {
 	if !reference.HasValue() {
 		panic(reference)
 	}
-	t := grp.BuildTransaction(traceId, appId, opponentAppId, assetId, amount, memo, receivers, threshold, sequence)
+	t := grp.BuildTransaction(traceId, opponentAppId, assetId, amount, memo, receivers, threshold)
 	t.References = []crypto.Hash{reference}
 	return t
 }
 
-func (grp *Group) BuildTransactionWithStorageTraceId(traceId, appId, opponentAppId, assetId, amount, memo string, receivers []string, threshold int, sequence uint64, storageTraceId string) *Transaction {
+func (grp *Group) BuildTransactionWithStorageTraceId(traceId, opponentAppId, assetId, amount, memo string, receivers []string, threshold int, storageTraceId string) *Transaction {
 	if _, err := uuid.FromString(storageTraceId); err != nil {
 		panic(err)
 	}
-	t := grp.BuildTransaction(traceId, appId, opponentAppId, assetId, amount, memo, receivers, threshold, sequence)
+	t := grp.BuildTransaction(traceId, opponentAppId, assetId, amount, memo, receivers, threshold)
 	t.StorageTraceId = storageTraceId
 	return t
 }
@@ -163,9 +163,9 @@ func (grp *Group) BuildStorageTransaction(ctx context.Context, appId string, ext
 
 	addr := common.NewAddressFromSeed(make([]byte, 64))
 	receivers := []string{addr.String()}
-	t := grp.BuildTransaction(sTraceId, appId, appId, StorageAssetId, amount.String(), string(extra), receivers, 64, sequence)
+	t := grp.BuildTransaction(sTraceId, appId, StorageAssetId, amount.String(), string(extra), receivers, 64)
 	t.Storage = true
-	return t, grp.store.WriteStorageTransaction(ctx, t)
+	return t, nil
 }
 
 func (t *Transaction) check(ctx context.Context, act *Action) error {

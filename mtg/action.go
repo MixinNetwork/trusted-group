@@ -106,6 +106,9 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 func (grp *Group) checkTransactions(ctx context.Context, act *Action, txs []*Transaction) error {
 	totalAmount := make(map[string]common.Integer)
 	for _, t := range txs {
+		t.AppId = act.AppId
+		t.Sequence = act.Sequence
+
 		err := t.check(ctx, act)
 		if err != nil {
 			return err
