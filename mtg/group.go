@@ -1,18 +1,19 @@
 package mtg
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/fox-one/mixin-sdk-go"
+	"github.com/fox-one/mixin-sdk-go/v2"
+	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
+	"github.com/shopspring/decimal"
 )
 
 const (
@@ -20,99 +21,110 @@ const (
 	groupBootSynced = "group-boot-synced"
 )
 
+type Worker interface {
+	// process the action in a queue and return transactions
+	// need to ensure enough balance with CheckAssetBalanceAt(ctx, a)
+	// before return any transactions, otherwise the transactions
+	// will be ignored when issuficient balance
+	//
+	// if we want to make a multi process worker, it's possible that
+	// we pass some RPC handle to the process, or we could build a
+	// whole state of the current sequence and send it to the process
+	// i.e. ProcessOutput(StateAtSequence, Action) []*Transaction
+	ProcessOutput(context.Context, *Action) ([]*Transaction, string)
+}
+
 type Group struct {
 	mixin        *mixin.Client
-	store        Store
-	workers      []Worker
-	grouper      func(*Output) string
+	store        *SQLite3Store
+	workers      map[string]Worker
+	entries      map[string]string
 	groupSize    int
 	waitDuration time.Duration
 
-	clock     *Clock
-	id        string
-	members   []string
-	epoch     time.Time
-	threshold int
-	pin       string
+	id              string
+	GroupId         string
+	members         []string
+	threshold       int
+	epoch           uint64
+	spendPrivateKey string
 }
 
-func BuildGroup(ctx context.Context, store Store, conf *Configuration) (*Group, error) {
+func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (*Group, error) {
 	if cg := conf.Genesis; len(cg.Members) < cg.Threshold || cg.Threshold < 1 {
 		return nil, fmt.Errorf("invalid group threshold %d %d", len(cg.Members), cg.Threshold)
 	}
-	if !strings.Contains(strings.Join(conf.Genesis.Members, ","), conf.App.ClientId) {
-		return nil, fmt.Errorf("app %s not belongs to the group", conf.App.ClientId)
+	if !strings.Contains(strings.Join(conf.Genesis.Members, ","), conf.App.AppId) {
+		return nil, fmt.Errorf("app %s not belongs to the group", conf.App.AppId)
 	}
 
-	s := &mixin.Keystore{
-		ClientID:   conf.App.ClientId,
-		SessionID:  conf.App.SessionId,
-		PrivateKey: conf.App.PrivateKey,
-		PinToken:   conf.App.PinToken,
-	}
-	client, err := mixin.NewFromKeystore(s)
-	if err != nil {
-		return nil, err
-	}
-	err = client.VerifyPin(ctx, conf.App.PIN)
-	if err != nil {
-		return nil, err
+	var client *mixin.Client
+	if !CheckTestEnvironment(ctx) {
+		c, err := mixin.NewFromKeystore(&mixin.Keystore{
+			AppID:             conf.App.AppId,
+			SessionID:         conf.App.SessionId,
+			SessionPrivateKey: conf.App.SessionPrivateKey,
+			ServerPublicKey:   conf.App.ServerPublicKey,
+		})
+		if err != nil {
+			return nil, err
+		}
+		_, err = c.UserMe(ctx)
+		if err != nil {
+			return nil, err
+		}
+		client = c
 	}
 
+	id := generateGenesisId(conf)
 	grp := &Group{
-		mixin:        client,
-		store:        store,
-		pin:          conf.App.PIN,
-		id:           generateGenesisId(conf),
-		groupSize:    conf.GroupSize,
-		waitDuration: time.Duration(conf.LoopWaitDuration),
+		mixin:           client,
+		store:           store,
+		spendPrivateKey: conf.App.SpendPrivateKey,
+		id:              id,
+		GroupId:         UniqueId(id, conf.Project),
+		groupSize:       conf.GroupSize,
+		waitDuration:    time.Duration(conf.LoopWaitDuration),
+		workers:         make(map[string]Worker),
+		entries:         make(map[string]string),
 	}
 	if grp.groupSize <= 0 {
 		grp.groupSize = OutputsBatchSize
 	}
 
-	clock, err := NewClock(store)
-	if err != nil {
-		return nil, err
-	}
-	grp.clock = clock
-
-	oid, err := store.ReadProperty([]byte(groupGenesisId))
+	oid, err := store.ReadProperty(ctx, groupGenesisId)
 	if err != nil {
 		return nil, err
 	}
 	if len(oid) > 0 && string(oid) != grp.id {
 		return nil, fmt.Errorf("malformed group genesis id %s %s", string(oid), grp.id)
 	}
-	err = store.WriteProperty([]byte(groupGenesisId), []byte(grp.id))
+	err = store.WriteProperty(ctx, groupGenesisId, grp.id)
 	if err != nil {
 		return nil, err
 	}
 
-	err = store.WriteProperty([]byte(groupBootSynced), []byte{0})
+	err = store.WriteProperty(ctx, groupBootSynced, "0")
 	if err != nil {
 		return nil, err
 	}
 
 	for _, id := range conf.Genesis.Members {
-		ts := time.Unix(0, conf.Genesis.Timestamp)
-		err = grp.AddNode(id, conf.Genesis.Threshold, ts)
+		err = grp.AddNode(ctx, id, conf.Genesis.Threshold, conf.Genesis.Epoch)
 		if err != nil {
 			return nil, err
 		}
 	}
-	members, threshold, epoch, err := grp.ListActiveNodes()
+	members, threshold, epoch, err := grp.ListActiveNodes(ctx)
 	if err != nil {
 		return nil, err
 	}
+	sort.Strings(members)
+
 	grp.members = members
 	grp.threshold = threshold
 	grp.epoch = epoch
 	return grp, nil
-}
-
-func (grp *Group) SetOutputGrouper(per func(out *Output) string) {
-	grp.grouper = per
 }
 
 func (grp *Group) GenesisId() string {
@@ -127,217 +139,154 @@ func (grp *Group) GetThreshold() int {
 	return grp.threshold
 }
 
-func (grp *Group) Synced() (bool, error) {
-	v, err := grp.store.ReadProperty([]byte(groupBootSynced))
-	return bytes.Equal(v, []byte{1}), err
+func (grp *Group) Synced(ctx context.Context) (bool, error) {
+	v, err := grp.store.ReadProperty(ctx, groupBootSynced)
+	return v == "1", err
 }
 
-func (grp *Group) AddWorker(wkr Worker) {
-	grp.workers = append(grp.workers, wkr)
+func (grp *Group) AttachWorker(appId string, wkr Worker) {
+	if grp.FindWorker(appId) != nil {
+		panic(appId)
+	}
+	grp.workers[appId] = wkr
+}
+
+func (grp *Group) RegisterDepositEntry(appId string, entry DepositEntry) {
+	key := entry.UniqueKey()
+	if grp.FindWorker(appId) == nil || grp.FindAppByEntry(key) != "" {
+		panic(appId)
+	}
+	grp.entries[key] = appId
+}
+
+func (grp *Group) FindWorker(appId string) Worker {
+	return grp.workers[appId]
+}
+
+func (grp *Group) FindAppByEntry(entry string) string {
+	return grp.entries[entry]
+}
+
+func (node *Group) Index() int {
+	for i, id := range node.members {
+		if node.mixin.ClientID == id {
+			return i
+		}
+	}
+	panic(node.mixin.ClientID)
 }
 
 func (grp *Group) Run(ctx context.Context) {
-	logger.Printf("Group(%s, %d, %s).Run(v0.6.1)\n", mixin.HashMembers(grp.members), grp.threshold, grp.GenesisId())
+	logger.Printf("Group(%s, %d, %s).Run(v0.6.1)\n", mixinnet.HashMembers(grp.members), grp.threshold, grp.GenesisId())
 	filter := make(map[string]bool)
 	for {
 		time.Sleep(grp.waitDuration)
-		// drain all the utxos in the order of created time
+		// drain all the utxos in the order of sequence
 		logger.Verbosef("Group.Run(drainOutputsFromNetwork) created\n")
-		grp.drainOutputsFromNetwork(ctx, filter, 500, "created")
-		logger.Verbosef("Group.Run(drainOutputsFromNetwork) updated\n")
-		grp.drainOutputsFromNetwork(ctx, filter, 500, "updated")
-		grp.store.WriteProperty([]byte(groupBootSynced), []byte{1})
+		grp.drainOutputsFromNetwork(ctx, filter, 500)
+		grp.store.WriteProperty(ctx, groupBootSynced, "1")
 
-		// handle the utxos queue by created time
+		// handle the utxos queue by sequence
 		logger.Verbosef("Group.Run(handleActionsQueue)\n")
-		grp.handleActionsQueue(ctx)
+		err := grp.handleActionsQueue(ctx)
+		if err != nil {
+			panic(err)
+		}
 
-		// because some utxos are unlocked for these signing transactions
-		logger.Verbosef("Group.Run(unlockExpiredTransactions)\n")
-		grp.unlockExpiredTransactions(ctx)
-
-		// sing any possible transactions from BuildTransaction
+		// sign any possible transactions from BuildTransaction
 		logger.Verbosef("Group.Run(signTransactions)\n")
 		grp.signTransactions(ctx)
 
-		// publish all signed transactions to the mainnet
+		// verify all transactions
 		logger.Verbosef("Group.Run(publishTransactions)\n")
 		grp.publishTransactions(ctx)
-
-		logger.Verbosef("Group.Run(signCollectibleTransaction)\n")
-		grp.signCollectibleTransactions(ctx)
-		logger.Verbosef("Group.Run(publishCollectibleTransactions)\n")
-		grp.publishCollectibleTransactions(ctx)
 	}
 }
 
-func (grp *Group) ListOutputsForAsset(groupId, assetId, state string, limit int) ([]*Output, error) {
-	outputs, err := grp.store.ListOutputsForAsset(groupId, state, assetId, limit)
+func (grp *Group) ListOutputsForAsset(ctx context.Context, appId, assetId string, sequence uint64, state SafeUtxoState, limit int) ([]*UnifiedOutput, error) {
+	outputs, err := grp.store.ListOutputsForAsset(ctx, appId, assetId, sequence, state, limit)
 	if err != nil {
 		return nil, err
 	}
-	sort.Slice(outputs, func(i, j int) bool { return outputs[i].CreatedAt.Before(outputs[j].CreatedAt) })
 	return outputs, nil
 }
 
-func (grp *Group) ListOutputsForTransaction(traceId string) ([]*Output, error) {
-	outputs, err := grp.store.ListOutputsForTransaction(traceId)
+func (grp *Group) ListOutputsForTransaction(ctx context.Context, traceId string, sequence uint64) ([]*UnifiedOutput, error) {
+	outputs, err := grp.store.ListOutputsForTransaction(ctx, traceId, sequence)
 	if err != nil {
 		return nil, err
 	}
-	sort.Slice(outputs, func(i, j int) bool { return outputs[i].CreatedAt.Before(outputs[j].CreatedAt) })
 	return outputs, nil
 }
 
-func (grp *Group) signTransactions(ctx context.Context) error {
-	txs, err := grp.store.ListTransactions(TransactionStateInitial, 0)
+// this function or rpc should be used only in ProcessOutput
+func (grp *Group) CheckAssetBalanceAt(ctx context.Context, appId, assetId string, sequence uint64) (decimal.Decimal, error) {
+	os, err := grp.store.ListOutputsForAsset(ctx, appId, assetId, sequence, SafeUtxoStateUnspent, OutputsBatchSize)
 	if err != nil {
-		return err
+		return decimal.Zero, err
 	}
 
+	total := decimal.NewFromInt(0)
+	for _, o := range os {
+		total = total.Add(o.Amount)
+	}
+	return total, nil
+}
+
+func (grp *Group) signTransactionWithAsset(ctx context.Context, wg *sync.WaitGroup, asset string, txs []*Transaction) {
+	logger.Verbosef("Group.signTransactionWithAsset(%s)", asset)
+	defer wg.Done()
 	for _, tx := range txs {
 		raw, err := grp.signTransaction(ctx, tx)
 		logger.Verbosef("Group.signTransaction(%v) => %s %v", *tx, hex.EncodeToString(raw), err)
 		if err != nil {
-			continue
+			panic(err)
 		}
-		ver, _ := common.UnmarshalVersionedTransaction(raw)
-		tx.Raw = raw
-		tx.Hash = ver.PayloadHash()
-		tx.UpdatedAt = grp.clock.Now()
-		tx.State = TransactionStateSigning
-
-		if ver.AggregatedSignature != nil || len(ver.SignaturesMap) > 0 {
-			tx.State = TransactionStateSigned
-		} else {
-			p := DecodeMixinExtra(string(ver.Extra))
-			if p.T.String() != tx.TraceId {
-				panic(hex.EncodeToString(raw))
-			}
-			if p.G != tx.GroupId {
-				panic(hex.EncodeToString(raw))
-			}
-		}
-
-		grp.writeTansactionOrPanic(tx)
 	}
-
-	return nil
 }
 
-func (grp *Group) unlockExpiredTransactions(ctx context.Context) error {
-	txs, err := grp.store.ListTransactions(TransactionStateSigning, 0)
-	if err != nil || len(txs) == 0 {
-		return err
+func (grp *Group) signTransactions(ctx context.Context) error {
+	_, assetTxMap, err := grp.store.ListTransactions(ctx, TransactionStateInitial, 0)
+	if err != nil {
+		panic(err)
 	}
-	for _, tx := range txs {
-		outputs, err := grp.ListOutputsForTransaction(tx.TraceId)
-		if err != nil {
-			return err
-		}
-		if len(outputs) > 0 && outputs[0].SignedBy == tx.Hash.String() {
-			continue
-		}
-		// FIXME do more check about compaction transaction
-		if tx.Memo == CompactionTransactionMemo {
-			err := grp.store.DeleteTransaction(tx)
-			logger.Verbosef("Group.deleteTransaction(%v) => %v", *tx, err)
-			if err != nil {
-				return err
-			}
-			continue
-		}
-		tx.State = TransactionStateInitial
-		tx.Hash = crypto.Hash{}
-		tx.Raw = nil
-		grp.writeTansactionOrPanic(tx)
-		logger.Verbosef("Group.unlockTransaction(%v)", *tx)
+
+	var wg sync.WaitGroup
+	for asset, txs := range assetTxMap {
+		wg.Add(1)
+		go grp.signTransactionWithAsset(ctx, &wg, asset, txs)
 	}
+	wg.Wait()
 	return nil
 }
 
 func (grp *Group) publishTransactions(ctx context.Context) error {
-	txs, err := grp.store.ListTransactions(TransactionStateSigned, 0)
+	txs, _, err := grp.store.ListTransactions(ctx, TransactionStateSigned, 0)
 	if err != nil || len(txs) == 0 {
 		return err
 	}
 	for _, tx := range txs {
-		snapshot, err := grp.snapshotTransaction(ctx, tx.Hash, tx.Raw)
+		snapshot, err := grp.snapshotTransaction(ctx, tx.TraceId)
 		if err != nil {
 			return err
 		} else if !snapshot {
 			continue
 		}
-		tx.State = TransactionStateSnapshot
-		grp.writeTansactionOrPanic(tx)
+		grp.store.FinishTransaction(ctx, tx.TraceId)
 	}
 	return nil
 }
 
-func (grp *Group) signCollectibleTransactions(ctx context.Context) error {
-	txs, err := grp.store.ListCollectibleTransactions(TransactionStateInitial, 1)
-	if err != nil || len(txs) != 1 {
-		return err
-	}
-	tx := txs[0]
-	raw, err := grp.signCollectibleTransaction(ctx, tx)
-	logger.Verbosef("Group.signCollectibleTransaction(%v) => %s %v", *tx, hex.EncodeToString(raw), err)
+func (grp *Group) snapshotTransaction(ctx context.Context, id string) (bool, error) {
+	req, err := grp.readTransactionUntilSufficient(ctx, id)
+	logger.Verbosef("group.readTransactionUntilSufficient(%s) => %v", id, err)
 	if err != nil {
-		return err
+		return false, err
 	}
-	ver, _ := common.UnmarshalVersionedTransaction(raw)
-	tx.Raw = raw
-	tx.Hash = ver.PayloadHash()
-	tx.UpdatedAt = grp.clock.Now()
-	tx.State = TransactionStateSigning
-
-	nfm, err := DecodeNFOMemo(ver.Extra)
-	if err != nil {
-		panic(hex.EncodeToString(raw))
-	} else if nfm.WillMint() && nfoTraceId(ver.Extra) != tx.TraceId {
-		panic(hex.EncodeToString(raw))
-	}
-
-	return grp.store.WriteCollectibleTransaction(tx.TraceId, tx)
-}
-
-func (grp *Group) publishCollectibleTransactions(ctx context.Context) error {
-	txs, err := grp.store.ListCollectibleTransactions(TransactionStateSigned, 0)
-	if err != nil || len(txs) == 0 {
-		return err
-	}
-	for _, tx := range txs {
-		snapshot, err := grp.snapshotTransaction(ctx, tx.Hash, tx.Raw)
-		if err != nil {
-			return err
-		} else if !snapshot {
-			continue
-		}
-		tx.State = TransactionStateSnapshot
-		err = grp.store.WriteCollectibleTransaction(tx.TraceId, tx)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (grp *Group) snapshotTransaction(ctx context.Context, tx crypto.Hash, b []byte) (bool, error) {
-	// FIXME remove this storage transaction hack
-	if tx.String() == "5b4ce1833fffd87b837e67dfffc38d5bcce93266da74756763bcf873845071ae" {
+	if req != nil && req.State == mixin.SafeUtxoStateSpent {
 		return true, nil
 	}
-	raw := hex.EncodeToString(b)
-	h, err := grp.mixin.SendRawTransaction(ctx, raw)
-	logger.Verbosef("Group.snapshotTransaction(%s) => %s, %v", raw, h, err)
-	if err != nil {
-		return false, err
-	}
-	s, err := grp.mixin.GetRawTransaction(ctx, *h)
-	if err != nil {
-		return false, err
-	}
-	return s.Snapshot != nil && s.Snapshot.HasValue(), nil
+	return false, nil
 }
 
 func generateGenesisId(conf *Configuration) string {
@@ -345,6 +294,6 @@ func generateGenesisId(conf *Configuration) string {
 		return conf.Genesis.Members[i] < conf.Genesis.Members[j]
 	})
 	id := strings.Join(conf.Genesis.Members, "")
-	id = fmt.Sprintf("%s:%d:%d", id, conf.Genesis.Threshold, conf.Genesis.Timestamp)
-	return crypto.NewHash([]byte(id)).String()
+	id = fmt.Sprintf("%s:%d:%d", id, conf.Genesis.Threshold, conf.Genesis.Epoch)
+	return crypto.Sha256Hash([]byte(id)).String()
 }

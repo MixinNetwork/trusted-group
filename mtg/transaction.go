@@ -2,16 +2,18 @@ package mtg
 
 import (
 	"context"
-	"encoding/base64"
+	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/fox-one/mixin-sdk-go"
+	"github.com/fox-one/mixin-sdk-go/v2"
+	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
@@ -22,206 +24,354 @@ const (
 	TransactionStateSigned   = 12
 	TransactionStateSnapshot = 13
 
-	OutputsBatchSize          = 36
-	CompactionTransactionMemo = "COMPACTION"
-	StorageAssetId            = "c94ac88f-4671-3976-b60a-09064f1811e8"
-	StorageReceiverId         = "773e5e77-4107-45c2-b648-8fc722ed77f5"
+	OutputsBatchSize = 36
+	StorageAssetId   = "c94ac88f-4671-3976-b60a-09064f1811e8"
 )
 
-type Transaction struct {
-	GroupId    string
-	TraceId    string
-	State      int
-	AssetId    string
-	Receivers  []string
-	Threshold  int
+type TransactionRecipient struct {
+	MixAddress *mixin.MixAddress
 	Amount     string
-	Memo       string
-	Raw        []byte
-	Hash       crypto.Hash
-	References []crypto.Hash
-	UpdatedAt  time.Time
+	UuidMember bool
 }
 
-// the app should decide a unique trace id so that the MTG will not double spend
-func (grp *Group) BuildTransaction(ctx context.Context, assetId string, receivers []string, threshold int, amount, memo string, traceId, groupId string) error {
-	return grp.buildTransaction(ctx, assetId, receivers, threshold, amount, memo, traceId, groupId, grp.clock.Now(), nil)
+type Transaction struct {
+	AppId          string
+	OpponentAppId  string
+	TraceId        string
+	State          int
+	AssetId        string
+	Receivers      []string
+	Threshold      int
+	Amount         string
+	Memo           string
+	Raw            []byte
+	Hash           crypto.Hash
+	References     []crypto.Hash
+	Sequence       uint64
+	Compaction     bool
+	Storage        bool
+	StorageTraceId string
+	UpdatedAt      time.Time
 }
 
-func (grp *Group) BuildStorageTransaction(ctx context.Context, data []byte, groupId string) (*Transaction, error) {
-	sTraceId := crypto.Blake3Hash(data).String()
-	sTraceId = mixin.UniqueConversationID(sTraceId, sTraceId)
-	old, err := grp.store.ReadTransactionByTraceId(sTraceId)
+var transactionCols = []string{"app_id", "opponent_app_id", "trace_id", "state", "asset_id", "receivers", "threshold", "amount", "memo", "raw", "hash", "refs", "sequence", "compaction", "storage", "storage_trace_id", "updated_at"}
+
+func (t *Transaction) values() []any {
+	var refs []string
+	for _, r := range t.References {
+		refs = append(refs, r.String())
+	}
+	var hash, raw sql.NullString
+	if t.Hash.HasValue() {
+		hash = sql.NullString{Valid: true, String: t.Hash.String()}
+		raw = sql.NullString{Valid: true, String: hex.EncodeToString(t.Raw)}
+	}
+	return []any{t.AppId, t.OpponentAppId, t.TraceId, t.State, t.AssetId, strings.Join(t.Receivers, ","), t.Threshold, t.Amount, t.Memo, raw, hash, strings.Join(refs, ","), t.Sequence, t.Compaction, t.Storage, t.StorageTraceId, t.UpdatedAt}
+}
+
+func transactionFromRow(row Row) (*Transaction, error) {
+	var t Transaction
+	var rs, refs string
+	var hash, raw sql.NullString
+	err := row.Scan(&t.AppId, &t.OpponentAppId, &t.TraceId, &t.State, &t.AssetId, &rs, &t.Threshold, &t.Amount, &t.Memo, &raw, &hash, &refs, &t.Sequence, &t.Compaction, &t.Storage, &t.StorageTraceId, &t.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if hash.Valid {
+		h, err := crypto.HashFromString(hash.String)
+		if err != nil {
+			panic(hash.String)
+		}
+		r, err := hex.DecodeString(raw.String)
+		if err != nil {
+			panic(raw.String)
+		}
+		t.Hash = h
+		t.Raw = r
+	}
+
+	t.Receivers = strings.Split(rs, ",")
+	if refs != "" {
+		for _, r := range strings.Split(refs, ",") {
+			ref, err := crypto.HashFromString(r)
+			if err != nil {
+				return nil, err
+			}
+			t.References = append(t.References, ref)
+		}
+	}
+	return &t, nil
+}
+
+func (grp *Group) BuildTransaction(traceId, opponentAppId, assetId, amount, memo string, receivers []string, threshold int) *Transaction {
+	sort.Strings(receivers)
+	return &Transaction{
+		TraceId:       traceId,
+		OpponentAppId: opponentAppId,
+		State:         TransactionStateInitial,
+		AssetId:       assetId,
+		Amount:        amount,
+		Receivers:     receivers,
+		Threshold:     threshold,
+		Memo:          memo,
+	}
+}
+
+func (grp *Group) BuildTransactionWithReference(traceId, opponentAppId, assetId, amount, memo string, receivers []string, threshold int, reference crypto.Hash) *Transaction {
+	if !reference.HasValue() {
+		panic(reference)
+	}
+	t := grp.BuildTransaction(traceId, opponentAppId, assetId, amount, memo, receivers, threshold)
+	t.References = []crypto.Hash{reference}
+	return t
+}
+
+func (grp *Group) BuildTransactionWithStorageTraceId(traceId, opponentAppId, assetId, amount, memo string, receivers []string, threshold int, storageTraceId string) *Transaction {
+	if _, err := uuid.FromString(storageTraceId); err != nil {
+		panic(err)
+	}
+	t := grp.BuildTransaction(traceId, opponentAppId, assetId, amount, memo, receivers, threshold)
+	t.StorageTraceId = storageTraceId
+	return t
+}
+
+func (grp *Group) BuildStorageTransaction(ctx context.Context, appId string, extra []byte, sequence uint64) (*Transaction, error) {
+	sTraceId := crypto.Blake3Hash(extra).String()
+	sTraceId = UniqueId(sTraceId, sTraceId)
+	old, err := grp.store.ReadTransactionByTraceId(ctx, sTraceId)
 	if err != nil || old != nil {
 		return old, err
 	}
+	if len(extra) > common.ExtraSizeStorageCapacity {
+		return nil, fmt.Errorf("too large extra %d > %d", len(extra), common.ExtraSizeStorageCapacity)
+	}
 
-	sReceivers := []string{StorageReceiverId}
-	extra := int64(len(encodeMixinExtra(groupId, sTraceId, string(data))))
-	sAmount := decimal.RequireFromString(common.ExtraStoragePriceStep)
-	sAmount = sAmount.Mul(decimal.NewFromInt(extra/common.ExtraSizeStorageStep + 1))
-	err = grp.buildTransaction(ctx, StorageAssetId, sReceivers, 64, sAmount.String(), string(data), sTraceId, groupId, grp.clock.Now(), nil)
+	step := common.NewIntegerFromString(common.ExtraStoragePriceStep)
+	amount := step.Mul(len(extra)/common.ExtraSizeStorageStep + 1)
+
+	total, err := grp.CheckAssetBalanceAt(ctx, appId, StorageAssetId, sequence)
 	if err != nil {
-		return nil, fmt.Errorf("Group.buildStorageTransaction(%d) => %s %v", len(data), sTraceId, err)
+		return nil, err
 	}
-	return grp.store.ReadTransactionByTraceId(sTraceId)
+	if common.NewIntegerFromString(total.String()).Cmp(amount) < 0 {
+		return nil, fmt.Errorf("insufficient balance %s %s", total, amount)
+	}
+
+	addr := common.NewAddressFromSeed(make([]byte, 64))
+	receivers := []string{addr.String()}
+	t := grp.BuildTransaction(sTraceId, appId, StorageAssetId, amount.String(), string(extra), receivers, 64)
+	t.Storage = true
+	return t, nil
 }
 
-func (grp *Group) BuildTransactionWithReferences(ctx context.Context, assetId string, receivers []string, threshold int, amount, memo string, traceId, groupId string, references []crypto.Hash) error {
-	return grp.buildTransaction(ctx, assetId, receivers, threshold, amount, memo, traceId, groupId, grp.clock.Now(), references)
-}
-
-func (grp *Group) buildCompactTransaction(ctx context.Context, source *Transaction, outputs []*Output) error {
-	var total common.Integer
-	traceId := mixin.UniqueConversationID(CompactionTransactionMemo, source.TraceId)
-	for _, out := range outputs {
-		if out.GroupId != source.GroupId {
-			panic(source)
-		}
-		total = total.Add(common.NewIntegerFromString(out.Amount.String()))
-		traceId = mixin.UniqueConversationID(traceId, out.UTXOID)
+func (t *Transaction) check(ctx context.Context, act *Action) error {
+	logger.Debugf("Group.checkTransaction(%v)\n", t)
+	if _, err := uuid.FromString(t.AppId); err != nil {
+		panic(err)
 	}
-	logger.Printf("Group.buildCompactTransaction(%s, %s, %s) => %s\n", source.GroupId, source.TraceId, total, traceId)
-	return grp.buildTransaction(ctx, source.AssetId, grp.GetMembers(), grp.GetThreshold(), total.String(), CompactionTransactionMemo, traceId, source.GroupId, time.Unix(0, 0), nil)
-}
-
-func (grp *Group) buildTransaction(ctx context.Context, assetId string, receivers []string, threshold int, amount, memo string, traceId, groupId string, ts time.Time, references []crypto.Hash) error {
-	if len(references) > 2 {
-		panic(len(references))
+	if t.AppId != act.AppId || t.Sequence != act.Sequence {
+		return fmt.Errorf("invalid action origin: %s %d", t.AppId, t.Sequence)
 	}
-	for _, r := range references {
+	if len(t.References) > 2 {
+		return fmt.Errorf("invalid references length: %d", len(t.References))
+	}
+	for i, r := range t.References {
 		if !r.HasValue() {
-			panic(traceId)
+			return fmt.Errorf("invalid reference: %d %v", i, r)
 		}
 	}
-	if threshold < 1 || threshold > 128 {
-		return fmt.Errorf("invalid receivers threshold %d/%d", threshold, len(receivers))
+	if t.Threshold < 1 || t.Threshold > 128 {
+		return fmt.Errorf("invalid receivers threshold %d/%d", t.Threshold, len(t.Receivers))
 	}
-	amt, err := decimal.NewFromString(amount)
+	amt, err := decimal.NewFromString(t.Amount)
 	min, _ := decimal.NewFromString("0.00000001")
 	if err != nil || amt.Cmp(min) < 0 {
-		return fmt.Errorf("invalid amount %s", amount)
+		return fmt.Errorf("invalid amount %s", t.Amount)
 	}
 
-	for _, r := range receivers {
+	for _, r := range t.Receivers {
+		if CheckTestEnvironment(ctx) {
+			continue
+		}
 		id, _ := uuid.FromString(r)
 		if id.String() == uuid.Nil.String() {
 			return fmt.Errorf("invalid receiver %s", r)
 		}
 	}
-	old, err := grp.store.ReadTransactionByTraceId(traceId)
-	if err != nil {
-		panic(err)
-	} else if old != nil {
-		return nil
-	}
-	tx := &Transaction{
-		GroupId:    groupId,
-		TraceId:    traceId,
-		State:      TransactionStateInitial,
-		AssetId:    assetId,
-		Receivers:  receivers,
-		Threshold:  threshold,
-		Amount:     amount,
-		Memo:       memo,
-		References: references,
-		UpdatedAt:  ts,
+
+	s := encodeMixinExtra(t.OpponentAppId, t.Memo)
+	if len(s) >= common.ExtraSizeGeneralLimit {
+		return fmt.Errorf("invalid extra length: %d", len(s))
 	}
 
-	// TODO ensure valid memo and trace id
-	if grp.checkStorageTransaction(tx) {
-		if len(tx.Memo) > common.ExtraSizeStorageCapacity/2 {
-			panic(len(tx.Memo))
-		}
-	} else {
-		EncodeMixinExtra(groupId, tx.TraceId, tx.Memo)
-	}
-
-	grp.writeTansactionOrPanic(tx)
 	return nil
 }
 
-func (grp *Group) writeTansactionOrPanic(tx *Transaction) {
-	err := grp.store.WriteTransaction(tx)
-	logger.Printf("Group.writeTansactionOrPanic(%v) => %v", *tx, err)
+func (grp *Group) buildCompactionTransaction(ctx context.Context, asset string, act *Action) (*Transaction, error) {
+	compaction, err := grp.ListOutputsForAsset(ctx, act.AppId, asset, act.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-}
+	if len(compaction) != OutputsBatchSize {
+		return nil, fmt.Errorf("insufficient outputs to build compaction transaction: %d", len(compaction))
+	}
+	total := decimal.NewFromInt(0)
+	for _, out := range compaction {
+		total = total.Add(out.Amount)
+	}
 
-func (grp *Group) checkStorageTransaction(tx *Transaction) bool {
-	return len(tx.Receivers) == 1 && tx.Threshold == 64 && tx.AssetId == StorageAssetId && tx.Receivers[0] == StorageReceiverId
-}
+	hash, err := crypto.HashFromString(act.TransactionHash)
+	if err != nil {
+		return nil, err
+	}
 
-func (grp *Group) checkCompactTransactionRequest(ctx context.Context, ver *common.VersionedTransaction, extra *mixinExtraPack) bool {
-	// FIXME should check the keys with messenger api
-	return ver != nil && ver.AggregatedSignature == nil && len(ver.SignaturesMap) == 0 &&
-		extra != nil && extra.M == CompactionTransactionMemo && len(ver.Inputs) == OutputsBatchSize &&
-		len(ver.Outputs) == 1 && len(ver.Outputs[0].Keys) == len(grp.GetMembers()) &&
-		ver.Outputs[0].Script.String() == common.NewThresholdScript(uint8(grp.GetThreshold())).String()
+	tx := &Transaction{
+		TraceId:       UniqueId(act.OutputId, "compaction"),
+		AppId:         act.AppId,
+		OpponentAppId: act.AppId,
+		State:         TransactionStateInitial,
+		AssetId:       asset,
+		Receivers:     grp.GetMembers(),
+		Threshold:     grp.GetThreshold(),
+		Amount:        total.String(),
+		Memo:          "",
+		References:    []crypto.Hash{hash},
+		Compaction:    true,
+		Sequence:      act.Sequence,
+	}
+	return tx, nil
 }
 
 func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) ([]byte, error) {
-	outputs, err := grp.ListOutputsForTransaction(tx.TraceId)
+	logger.Printf("Group.signTransaction(%v)\n", tx)
+
+	txs, err := grp.store.ListPreviousInitialTransactions(ctx, tx.AssetId, tx.Sequence)
+	logger.Verbosef("store.ListPreviousInitialTransactions(%s %d) => %d %v\n", tx.AssetId, tx.Sequence, len(txs), err)
+	if err != nil {
+		return nil, err
+	}
+	if len(txs) > 0 {
+		return nil, nil
+	}
+
+	if tx.StorageTraceId != "" {
+		storageTx, err := grp.store.ReadTransactionByTraceId(ctx, tx.StorageTraceId)
+		if err != nil || storageTx == nil || !storageTx.Storage {
+			return nil, fmt.Errorf("store.ReadTransactionByTraceId(%s) => %v %v", tx.StorageTraceId, storageTx, err)
+		}
+		if storageTx.State != TransactionStateSnapshot {
+			return nil, nil
+		}
+		t, err := grp.readTransactionUntilSufficient(ctx, tx.StorageTraceId)
+		if err != nil {
+			return nil, err
+		}
+		ref, err := crypto.HashFromString(t.TransactionHash)
+		if err != nil {
+			return nil, err
+		}
+		tx.References = []crypto.Hash{ref}
+	}
+
+	outputs, err := grp.ListOutputsForTransaction(ctx, tx.TraceId, tx.Sequence)
 	if err != nil {
 		panic(err)
 	}
 	if len(outputs) == 0 {
-		outputs, err = grp.ListOutputsForAsset(tx.GroupId, tx.AssetId, mixin.UTXOStateUnspent, OutputsBatchSize)
+		outputs, err = grp.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, tx.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
 	}
 	if err != nil {
 		panic(err)
 	}
-	logger.Verbosef("group.ListOutputsForTransaction(%s) => %d %v\n", tx.TraceId, len(outputs), err)
+	logger.Verbosef("Group.ListOutputsForTransaction(%s) => %d %v\n", tx.TraceId, len(outputs), err)
 	if len(outputs) == 0 {
 		return nil, fmt.Errorf("empty outputs %s", tx.Amount)
 	}
-	// FIXME do more compatcion transaction check
-	if len(outputs) < OutputsBatchSize && tx.Memo == CompactionTransactionMemo {
+	if tx.Compaction && len(outputs) < OutputsBatchSize {
 		return nil, fmt.Errorf("insufficient compaction transaction outputs %v %d", tx, len(outputs))
 	}
 
-	ver, outputs, err := grp.buildRawTransaction(ctx, tx, outputs)
-	logger.Verbosef("group.buildRawTransaction(%v) => %v %d %v\n", tx, ver, len(outputs), err)
+	ver, consumed, err := grp.buildRawTransaction(ctx, tx, outputs)
+	logger.Verbosef("Group.buildRawTransaction(%v) => %v %d %v\n", tx, ver, len(consumed), err)
 	if err != nil {
 		return nil, err
 	}
-	// FIXME do more compatcion transaction check
-	if len(ver.Outputs) != 1 && tx.Memo == CompactionTransactionMemo {
+	if tx.Compaction && len(ver.Outputs) != 1 {
 		return nil, fmt.Errorf("expired compaction transaction %v", tx)
-	}
-	if ver.AggregatedSignature != nil || len(ver.SignaturesMap) > 0 {
-		return ver.Marshal(), nil
 	}
 
 	raw := hex.EncodeToString(ver.Marshal())
-	req, err := grp.createMultisigUntilSufficient(ctx, mixin.MultisigActionSign, raw)
+	req, err := grp.createMultisigUntilSufficient(ctx, tx.TraceId, raw)
+	if err != nil {
+		return nil, err
+	}
+	req, err = grp.signMultisigUntilSufficient(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	req, err = grp.signMultisigUntilSufficient(ctx, req.RequestID)
-	if err != nil {
-		return nil, err
-	}
+	return grp.updateTxWithOutputs(ctx, tx, consumed, req)
+}
 
+func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput, req *mixin.SafeMultisigRequest) ([]byte, error) {
 	for _, out := range outputs {
-		out.State = OutputStateSigned
-		out.SignedBy = ver.PayloadHash().String()
+		out.TraceId = tx.TraceId
+		out.State = SafeUtxoStateSigned
+		out.SignedBy = req.TransactionHash
 		out.SignedTx = req.RawTransaction
 	}
-	err = grp.store.WriteOutputs(outputs, tx.TraceId)
+
+	rb, err := hex.DecodeString(req.RawTransaction)
+	if err != nil {
+		return nil, err
+	}
+	ver, _ := common.UnmarshalVersionedTransaction(rb)
+	tx.Raw = rb
+	tx.Hash = ver.PayloadHash()
+	tx.UpdatedAt = time.Now()
+	tx.State = TransactionStateSigning
+	if tx.Hash.String() != req.TransactionHash {
+		panic(req.TransactionHash)
+	}
+
+	if len(req.Signers) > 0 {
+		tx.State = TransactionStateSigned
+	} else if !tx.Storage {
+		aid, _ := DecodeMixinExtra(string(ver.Extra))
+		if aid != tx.OpponentAppId {
+			panic(hex.EncodeToString(rb))
+		}
+	}
+
+	err = grp.store.UpdateTxWithOutputs(ctx, tx, outputs)
 	if err != nil {
 		panic(err)
 	}
-	return hex.DecodeString(req.RawTransaction)
+	return rb, nil
 }
 
-func (grp *Group) createMultisigUntilSufficient(ctx context.Context, action, raw string) (*mixin.MultisigRequest, error) {
+func (grp *Group) createMultisigUntilSufficient(ctx context.Context, id, raw string) (*mixin.SafeMultisigRequest, error) {
+	if CheckTestEnvironment(ctx) {
+		rb, _ := hex.DecodeString(raw)
+		ver, _ := common.UnmarshalVersionedTransaction(rb)
+		hash := ver.PayloadHash()
+		return &mixin.SafeMultisigRequest{
+			RequestID:       id,
+			RawTransaction:  raw,
+			TransactionHash: hash.String(),
+		}, nil
+	}
 	for {
-		req, err := grp.mixin.CreateMultisig(ctx, action, raw)
-		logger.Verbosef("group.CreateMultisig(%s, %s) => %v %v\n", action, raw, req, err)
-		if err != nil && checkRetryableError(err) {
+		req, err := grp.mixin.SafeCreateMultisigRequest(ctx, &mixin.SafeTransactionRequestInput{
+			RequestID:      id,
+			RawTransaction: raw,
+		})
+		logger.Verbosef("Group.SafeCreateTransactionRequest(%s, %s) => %v %v\n", id, raw, req, err)
+		if err != nil && CheckRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
 		}
@@ -229,11 +379,45 @@ func (grp *Group) createMultisigUntilSufficient(ctx context.Context, action, raw
 	}
 }
 
-func (grp *Group) signMultisigUntilSufficient(ctx context.Context, requestID string) (*mixin.MultisigRequest, error) {
+func (grp *Group) signMultisigUntilSufficient(ctx context.Context, input *mixin.SafeMultisigRequest) (*mixin.SafeMultisigRequest, error) {
+	if CheckTestEnvironment(ctx) {
+		rb, _ := hex.DecodeString(input.RawTransaction)
+		ver, _ := common.UnmarshalVersionedTransaction(rb)
+		hash := ver.PayloadHash()
+		return &mixin.SafeMultisigRequest{
+			RequestID:       input.RequestID,
+			RawTransaction:  input.RawTransaction,
+			TransactionHash: hash.String(),
+			Signers:         []string{grp.GroupId},
+		}, nil
+	}
+	spendPublicKey, err := grp.getSpendPublicKeyUntilSufficient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	key, err := mixinnet.ParseKeyWithPub(grp.spendPrivateKey, spendPublicKey)
+	if err != nil {
+		return nil, err
+	}
+	ver, err := mixinnet.TransactionFromRaw(input.RawTransaction)
+	if err != nil {
+		return nil, err
+	}
+	err = mixin.SafeSignTransaction(ver, key, input.Views, uint16(grp.Index()))
+	if err != nil {
+		return nil, err
+	}
+	signedRaw, err := ver.Dump()
+	if err != nil {
+		return nil, err
+	}
 	for {
-		req, err := grp.mixin.SignMultisig(ctx, requestID, grp.pin)
-		logger.Verbosef("group.CreateMultisig(%s) => %v %v\n", requestID, req, err)
-		if err != nil && checkRetryableError(err) {
+		req, err := grp.mixin.SafeSignMultisigRequest(ctx, &mixin.SafeTransactionRequestInput{
+			RequestID:      input.RequestID,
+			RawTransaction: signedRaw,
+		})
+		logger.Verbosef("Group.SafeSignMultisigRequest(%s %s) => %v %v\n", input.RequestID, signedRaw, req, err)
+		if err != nil && CheckRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
 		}
@@ -241,144 +425,39 @@ func (grp *Group) signMultisigUntilSufficient(ctx context.Context, requestID str
 	}
 }
 
-func checkRetryableError(err error) bool {
-	es := err.Error()
-	switch {
-	case strings.Contains(es, "Client.Timeout exceeded"):
-	case strings.Contains(es, "Bad Gateway"):
-	case strings.Contains(es, "Internal Server Error"):
-	default:
-		return false
-	}
-	return true
-}
-
-func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outputs []*Output) (*common.VersionedTransaction, []*Output, error) {
-	old, _ := decodeTransactionWithExtra(outputs[0].SignedTx)
-	if old != nil && (old.AggregatedSignature != nil || len(old.SignaturesMap) > 0) {
-		return old, nil, nil
-	}
-	ver := common.NewTransactionV4(crypto.NewHash([]byte(tx.AssetId)))
-	ver.Extra = []byte(encodeMixinExtra(tx.GroupId, tx.TraceId, tx.Memo))
-	target := common.NewIntegerFromString(tx.Amount)
-
-	var total common.Integer
-	var consumed []*Output
-	for _, out := range outputs {
-		total = total.Add(common.NewIntegerFromString(out.Amount.String()))
-		ver.AddInput(crypto.Hash(out.TransactionHash), out.OutputIndex)
-		consumed = append(consumed, out)
-		if total.Cmp(target) >= 0 && len(consumed) >= grp.groupSize {
-			break
-		}
-	}
-	if total.Cmp(target) < 0 {
-		if len(outputs) == OutputsBatchSize {
-			err := grp.buildCompactTransaction(ctx, tx, outputs)
-			if err != nil {
-				panic(err)
-			}
-		}
-		return nil, nil, fmt.Errorf("insufficient %d %s %s", len(outputs), total, tx.Amount)
-	}
-
-	keys, err := grp.mixin.BatchReadGhostKeys(ctx, []*mixin.GhostInput{{
-		Receivers: tx.Receivers,
-		Index:     0,
-		Hint:      tx.TraceId,
-	}, {
-		Receivers: grp.members,
-		Index:     1,
-		Hint:      tx.TraceId,
-	}})
+func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput) (*common.VersionedTransaction, []*UnifiedOutput, error) {
+	inputs, tr, err := grp.getTransactionInputsAndRecipients(ctx, tx, outputs)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	amount, err := decimal.NewFromString(tx.Amount)
+	ver := common.NewTransactionV5(crypto.Sha256Hash([]byte(tx.AssetId)))
+	for _, in := range inputs {
+		ver.AddInput(in.TransactionHash, uint(in.OutputIndex))
+	}
+
+	keys, err := grp.createGhostKeysUntilSufficient(ctx, tx, tr)
 	if err != nil {
 		return nil, nil, err
 	}
-	out := keys[0].DumpOutput(uint8(tx.Threshold), amount)
-	ver.Outputs = append(ver.Outputs, newCommonOutput(out))
-
-	if diff := total.Sub(common.NewIntegerFromString(tx.Amount)); diff.Sign() > 0 {
-		amount, err := decimal.NewFromString(diff.String())
-		if err != nil {
-			return nil, nil, err
-		}
-		out := keys[1].DumpOutput(uint8(grp.threshold), amount)
-		ver.Outputs = append(ver.Outputs, newCommonOutput(out))
+	for i, r := range tr {
+		ver.Outputs = append(ver.Outputs, newCommonOutput(&mixinnet.Output{
+			Type:   common.OutputTypeScript,
+			Mask:   keys[i].Mask,
+			Keys:   keys[i].Keys,
+			Amount: mixinnet.IntegerFromString(r.Amount),
+			Script: mixinnet.NewThresholdScript(uint8(r.MixAddress.Threshold)),
+		}))
 	}
 
-	if ver.Version >= common.TxVersionReferences {
-		ver.References = tx.References
+	ver.References = tx.References
+	ver.Extra = []byte(tx.Memo)
+	if !tx.Storage {
+		ver.Extra = []byte(encodeMixinExtra(tx.OpponentAppId, tx.Memo))
 	}
-	return ver.AsVersioned(), consumed, nil
-}
 
-// all the transactions sent by the MTG is encoded by base64(msgpack(mep))
-type mixinExtraPack struct {
-	T uuid.UUID
-	G string `msgpack:",omitempty"`
-	M string `msgpack:",omitempty"`
-}
-
-func decodeTransactionWithExtra(s string) (*common.VersionedTransaction, *mixinExtraPack) {
-	raw, err := hex.DecodeString(s)
-	if err != nil {
-		return nil, nil
+	if l := ver.AsVersioned().GetExtraLimit(); len(ver.Extra) >= l {
+		return nil, nil, fmt.Errorf("large extra %d > %d", len(ver.Extra), l)
 	}
-	tx, err := common.UnmarshalVersionedTransaction(raw)
-	if err != nil {
-		return nil, nil
-	}
-	p := DecodeMixinExtra(string(tx.Extra))
-	return tx, p
-}
-
-func DecodeMixinExtra(memo string) *mixinExtraPack {
-	extra, err := base64.RawURLEncoding.DecodeString(memo)
-	if err != nil {
-		return nil
-	}
-	var p mixinExtraPack
-	err = MsgpackUnmarshal(extra, &p)
-	if err != nil || p.T.String() == uuid.Nil.String() {
-		return nil
-	}
-	return &p
-}
-
-func encodeMixinExtra(groupId, traceId, memo string) string {
-	id, err := uuid.FromString(traceId)
-	if err != nil {
-		panic(err)
-	}
-	p := &mixinExtraPack{T: id, G: groupId, M: memo}
-	b := MsgpackMarshalPanic(p)
-	s := base64.RawURLEncoding.EncodeToString(b)
-	return s
-}
-
-func EncodeMixinExtra(groupId, traceId, memo string) string {
-	s := encodeMixinExtra(groupId, traceId, memo)
-	if len(s) >= common.ExtraSizeGeneralLimit {
-		panic(memo)
-	}
-	return s
-}
-
-func newCommonOutput(out *mixin.Output) *common.Output {
-	cout := &common.Output{
-		Type:   common.OutputTypeScript,
-		Amount: common.NewIntegerFromString(out.Amount.String()),
-		Script: common.Script(out.Script),
-		Mask:   crypto.Key(out.Mask),
-	}
-	for _, k := range out.Keys {
-		ck := crypto.Key(k)
-		cout.Keys = append(cout.Keys, &ck)
-	}
-	return cout
+	return ver.AsVersioned(), inputs, nil
 }

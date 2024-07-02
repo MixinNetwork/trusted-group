@@ -1,34 +1,20 @@
 package mtg
 
-import (
-	"io/ioutil"
-
-	"github.com/pelletier/go-toml"
-)
-
 type Configuration struct {
 	App struct {
-		ClientId   string `toml:"client-id"`
-		SessionId  string `toml:"session-id"`
-		PrivateKey string `toml:"private-key"`
-		PinToken   string `toml:"pin-token"`
-		PIN        string `toml:"pin"`
+		AppId             string `toml:"app-id"`
+		SessionId         string `toml:"session-id"`
+		SessionPrivateKey string `toml:"session-private-key"`
+		ServerPublicKey   string `toml:"server-public-key"`
+		SpendPrivateKey   string `toml:"spend-private-key"`
 	} `toml:"app"`
 	Genesis struct {
 		Members   []string `toml:"members"`
 		Threshold int      `toml:"threshold"`
-		Timestamp int64    `toml:"timestamp"`
+		Epoch     uint64   `toml:"epoch"`
 	} `toml:"genesis"`
-	GroupSize        int   `toml:"group-size"`
-	LoopWaitDuration int64 `toml:"loop-wait-duration"`
-}
-
-func Setup(path string) (*Configuration, error) {
-	f, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var conf Configuration
-	err = toml.Unmarshal(f, &conf)
-	return &conf, err
+	Project          string `toml:"project"`
+	StoreDir         string `toml:"store-dir"`
+	GroupSize        int    `toml:"group-size"`
+	LoopWaitDuration int64  `toml:"loop-wait-duration"`
 }

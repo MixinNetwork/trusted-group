@@ -1,0 +1,20 @@
+store-dir = "/tmp"
+project = "mtg-test"
+
+[app]
+app-id = "member-id-0"
+session-id = ""
+session-private-key = ""
+server-public-key = ""
+spend-private-key = ""
+
+[genesis]
+members = [
+  "member-id-0",
+  "member-id-1",
+  "member-id-2",
+  "member-id-3",
+  "member-id-4",
+]
+threshold = 3
+epoch = 4655227
