@@ -77,6 +77,14 @@ func (s *SQLite3Store) FinishAction(ctx context.Context, id string, state Action
 	}
 
 	for _, t := range ts {
+		existed, err := s.checkExistence(ctx, tx, "SELECT trace_id FROM transactions WHERE trace_id=?", t.TraceId)
+		if err != nil {
+			return err
+		}
+		if existed {
+			continue
+		}
+
 		if t.State != TransactionStateInitial {
 			panic(t.State)
 		}
