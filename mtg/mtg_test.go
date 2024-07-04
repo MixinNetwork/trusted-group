@@ -82,8 +82,8 @@ func TestMTGExtra(t *testing.T) {
 	id := uuid.Must(uuid.NewV4()).String()
 	memo := "123"
 
-	extra := EncodeMixinExtra(id, memo)
-	a, m := DecodeMixinExtra(hex.EncodeToString([]byte(extra)))
+	extra := EncodeMixinExtraBase64(id, memo)
+	a, m := DecodeMixinExtraHEX(hex.EncodeToString([]byte(extra)))
 	require.Equal(id, a)
 	require.Equal(memo, m)
 }

@@ -348,7 +348,7 @@ func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outp
 	if len(req.Signers) > 0 {
 		tx.State = TransactionStateSigned
 	} else if !tx.Storage {
-		aid, _ := DecodeMixinExtra(string(ver.Extra))
+		aid, _ := DecodeMixinExtraHEX(hex.EncodeToString(ver.Extra))
 		if aid != tx.OpponentAppId {
 			panic(hex.EncodeToString(rb))
 		}

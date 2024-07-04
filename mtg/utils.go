@@ -81,7 +81,7 @@ func NewMixAddress(ctx context.Context, members []string, threshold byte, storag
 	return ma, isUuidMembers, nil
 }
 
-func DecodeMixinExtra(memo string) (string, string) {
+func DecodeMixinExtraHEX(memo string) (string, string) {
 	extra, err := hex.DecodeString(memo)
 	if err != nil {
 		return "", ""
@@ -106,7 +106,7 @@ func encodeMixinExtra(appId, memo string) string {
 	return s
 }
 
-func EncodeMixinExtra(appId, memo string) string {
+func EncodeMixinExtraBase64(appId, memo string) string {
 	s := encodeMixinExtra(appId, memo)
 	if len(s) >= common.ExtraSizeGeneralLimit {
 		panic(memo)
