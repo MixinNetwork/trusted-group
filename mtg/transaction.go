@@ -348,7 +348,7 @@ func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outp
 	if len(req.Signers) > 0 {
 		tx.State = TransactionStateSigned
 	} else if !tx.Storage {
-		aid, _ := DecodeMixinExtraHEX(hex.EncodeToString(ver.Extra))
+		aid, _ := DecodeMixinExtraBase64(string(ver.Extra))
 		if aid != tx.OpponentAppId {
 			panic(hex.EncodeToString(rb))
 		}
@@ -460,7 +460,7 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 	ver.References = tx.References
 	ver.Extra = []byte(tx.Memo)
 	if !tx.Storage {
-		ver.Extra = []byte(encodeMixinExtra(tx.OpponentAppId, ver.Extra))
+		ver.Extra = []byte(EncodeMixinExtraBase64(tx.OpponentAppId, ver.Extra))
 	}
 
 	if l := ver.AsVersioned().GetExtraLimit(); len(ver.Extra) >= l {
