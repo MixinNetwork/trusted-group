@@ -86,7 +86,11 @@ func DecodeMixinExtraHEX(memo string) (string, string) {
 	if err != nil {
 		return "", ""
 	}
-	data, err := base64.RawURLEncoding.DecodeString(string(extra))
+	return DecodeMixinExtraBase64(string(extra))
+}
+
+func DecodeMixinExtraBase64(extra string) (string, string) {
+	data, err := base64.RawURLEncoding.DecodeString(extra)
 	if err != nil || len(data) < 16 {
 		return "", ""
 	}
