@@ -82,10 +82,10 @@ func TestMTGExtra(t *testing.T) {
 	id := uuid.Must(uuid.NewV4()).String()
 	memo := "123"
 
-	extra := EncodeMixinExtraBase64(id, memo)
+	extra := EncodeMixinExtraBase64(id, []byte(memo))
 	a, m := DecodeMixinExtraHEX(hex.EncodeToString([]byte(extra)))
 	require.Equal(id, a)
-	require.Equal(memo, m)
+	require.Equal(memo, string(m))
 }
 
 func TestMTGCompaction(t *testing.T) {
@@ -235,7 +235,7 @@ func testHandleCompactionTransaction(ctx context.Context, require *require.Asser
 }
 
 func testBuildActionFromTx(require *require.Assertions, group *Group, tx *Transaction) *UnifiedOutput {
-	extra := encodeMixinExtra(tx.AppId, tx.Memo)
+	extra := encodeMixinExtra(tx.AppId, []byte(tx.Memo))
 	extra = hex.EncodeToString([]byte(extra))
 	return testBuildOutput(group, require, tx.AssetId, tx.Amount, extra, SafeUtxoStateUnspent, tx.Sequence+100, tx.Hash.String())
 }

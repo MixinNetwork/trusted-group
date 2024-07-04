@@ -81,39 +81,38 @@ func NewMixAddress(ctx context.Context, members []string, threshold byte, storag
 	return ma, isUuidMembers, nil
 }
 
-func DecodeMixinExtraHEX(memo string) (string, string) {
+func DecodeMixinExtraHEX(memo string) (string, []byte) {
 	extra, err := hex.DecodeString(memo)
 	if err != nil {
-		return "", ""
+		return "", nil
 	}
 	return DecodeMixinExtraBase64(string(extra))
 }
 
-func DecodeMixinExtraBase64(extra string) (string, string) {
+func DecodeMixinExtraBase64(extra string) (string, []byte) {
 	data, err := base64.RawURLEncoding.DecodeString(extra)
 	if err != nil || len(data) < 16 {
-		return "", ""
+		return "", nil
 	}
 	aid := uuid.FromBytesOrNil(data[0:16])
-	m := string(data[16:])
-	return aid.String(), m
+	return aid.String(), data[16:]
 }
 
-func encodeMixinExtra(appId, memo string) string {
+func encodeMixinExtra(appId string, extra []byte) string {
 	gid, err := uuid.FromString(appId)
 	if err != nil {
 		panic(err)
 	}
 	data := gid.Bytes()
-	data = append(data, []byte(memo)...)
+	data = append(data, extra...)
 	s := base64.RawURLEncoding.EncodeToString(data)
 	return s
 }
 
-func EncodeMixinExtraBase64(appId, memo string) string {
-	s := encodeMixinExtra(appId, memo)
+func EncodeMixinExtraBase64(appId string, extra []byte) string {
+	s := encodeMixinExtra(appId, extra)
 	if len(s) >= common.ExtraSizeGeneralLimit {
-		panic(memo)
+		panic(len(extra))
 	}
 	return s
 }

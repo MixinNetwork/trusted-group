@@ -210,7 +210,7 @@ func (t *Transaction) check(ctx context.Context, act *Action) error {
 	if t.Storage {
 		limit = common.ExtraSizeStorageCapacity
 	}
-	s := encodeMixinExtra(t.OpponentAppId, t.Memo)
+	s := encodeMixinExtra(t.OpponentAppId, []byte(t.Memo))
 	if len(s) >= limit {
 		return fmt.Errorf("invalid extra length: %d", len(s))
 	}
@@ -460,7 +460,7 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 	ver.References = tx.References
 	ver.Extra = []byte(tx.Memo)
 	if !tx.Storage {
-		ver.Extra = []byte(encodeMixinExtra(tx.OpponentAppId, tx.Memo))
+		ver.Extra = []byte(encodeMixinExtra(tx.OpponentAppId, ver.Extra))
 	}
 
 	if l := ver.AsVersioned().GetExtraLimit(); len(ver.Extra) >= l {
