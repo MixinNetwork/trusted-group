@@ -179,15 +179,15 @@ func (t *Transaction) check(ctx context.Context, act *Action) error {
 		return fmt.Errorf("invalid receivers threshold %d/%d", t.Threshold, len(t.Receivers))
 	}
 	amt, err := decimal.NewFromString(t.Amount)
+	if err != nil {
+		panic(t.Amount)
+	}
 	min, _ := decimal.NewFromString("0.00000001")
 	if err != nil || amt.Cmp(min) < 0 {
 		return fmt.Errorf("invalid amount %s", t.Amount)
 	}
 
 	for _, r := range t.Receivers {
-		if CheckTestEnvironment(ctx) {
-			continue
-		}
 		id, _ := uuid.FromString(r)
 		if id.String() == uuid.Nil.String() {
 			_, err := mixinnet.AddressFromString(r)

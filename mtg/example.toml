@@ -2,7 +2,7 @@ store-dir = "/tmp"
 project = "mtg-test"
 
 [app]
-app-id = "member-id-0"
+app-id = "094ac88f-4671-3976-b60a-09064f1811e8"
 session-id = ""
 session-private-key = ""
 server-public-key = ""
@@ -10,11 +10,11 @@ spend-private-key = ""
 
 [genesis]
 members = [
-  "member-id-0",
-  "member-id-1",
-  "member-id-2",
-  "member-id-3",
-  "member-id-4",
+  "094ac88f-4671-3976-b60a-09064f1811e8",
+  "094ac88f-4671-3976-b60a-09064f1811e9",
+  "094ac88f-4671-3976-b60a-09064f1811ea",
+  "094ac88f-4671-3976-b60a-09064f1811eb",
+  "094ac88f-4671-3976-b60a-09064f1811ec",
 ]
 threshold = 3
 epoch = 4655227
