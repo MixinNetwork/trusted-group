@@ -20,7 +20,6 @@ import (
 
 const (
 	TransactionStateInitial  = 10
-	TransactionStateSigning  = 11
 	TransactionStateSigned   = 12
 	TransactionStateSnapshot = 13
 
@@ -348,13 +347,10 @@ func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outp
 	tx.Raw = rb
 	tx.Hash = ver.PayloadHash()
 	tx.UpdatedAt = time.Now()
-	tx.State = TransactionStateSigning
+	tx.State = TransactionStateSigned
+
 	if tx.Hash.String() != req.TransactionHash {
 		panic(req.TransactionHash)
-	}
-
-	if len(req.Signers) > 0 {
-		tx.State = TransactionStateSigned
 	}
 	if !tx.storage {
 		aid, _ := DecodeMixinExtraBase64(string(ver.Extra))
