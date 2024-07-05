@@ -43,10 +43,12 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 	var storageTraceId string
 	for _, tx := range items {
 		if tx == "storage" {
-			t, err := n.Group.BuildStorageTransaction(ctx, a.AppId, []byte("storage-memo"), a.Sequence)
-			if err != nil {
+			extra := []byte("storage-memo")
+			enough, err := n.Group.CheckAssetBalanceForStorageAt(ctx, a.AppId, extra, a.Sequence)
+			if err != nil || !enough {
 				panic(err)
 			}
+			t := n.Group.BuildStorageTransaction(ctx, extra)
 			storageTraceId = t.TraceId
 			txs = append(txs, t)
 		} else {

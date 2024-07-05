@@ -139,33 +139,24 @@ func (grp *Group) BuildTransactionWithStorageTraceId(traceId, opponentAppId, ass
 	return t
 }
 
-func (grp *Group) BuildStorageTransaction(ctx context.Context, appId string, extra []byte, sequence uint64) (*Transaction, error) {
+func (grp *Group) BuildStorageTransaction(ctx context.Context, extra []byte) *Transaction {
+	if len(extra) > common.ExtraSizeStorageCapacity {
+		panic(fmt.Errorf("too large extra %d > %d", len(extra), common.ExtraSizeStorageCapacity))
+	}
+
 	sTraceId := crypto.Blake3Hash(extra).String()
 	sTraceId = UniqueId(sTraceId, sTraceId)
-	old, err := grp.store.ReadTransactionByTraceId(ctx, sTraceId)
-	if err != nil || old != nil {
-		return old, err
-	}
-	if len(extra) > common.ExtraSizeStorageCapacity {
-		return nil, fmt.Errorf("too large extra %d > %d", len(extra), common.ExtraSizeStorageCapacity)
-	}
-
-	step := common.NewIntegerFromString(common.ExtraStoragePriceStep)
-	amount := step.Mul(len(extra)/common.ExtraSizeStorageStep + 1)
-
-	total, err := grp.CheckAssetBalanceAt(ctx, appId, StorageAssetId, sequence)
-	if err != nil {
-		return nil, err
-	}
-	if common.NewIntegerFromString(total.String()).Cmp(amount) < 0 {
-		return nil, fmt.Errorf("insufficient balance %s %s", total, amount)
-	}
-
 	addr := common.NewAddressFromSeed(make([]byte, 64))
 	receivers := []string{addr.String()}
-	t := grp.BuildTransaction(sTraceId, appId, StorageAssetId, amount.String(), string(extra), receivers, 64)
+	amount := getStorageTransactionAmount(extra)
+	t := grp.BuildTransaction(sTraceId, grp.GroupId, StorageAssetId, amount.String(), string(extra), receivers, 64)
 	t.storage = true
-	return t, nil
+	return t
+}
+
+func getStorageTransactionAmount(extra []byte) common.Integer {
+	step := common.NewIntegerFromString(common.ExtraStoragePriceStep)
+	return step.Mul(len(extra)/common.ExtraSizeStorageStep + 1)
 }
 
 func (t *Transaction) check(ctx context.Context, act *Action) error {

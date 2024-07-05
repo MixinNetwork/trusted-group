@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/fox-one/mixin-sdk-go/v2"
@@ -231,6 +232,19 @@ func (grp *Group) CheckAssetBalanceAt(ctx context.Context, appId, assetId string
 		total = total.Add(o.Amount)
 	}
 	return total, nil
+}
+
+func (grp *Group) CheckAssetBalanceForStorageAt(ctx context.Context, appId string, extra []byte, sequence uint64) (bool, error) {
+	if len(extra) > common.ExtraSizeStorageCapacity {
+		panic(fmt.Errorf("too large extra %d > %d", len(extra), common.ExtraSizeStorageCapacity))
+	}
+
+	amount := getStorageTransactionAmount(extra)
+	total, err := grp.CheckAssetBalanceAt(ctx, appId, StorageAssetId, sequence)
+	if err != nil {
+		return false, err
+	}
+	return common.NewIntegerFromString(total.String()).Cmp(amount) > 0, nil
 }
 
 func (grp *Group) signTransactionWithAsset(ctx context.Context, wg *sync.WaitGroup, asset string, txs []*Transaction) {
