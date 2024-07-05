@@ -140,9 +140,12 @@ func (grp *Group) GetThreshold() int {
 	return grp.threshold
 }
 
-func (grp *Group) Synced(ctx context.Context) (bool, error) {
+func (grp *Group) Synced(ctx context.Context) bool {
 	v, err := grp.store.ReadProperty(ctx, groupBootSynced)
-	return v == "1", err
+	if err != nil {
+		panic(err)
+	}
+	return v == "1"
 }
 
 func (grp *Group) AttachWorker(appId string, wkr Worker) {
@@ -204,47 +207,44 @@ func (grp *Group) Run(ctx context.Context) {
 	}
 }
 
-func (grp *Group) ListOutputsForAsset(ctx context.Context, appId, assetId string, sequence uint64, state SafeUtxoState, limit int) ([]*UnifiedOutput, error) {
+func (grp *Group) ListOutputsForAsset(ctx context.Context, appId, assetId string, sequence uint64, state SafeUtxoState, limit int) []*UnifiedOutput {
 	outputs, err := grp.store.ListOutputsForAsset(ctx, appId, assetId, sequence, state, limit)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
-	return outputs, nil
+	return outputs
 }
 
-func (grp *Group) ListOutputsForTransaction(ctx context.Context, traceId string, sequence uint64) ([]*UnifiedOutput, error) {
+func (grp *Group) ListOutputsForTransaction(ctx context.Context, traceId string, sequence uint64) []*UnifiedOutput {
 	outputs, err := grp.store.ListOutputsForTransaction(ctx, traceId, sequence)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
-	return outputs, nil
+	return outputs
 }
 
 // this function or rpc should be used only in ProcessOutput
-func (grp *Group) CheckAssetBalanceAt(ctx context.Context, appId, assetId string, sequence uint64) (decimal.Decimal, error) {
+func (grp *Group) CheckAssetBalanceAt(ctx context.Context, appId, assetId string, sequence uint64) decimal.Decimal {
 	os, err := grp.store.ListOutputsForAsset(ctx, appId, assetId, sequence, SafeUtxoStateUnspent, OutputsBatchSize)
 	if err != nil {
-		return decimal.Zero, err
+		panic(err)
 	}
 
 	total := decimal.NewFromInt(0)
 	for _, o := range os {
 		total = total.Add(o.Amount)
 	}
-	return total, nil
+	return total
 }
 
-func (grp *Group) CheckAssetBalanceForStorageAt(ctx context.Context, appId string, extra []byte, sequence uint64) (bool, error) {
+func (grp *Group) CheckAssetBalanceForStorageAt(ctx context.Context, appId string, extra []byte, sequence uint64) bool {
 	if len(extra) > common.ExtraSizeStorageCapacity {
 		panic(fmt.Errorf("too large extra %d > %d", len(extra), common.ExtraSizeStorageCapacity))
 	}
 
 	amount := getStorageTransactionAmount(extra)
-	total, err := grp.CheckAssetBalanceAt(ctx, appId, StorageAssetId, sequence)
-	if err != nil {
-		return false, err
-	}
-	return common.NewIntegerFromString(total.String()).Cmp(amount) > 0, nil
+	total := grp.CheckAssetBalanceAt(ctx, appId, StorageAssetId, sequence)
+	return common.NewIntegerFromString(total.String()).Cmp(amount) > 0
 }
 
 func (grp *Group) signTransactionWithAsset(ctx context.Context, wg *sync.WaitGroup, asset string, txs []*Transaction) {

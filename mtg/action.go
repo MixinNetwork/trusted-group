@@ -122,10 +122,7 @@ func (grp *Group) checkTransactions(ctx context.Context, act *Action, txs []*Tra
 	}
 
 	for asset, amount := range totalAmount {
-		outputs, err := grp.ListOutputsForAsset(ctx, act.AppId, asset, act.Sequence, SafeUtxoStateUnspent, 0)
-		if err != nil {
-			return err
-		}
+		outputs := grp.ListOutputsForAsset(ctx, act.AppId, asset, act.Sequence, SafeUtxoStateUnspent, 0)
 		total := common.NewInteger(0)
 		for _, os := range outputs {
 			total = total.Add(common.NewIntegerFromString(os.Amount.String()))

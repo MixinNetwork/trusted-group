@@ -44,9 +44,9 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 	for _, tx := range items {
 		if tx == "storage" {
 			extra := []byte("storage-memo")
-			enough, err := n.Group.CheckAssetBalanceForStorageAt(ctx, a.AppId, extra, a.Sequence)
-			if err != nil || !enough {
-				panic(err)
+			enough := n.Group.CheckAssetBalanceForStorageAt(ctx, a.AppId, extra, a.Sequence)
+			if !enough {
+				panic(a.Sequence)
 			}
 			t := n.Group.BuildStorageTransaction(ctx, extra)
 			storageTraceId = t.TraceId
@@ -57,10 +57,7 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 				return []*Transaction{}, ""
 			}
 
-			balance, err := n.Group.CheckAssetBalanceAt(ctx, a.AppId, a.AssetId, a.Sequence)
-			if err != nil {
-				panic(err)
-			}
+			balance := n.Group.CheckAssetBalanceAt(ctx, a.AppId, a.AssetId, a.Sequence)
 			if balance.Cmp(amt) < 0 {
 				return nil, USDTAssetId
 			}
@@ -213,8 +210,7 @@ func testHandleCompactionTransaction(ctx context.Context, require *require.Asser
 
 	tx := ts[0]
 	require.True(tx.compaction)
-	outputs, err := group.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, tx.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
-	require.Nil(err)
+	outputs := group.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, tx.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
 	require.Len(outputs, 36)
 	ver, consumed, err := group.buildRawTransaction(ctx, tx, outputs)
 	require.Nil(err)

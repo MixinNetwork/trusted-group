@@ -210,10 +210,7 @@ func (t *Transaction) check(ctx context.Context, act *Action) error {
 }
 
 func (grp *Group) buildCompactionTransaction(ctx context.Context, asset string, act *Action) (*Transaction, error) {
-	compaction, err := grp.ListOutputsForAsset(ctx, act.AppId, asset, act.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
-	if err != nil {
-		return nil, err
-	}
+	compaction := grp.ListOutputsForAsset(ctx, act.AppId, asset, act.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
 	if len(compaction) != OutputsBatchSize {
 		return nil, fmt.Errorf("insufficient outputs to build compaction transaction: %d", len(compaction))
 	}
@@ -275,15 +272,9 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) *common.
 		tx.references = []crypto.Hash{ref}
 	}
 
-	outputs, err := grp.ListOutputsForTransaction(ctx, tx.TraceId, tx.Sequence)
-	if err != nil {
-		panic(err)
-	}
+	outputs := grp.ListOutputsForTransaction(ctx, tx.TraceId, tx.Sequence)
 	if len(outputs) == 0 {
-		outputs, err = grp.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, tx.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
-	}
-	if err != nil {
-		panic(err)
+		outputs = grp.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, tx.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
 	}
 	logger.Verbosef("Group.ListOutputsForTransaction(%s) => %d %v\n", tx.TraceId, len(outputs), err)
 	if len(outputs) == 0 {
