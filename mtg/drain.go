@@ -78,7 +78,7 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 		panic(err)
 	}
 	if tx != nil {
-		if tx.Compaction {
+		if tx.compaction {
 			err = grp.store.RestoreAction(ctx, output, tx)
 			if err != nil {
 				panic(err)

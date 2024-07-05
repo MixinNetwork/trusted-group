@@ -47,10 +47,10 @@ func (s *SQLite3Store) readAction(ctx context.Context, tx *sql.Tx, id string) (*
 }
 
 func (s *SQLite3Store) readRestorableAction(ctx context.Context, txn *sql.Tx, t *Transaction) (*Action, error) {
-	if len(t.References) != 1 {
+	if len(t.references) != 1 {
 		return nil, nil
 	}
-	hash := t.References[0].String()
+	hash := t.references[0].String()
 	query := fmt.Sprintf("SELECT %s FROM actions WHERE action_state=? AND transaction_hash=?", strings.Join(actionCols, ","))
 	row := txn.QueryRowContext(ctx, query, ActionStateRestorable, hash)
 	return actionFromRow(row)
@@ -77,18 +77,10 @@ func (s *SQLite3Store) FinishAction(ctx context.Context, id string, state Action
 	}
 
 	for _, t := range ts {
-		existed, err := s.checkExistence(ctx, tx, "SELECT trace_id FROM transactions WHERE trace_id=?", t.TraceId)
-		if err != nil {
-			return err
-		}
-		if existed {
-			continue
-		}
-
 		if t.State != TransactionStateInitial {
 			panic(t.State)
 		}
-		if t.Storage {
+		if t.storage {
 			if t.AssetId != StorageAssetId || t.Threshold != 64 || len(t.Receivers) != 1 {
 				return fmt.Errorf("invalid storage transaction: %#v", t)
 			}
@@ -100,6 +92,15 @@ func (s *SQLite3Store) FinishAction(ctx context.Context, id string, state Action
 		if t.Sequence != sequence {
 			panic(t.Sequence)
 		}
+
+		existed, err := s.checkExistence(ctx, tx, "SELECT trace_id FROM transactions WHERE trace_id=?", t.TraceId)
+		if err != nil {
+			return err
+		}
+		if existed {
+			continue
+		}
+
 		err = s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), t.values()...)
 		if err != nil {
 			return fmt.Errorf("INSERT transactions %v", err)
@@ -256,7 +257,7 @@ func (s *SQLite3Store) UpdateTxWithOutputs(ctx context.Context, t *Transaction, 
 	defer tx.Rollback()
 
 	var refs []string
-	for _, r := range t.References {
+	for _, r := range t.references {
 		refs = append(refs, r.String())
 	}
 

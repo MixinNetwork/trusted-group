@@ -236,11 +236,12 @@ func (grp *Group) CheckAssetBalanceAt(ctx context.Context, appId, assetId string
 func (grp *Group) signTransactionWithAsset(ctx context.Context, wg *sync.WaitGroup, asset string, txs []*Transaction) {
 	logger.Verbosef("Group.signTransactionWithAsset(%s)", asset)
 	defer wg.Done()
+
 	for _, tx := range txs {
-		raw, err := grp.signTransaction(ctx, tx)
-		logger.Verbosef("Group.signTransaction(%v) => %s %v", *tx, hex.EncodeToString(raw), err)
-		if err != nil {
-			panic(err)
+		ver := grp.signTransaction(ctx, tx)
+		logger.Verbosef("Group.signTransaction(%v) => %s", *tx, hex.EncodeToString(ver.Marshal()))
+		if ver == nil {
+			break
 		}
 	}
 }

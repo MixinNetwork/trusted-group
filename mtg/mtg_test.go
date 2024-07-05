@@ -180,28 +180,28 @@ func TestMTGStorage(t *testing.T) {
 	txs, _, err := node.Group.store.ListTransactions(ctx, TransactionStateInitial, 0)
 	require.Nil(err)
 	require.Len(txs, 2)
-	require.True(txs[1].Storage)
-	require.Equal(txs[1].TraceId, txs[0].StorageTraceId)
+	require.True(txs[1].storage)
+	require.Equal(txs[1].TraceId, txs[0].storageTraceId)
 
-	_, err = node.Group.signTransaction(ctx, txs[0])
-	require.Nil(err)
+	ver := node.Group.signTransaction(ctx, txs[0])
+	require.Nil(ver)
 	tx, err := node.Group.store.ReadTransactionByTraceId(ctx, txs[0].TraceId)
 	require.Nil(err)
 	require.Equal(TransactionStateInitial, tx.State)
 
-	_, err = node.Group.signTransaction(ctx, txs[1])
-	require.Nil(err)
+	ver = node.Group.signTransaction(ctx, txs[1])
+	require.NotNil(ver)
 	err = node.Group.store.FinishTransaction(ctx, txs[1].TraceId)
 	require.Nil(err)
-	_, err = node.Group.signTransaction(ctx, txs[0])
-	require.Nil(err)
+	ver = node.Group.signTransaction(ctx, txs[0])
+	require.NotNil(ver)
 
 	storage, err := node.Group.store.ReadTransactionByTraceId(ctx, txs[1].TraceId)
 	require.Nil(err)
 	tx, err = node.Group.store.ReadTransactionByTraceId(ctx, txs[0].TraceId)
 	require.Nil(err)
 	require.NotEqual(TransactionStateInitial, tx.State)
-	require.Equal(storage.Hash.String(), tx.References[0].String())
+	require.Equal(storage.Hash.String(), tx.references[0].String())
 }
 
 func testHandleCompactionTransaction(ctx context.Context, require *require.Assertions, group *Group, hash string) *UnifiedOutput {
@@ -210,7 +210,7 @@ func testHandleCompactionTransaction(ctx context.Context, require *require.Asser
 	require.Len(ts, 1)
 
 	tx := ts[0]
-	require.True(tx.Compaction)
+	require.True(tx.compaction)
 	outputs, err := group.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, tx.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
 	require.Nil(err)
 	require.Len(outputs, 36)

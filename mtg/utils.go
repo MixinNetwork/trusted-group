@@ -190,7 +190,7 @@ func (grp *Group) readTransactionUntilSufficient(ctx context.Context, id string)
 }
 
 func (grp *Group) getTransactionInputsAndRecipients(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput) ([]*UnifiedOutput, []*TransactionRecipient, error) {
-	ma, uuidMember, err := NewMixAddress(ctx, tx.Receivers, byte(tx.Threshold), tx.Storage)
+	ma, uuidMember, err := NewMixAddress(ctx, tx.Receivers, byte(tx.Threshold), tx.storage)
 	if err != nil {
 		return nil, nil, err
 	}
