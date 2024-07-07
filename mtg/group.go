@@ -253,10 +253,10 @@ func (grp *Group) signTransactionWithAsset(ctx context.Context, wg *sync.WaitGro
 
 	for _, tx := range txs {
 		ver := grp.signTransaction(ctx, tx)
-		logger.Verbosef("Group.signTransaction(%v) => %s", *tx, hex.EncodeToString(ver.Marshal()))
 		if ver == nil {
 			break
 		}
+		logger.Verbosef("Group.signTransaction(%v) => %s", *tx, hex.EncodeToString(ver.Marshal()))
 	}
 }
 
