@@ -54,6 +54,7 @@ func (grp *Group) processSafeOutputs(ctx context.Context, filter map[string]bool
 
 func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) {
 	logger.Verbosef("Group.processSafeOutput(%v) \n", output)
+	actionState := ActionStateInitial
 
 	appId, _ := DecodeMixinExtraHEX(output.Extra)
 	if output.RequestId == "" {
@@ -89,9 +90,10 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 		// and the last one is the change output
 		if output.OutputIndex == 1 {
 			output.AppId = tx.AppId
+			actionState = ActionStateDone
 		}
 	}
-	grp.store.WriteAction(ctx, output, ActionStateInitial)
+	grp.store.WriteAction(ctx, output, actionState)
 }
 
 func (grp *Group) readDrainingCheckpoint(ctx context.Context) (uint64, error) {
