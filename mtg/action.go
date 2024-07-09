@@ -59,14 +59,12 @@ func actionJoinFromRow(row Row) (*Action, error) {
 	return &a, err
 }
 
-func (grp *Group) ReplayCheck(ctx context.Context, a *Action, txs []*Transaction, asset string) {
-	wkr := grp.FindWorker(a.AppId)
-	txs2, compactionAsset2 := wkr.ProcessOutput(ctx, a)
-	if asset != compactionAsset2 {
-		err := fmt.Errorf("action %s compaction asset %s => %s", a.OutputId, asset, compactionAsset2)
+func ReplayCheck(a *Action, txs1, txs2 []*Transaction, asset1, asset2 string) {
+	if asset1 != asset2 {
+		err := fmt.Errorf("action %s compaction asset %s => %s", a.OutputId, asset1, asset2)
 		panic(err)
 	}
-	b1 := SerializeTransactions(txs)
+	b1 := SerializeTransactions(txs1)
 	b2 := SerializeTransactions(txs2)
 	if !bytes.Equal(b1, b2) {
 		err := fmt.Errorf("action %s serialization %x => %x", a.OutputId, b1, b2)
@@ -95,7 +93,8 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 		}
 		txs, compactionAsset := wkr.ProcessOutput(ctx, a)
 		if grp.debug {
-			grp.ReplayCheck(ctx, a, txs, compactionAsset)
+			txs2, compactionAsset2 := wkr.ProcessOutput(ctx, a)
+			ReplayCheck(a, txs, txs2, compactionAsset, compactionAsset2)
 		}
 
 		state := ActionStateDone
