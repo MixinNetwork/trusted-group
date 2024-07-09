@@ -59,6 +59,21 @@ func actionJoinFromRow(row Row) (*Action, error) {
 	return &a, err
 }
 
+func (grp *Group) ReplayCheck(ctx context.Context, a *Action, txs []*Transaction, asset string) {
+	wkr := grp.FindWorker(a.AppId)
+	txs2, compactionAsset2 := wkr.ProcessOutput(ctx, a)
+	if asset != compactionAsset2 {
+		err := fmt.Errorf("action %s compaction asset %s => %s", a.OutputId, asset, compactionAsset2)
+		panic(err)
+	}
+	b1 := SerializeTransactions(txs)
+	b2 := SerializeTransactions(txs2)
+	if !bytes.Equal(b1, b2) {
+		err := fmt.Errorf("action %s serialization %x => %x", a.OutputId, b1, b2)
+		panic(err)
+	}
+}
+
 // actions queue is all the utxos ordered by their sequence
 func (grp *Group) handleActionsQueue(ctx context.Context) error {
 	as, err := grp.store.ListActions(ctx, ActionStateInitial, 16)
@@ -80,15 +95,7 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 		}
 		txs, compactionAsset := wkr.ProcessOutput(ctx, a)
 		if grp.debug {
-			txs2, compactionAsset2 := wkr.ProcessOutput(ctx, a)
-			if compactionAsset != compactionAsset2 {
-				panic(a.OutputId)
-			}
-			b1 := SerializeTransactions(txs)
-			b2 := SerializeTransactions(txs2)
-			if !bytes.Equal(b1, b2) {
-				panic(a.OutputId)
-			}
+			grp.ReplayCheck(ctx, a, txs, compactionAsset)
 		}
 
 		state := ActionStateDone
