@@ -1,10 +1,12 @@
 package mtg
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -34,9 +36,9 @@ type TransactionRecipient struct {
 }
 
 type Transaction struct {
+	TraceId       string
 	AppId         string
 	OpponentAppId string
-	TraceId       string
 	State         int
 	AssetId       string
 	Receivers     []string
@@ -159,6 +161,27 @@ func getStorageTransactionAmount(extra []byte) common.Integer {
 	return step.Mul(len(extra)/common.ExtraSizeStorageStep + 1)
 }
 
+func (t *Transaction) Equal(tx *Transaction) bool {
+	if tx.TraceId != t.TraceId ||
+		tx.AppId != t.AppId ||
+		tx.OpponentAppId != t.OpponentAppId ||
+		tx.State != t.State ||
+		tx.AssetId != t.AssetId ||
+		!slices.Equal(tx.Receivers, t.Receivers) ||
+		tx.Threshold != t.Threshold ||
+		tx.Amount != t.Amount ||
+		tx.Memo != t.Memo ||
+		!bytes.Equal(tx.Raw, t.Raw) ||
+		tx.Hash != t.Hash ||
+		tx.Sequence != t.Sequence ||
+		tx.compaction != t.compaction ||
+		tx.storage != t.storage ||
+		tx.storageTraceId != t.storageTraceId {
+		return false
+	}
+	return slices.Equal(t.references, tx.references)
+}
+
 func (t *Transaction) check(ctx context.Context, act *Action) error {
 	logger.Debugf("Group.checkTransaction(%v)\n", t)
 	if _, err := uuid.FromString(t.AppId); err != nil {
@@ -178,12 +201,9 @@ func (t *Transaction) check(ctx context.Context, act *Action) error {
 	if t.Threshold < 1 || t.Threshold > 128 {
 		return fmt.Errorf("invalid receivers threshold %d/%d", t.Threshold, len(t.Receivers))
 	}
-	amt, err := decimal.NewFromString(t.Amount)
-	if err != nil {
-		panic(t.Amount)
-	}
-	min, _ := decimal.NewFromString("0.00000001")
-	if err != nil || amt.Cmp(min) < 0 {
+	amt := decimal.RequireFromString(t.Amount)
+	min := decimal.RequireFromString("0.00000001")
+	if amt.Cmp(min) < 0 {
 		return fmt.Errorf("invalid amount %s", t.Amount)
 	}
 
@@ -206,6 +226,11 @@ func (t *Transaction) check(ctx context.Context, act *Action) error {
 		return fmt.Errorf("invalid extra length: %d", len(s))
 	}
 
+	encoded := t.serialize()
+	decoded, _ := deserialize(encoded)
+	if !t.Equal(decoded) {
+		panic(hex.EncodeToString(encoded))
+	}
 	return nil
 }
 

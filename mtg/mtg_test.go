@@ -52,11 +52,7 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 			storageTraceId = t.TraceId
 			txs = append(txs, t)
 		} else {
-			amt, err := decimal.NewFromString(tx)
-			if err != nil {
-				return []*Transaction{}, ""
-			}
-
+			amt := decimal.RequireFromString(tx)
 			balance := n.Group.CheckAssetBalanceAt(ctx, a.AppId, a.AssetId, a.Sequence)
 			if balance.Cmp(amt) < 0 {
 				return nil, USDTAssetId
@@ -270,10 +266,7 @@ func testBuildOutput(group *Group, require *require.Assertions, asset, amount st
 		require.Nil(err)
 		h = hash
 	}
-	amt, err := decimal.NewFromString(amount)
-	if err != nil {
-		panic(err)
-	}
+	amt := decimal.RequireFromString(amount)
 
 	return &UnifiedOutput{
 		OutputId:           oid,
