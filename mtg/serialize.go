@@ -1,13 +1,12 @@
 package mtg
 
 import (
-	"encoding/base64"
 	"fmt"
 	"strings"
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 )
 
 func writeUuid(enc *common.Encoder, id string) {
@@ -23,11 +22,11 @@ func writeString(enc *common.Encoder, str string) {
 }
 
 func writeBool(enc *common.Encoder, f bool) {
-	data := 0
+	data := byte(0)
 	if f {
 		data = 1
 	}
-	enc.WriteInt(data)
+	enc.WriteByte(data)
 }
 
 func writeReferences(enc *common.Encoder, refs []crypto.Hash) error {
@@ -42,7 +41,7 @@ func writeReferences(enc *common.Encoder, refs []crypto.Hash) error {
 	return nil
 }
 
-func (tx *Transaction) serialize() (string, error) {
+func (tx *Transaction) serialize() []byte {
 	enc := common.NewEncoder()
 	writeUuid(enc, tx.TraceId)
 	writeUuid(enc, tx.AppId)
@@ -58,7 +57,7 @@ func (tx *Transaction) serialize() (string, error) {
 	writeBool(enc, tx.storage)
 	writeReferences(enc, tx.references)
 	writeUuid(enc, tx.storageTraceId)
-	return base64.RawURLEncoding.EncodeToString(enc.Bytes()), nil
+	return enc.Bytes()
 }
 
 func readUuid(dec *common.Decoder) (string, error) {
@@ -82,7 +81,7 @@ func readString(dec *common.Decoder) (string, error) {
 }
 
 func readBool(dec *common.Decoder) (bool, error) {
-	f, err := dec.ReadInt()
+	f, err := dec.ReadByte()
 	if err != nil {
 		return false, err
 	}
@@ -106,11 +105,7 @@ func readReferences(dec *common.Decoder) ([]crypto.Hash, error) {
 	return refs, nil
 }
 
-func deserialize(data string) (*Transaction, error) {
-	rb, err := base64.RawURLEncoding.DecodeString(data)
-	if err != nil {
-		return nil, err
-	}
+func deserialize(rb []byte) (*Transaction, error) {
 	dec := common.NewDecoder(rb)
 
 	traceId, err := readUuid(dec)
@@ -192,27 +187,34 @@ func deserialize(data string) (*Transaction, error) {
 	return tx, nil
 }
 
-func SerializeTransactions(txs []*Transaction) (string, error) {
-	var data []string
+func SerializeTransactions(txs []*Transaction) []byte {
+	enc := common.NewEncoder()
+	enc.WriteInt(len(txs))
 	for _, tx := range txs {
-		etx, err := tx.serialize()
-		if err != nil {
-			return "", err
-		}
-		data = append(data, etx)
+		b := tx.serialize()
+		enc.WriteInt(len(b))
+		enc.Write(b)
 	}
-	return strings.Join(data, ","), nil
+	return enc.Bytes()
 }
 
-func DeserializeTransactions(txs string) ([]*Transaction, error) {
-	items := strings.Split(txs, ",")
-	var transactions []*Transaction
-	for _, item := range items {
-		tx, err := deserialize(item)
+func DeserializeTransactions(tb []byte) ([]*Transaction, error) {
+	dec := common.NewDecoder(tb)
+	count, err := dec.ReadInt()
+	if err != nil || count == 0 {
+		return nil, err
+	}
+	txs := make([]*Transaction, count)
+	for i := 0; i < count; i++ {
+		b, err := dec.ReadBytes()
 		if err != nil {
 			return nil, err
 		}
-		transactions = append(transactions, tx)
+		tx, err := deserialize(b)
+		if err != nil {
+			return nil, err
+		}
+		txs[i] = tx
 	}
-	return transactions, nil
+	return txs, nil
 }

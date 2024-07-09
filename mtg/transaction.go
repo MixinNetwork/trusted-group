@@ -208,11 +208,8 @@ func (t *Transaction) check(ctx context.Context, act *Action) error {
 	if t.Threshold < 1 || t.Threshold > 128 {
 		return fmt.Errorf("invalid receivers threshold %d/%d", t.Threshold, len(t.Receivers))
 	}
-	amt, err := decimal.NewFromString(t.Amount)
-	if err != nil {
-		panic(t.Amount)
-	}
-	min, _ := decimal.NewFromString("0.00000001")
+	amt := decimal.RequireFromString(t.Amount)
+	min := decimal.RequireFromString("0.00000001")
 	if amt.Cmp(min) < 0 {
 		return fmt.Errorf("invalid amount %s", t.Amount)
 	}
@@ -236,10 +233,7 @@ func (t *Transaction) check(ctx context.Context, act *Action) error {
 		return fmt.Errorf("invalid extra length: %d", len(s))
 	}
 
-	encoded, err := t.serialize()
-	if err != nil {
-		return err
-	}
+	encoded := t.serialize()
 	decoded, err := deserialize(encoded)
 	if err != nil {
 		return err
