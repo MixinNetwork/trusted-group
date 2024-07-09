@@ -310,6 +310,7 @@ func testBuildGroup(require *require.Assertions) (context.Context, *Node) {
 	group, err := BuildGroup(ctx, store, &conf)
 	require.Nil(err)
 	group.groupSize = 1
+	group.EnableDebug()
 
 	n := &Node{
 		Group: group,

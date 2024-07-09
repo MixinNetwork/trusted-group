@@ -49,6 +49,7 @@ type Group struct {
 	threshold       int
 	epoch           uint64
 	spendPrivateKey string
+	debug           bool
 }
 
 func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (*Group, error) {
@@ -138,6 +139,10 @@ func (grp *Group) GetMembers() []string {
 
 func (grp *Group) GetThreshold() int {
 	return grp.threshold
+}
+
+func (grp *Group) EnableDebug() {
+	grp.debug = true
 }
 
 func (grp *Group) Synced(ctx context.Context) bool {

@@ -1,6 +1,7 @@
 package mtg
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
@@ -77,8 +78,20 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 		if a.restoreSequence > a.Sequence {
 			a.Sequence = a.restoreSequence
 		}
-		state := ActionStateDone
 		txs, compactionAsset := wkr.ProcessOutput(ctx, a)
+		if grp.debug {
+			txs2, compactionAsset2 := wkr.ProcessOutput(ctx, a)
+			if compactionAsset != compactionAsset2 {
+				panic(a.OutputId)
+			}
+			b1 := SerializeTransactions(txs)
+			b2 := SerializeTransactions(txs2)
+			if !bytes.Equal(b1, b2) {
+				panic(a.OutputId)
+			}
+		}
+
+		state := ActionStateDone
 		if compactionAsset != "" && len(txs) == 0 {
 			t, err := grp.buildCompactionTransaction(ctx, compactionAsset, a)
 			if err != nil {
