@@ -1,6 +1,7 @@
 package mtg
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/hex"
@@ -34,9 +35,9 @@ type TransactionRecipient struct {
 }
 
 type Transaction struct {
+	TraceId       string
 	AppId         string
 	OpponentAppId string
-	TraceId       string
 	State         int
 	AssetId       string
 	Receivers     []string
@@ -159,6 +160,35 @@ func getStorageTransactionAmount(extra []byte) common.Integer {
 	return step.Mul(len(extra)/common.ExtraSizeStorageStep + 1)
 }
 
+func (t *Transaction) Equal(tx *Transaction) bool {
+	if tx.TraceId != t.TraceId ||
+		tx.AppId != t.AppId ||
+		tx.OpponentAppId != t.OpponentAppId ||
+		tx.State != t.State ||
+		tx.AssetId != t.AssetId ||
+		strings.Join(tx.Receivers, ",") != strings.Join(t.Receivers, ",") ||
+		tx.Threshold != t.Threshold ||
+		tx.Amount != t.Amount ||
+		tx.Memo != t.Memo ||
+		!bytes.Equal(tx.Raw, t.Raw) ||
+		tx.Hash.String() != t.Hash.String() ||
+		tx.Sequence != t.Sequence ||
+		tx.compaction != t.compaction ||
+		tx.storage != t.storage ||
+		tx.storageTraceId != t.storageTraceId {
+		return false
+	}
+	if len(tx.references) != len(t.references) {
+		return false
+	}
+	for i, ref := range tx.references {
+		if ref.String() != t.references[i].String() {
+			return false
+		}
+	}
+	return true
+}
+
 func (t *Transaction) check(ctx context.Context, act *Action) error {
 	logger.Debugf("Group.checkTransaction(%v)\n", t)
 	if _, err := uuid.FromString(t.AppId); err != nil {
@@ -183,7 +213,7 @@ func (t *Transaction) check(ctx context.Context, act *Action) error {
 		panic(t.Amount)
 	}
 	min, _ := decimal.NewFromString("0.00000001")
-	if err != nil || amt.Cmp(min) < 0 {
+	if amt.Cmp(min) < 0 {
 		return fmt.Errorf("invalid amount %s", t.Amount)
 	}
 
@@ -206,6 +236,17 @@ func (t *Transaction) check(ctx context.Context, act *Action) error {
 		return fmt.Errorf("invalid extra length: %d", len(s))
 	}
 
+	encoded, err := t.serialize()
+	if err != nil {
+		return err
+	}
+	decoded, err := deserialize(encoded)
+	if err != nil {
+		return err
+	}
+	if !t.Equal(decoded) {
+		return fmt.Errorf("invalid tx: %v", t)
+	}
 	return nil
 }
 
