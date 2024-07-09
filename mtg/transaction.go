@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -166,27 +167,19 @@ func (t *Transaction) Equal(tx *Transaction) bool {
 		tx.OpponentAppId != t.OpponentAppId ||
 		tx.State != t.State ||
 		tx.AssetId != t.AssetId ||
-		strings.Join(tx.Receivers, ",") != strings.Join(t.Receivers, ",") ||
+		!slices.Equal(tx.Receivers, t.Receivers) ||
 		tx.Threshold != t.Threshold ||
 		tx.Amount != t.Amount ||
 		tx.Memo != t.Memo ||
 		!bytes.Equal(tx.Raw, t.Raw) ||
-		tx.Hash.String() != t.Hash.String() ||
+		tx.Hash != t.Hash ||
 		tx.Sequence != t.Sequence ||
 		tx.compaction != t.compaction ||
 		tx.storage != t.storage ||
 		tx.storageTraceId != t.storageTraceId {
 		return false
 	}
-	if len(tx.references) != len(t.references) {
-		return false
-	}
-	for i, ref := range tx.references {
-		if ref.String() != t.references[i].String() {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(t.references, tx.references)
 }
 
 func (t *Transaction) check(ctx context.Context, act *Action) error {
@@ -234,12 +227,9 @@ func (t *Transaction) check(ctx context.Context, act *Action) error {
 	}
 
 	encoded := t.serialize()
-	decoded, err := deserialize(encoded)
-	if err != nil {
-		return err
-	}
+	decoded, _ := deserialize(encoded)
 	if !t.Equal(decoded) {
-		return fmt.Errorf("invalid tx: %v", t)
+		panic(hex.EncodeToString(encoded))
 	}
 	return nil
 }
