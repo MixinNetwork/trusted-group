@@ -163,7 +163,7 @@ func getStorageTransactionAmount(extra []byte) common.Integer {
 
 func (t *Transaction) Equal(tx *Transaction) bool {
 	if tx.TraceId != t.TraceId ||
-		tx.AppId != t.AppId ||
+		uuid.FromStringOrNil(tx.AppId).String() != uuid.FromStringOrNil(t.AppId).String() ||
 		tx.OpponentAppId != t.OpponentAppId ||
 		tx.State != t.State ||
 		tx.AssetId != t.AssetId ||
