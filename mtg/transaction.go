@@ -162,24 +162,22 @@ func getStorageTransactionAmount(extra []byte) common.Integer {
 }
 
 func (t *Transaction) Equal(tx *Transaction) bool {
-	if tx.TraceId != t.TraceId ||
-		uuid.FromStringOrNil(tx.AppId).String() != uuid.FromStringOrNil(t.AppId).String() ||
-		tx.OpponentAppId != t.OpponentAppId ||
-		tx.State != t.State ||
-		tx.AssetId != t.AssetId ||
-		!slices.Equal(tx.Receivers, t.Receivers) ||
-		tx.Threshold != t.Threshold ||
-		tx.Amount != t.Amount ||
-		tx.Memo != t.Memo ||
-		!bytes.Equal(tx.Raw, t.Raw) ||
-		tx.Hash != t.Hash ||
-		tx.Sequence != t.Sequence ||
-		tx.compaction != t.compaction ||
-		tx.storage != t.storage ||
-		tx.storageTraceId != t.storageTraceId {
-		return false
-	}
-	return slices.Equal(t.references, tx.references)
+	return tx.TraceId == t.TraceId &&
+		uuid.FromStringOrNil(tx.AppId).String() == uuid.FromStringOrNil(t.AppId).String() &&
+		tx.OpponentAppId == t.OpponentAppId &&
+		tx.State == t.State &&
+		tx.AssetId == t.AssetId &&
+		tx.Threshold == t.Threshold &&
+		tx.Amount == t.Amount &&
+		tx.Memo == t.Memo &&
+		tx.Hash == t.Hash &&
+		tx.Sequence == t.Sequence &&
+		tx.compaction == t.compaction &&
+		tx.storage == t.storage &&
+		tx.storageTraceId == t.storageTraceId &&
+		bytes.Equal(tx.Raw, t.Raw) &&
+		slices.Equal(tx.Receivers, t.Receivers) &&
+		slices.Equal(t.references, tx.references)
 }
 
 func (t *Transaction) check(ctx context.Context, act *Action) error {

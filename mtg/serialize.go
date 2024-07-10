@@ -160,7 +160,7 @@ func deserialize(rb []byte) (*Transaction, error) {
 	if err != nil {
 		return nil, err
 	}
-	storageAssetId, err := readUuid(dec)
+	storageTraceId, err := readUuid(dec)
 	if err != nil {
 		return nil, err
 	}
@@ -180,8 +180,8 @@ func deserialize(rb []byte) (*Transaction, error) {
 		storage:       storage,
 		references:    refs,
 	}
-	if storageAssetId != uuid.Nil.String() {
-		tx.storageTraceId = storageAssetId
+	if storageTraceId != uuid.Nil.String() {
+		tx.storageTraceId = storageTraceId
 	}
 
 	return tx, nil
