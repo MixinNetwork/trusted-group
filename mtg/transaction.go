@@ -224,8 +224,8 @@ func (t *Transaction) check(ctx context.Context, act *Action) error {
 		return fmt.Errorf("invalid extra length: %d", len(s))
 	}
 
-	encoded := t.serialize()
-	decoded, _ := deserialize(encoded)
+	encoded := t.Serialize()
+	decoded, _ := Deserialize(encoded)
 	if !t.Equal(decoded) {
 		panic(hex.EncodeToString(encoded))
 	}

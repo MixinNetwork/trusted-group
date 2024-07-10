@@ -41,7 +41,7 @@ func writeReferences(enc *common.Encoder, refs []crypto.Hash) error {
 	return nil
 }
 
-func (tx *Transaction) serialize() []byte {
+func (tx *Transaction) Serialize() []byte {
 	enc := common.NewEncoder()
 	writeUuid(enc, tx.TraceId)
 	writeUuid(enc, tx.AppId)
@@ -105,7 +105,7 @@ func readReferences(dec *common.Decoder) ([]crypto.Hash, error) {
 	return refs, nil
 }
 
-func deserialize(rb []byte) (*Transaction, error) {
+func Deserialize(rb []byte) (*Transaction, error) {
 	dec := common.NewDecoder(rb)
 
 	traceId, err := readUuid(dec)
@@ -191,7 +191,7 @@ func SerializeTransactions(txs []*Transaction) []byte {
 	enc := common.NewEncoder()
 	enc.WriteInt(len(txs))
 	for _, tx := range txs {
-		b := tx.serialize()
+		b := tx.Serialize()
 		enc.WriteInt(len(b))
 		enc.Write(b)
 	}
@@ -210,7 +210,7 @@ func DeserializeTransactions(tb []byte) ([]*Transaction, error) {
 		if err != nil {
 			return nil, err
 		}
-		tx, err := deserialize(b)
+		tx, err := Deserialize(b)
 		if err != nil {
 			return nil, err
 		}
