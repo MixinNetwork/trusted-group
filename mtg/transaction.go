@@ -336,7 +336,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) *common.
 			panic(err)
 		}
 		if len(ver.SignaturesMap) != len(ver.Inputs) {
-			panic(len(ver.SignaturesMap))
+			panic(tx.TraceId)
 		}
 		for _, signatureMap := range ver.SignaturesMap {
 			if len(signatureMap) < int(req.SendersThreshold) {

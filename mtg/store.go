@@ -111,6 +111,9 @@ func (s *SQLite3Store) FinishAction(ctx context.Context, id string, state Action
 }
 
 func (s *SQLite3Store) writeOutputAndAction(ctx context.Context, tx *sql.Tx, out *UnifiedOutput, state ActionState) error {
+	if out.State != SafeUtxoStateUnspent {
+		panic(out.OutputId)
+	}
 	aid := uuid.Must(uuid.FromString(out.AppId))
 	if aid.String() != out.AppId {
 		panic(out.AppId)

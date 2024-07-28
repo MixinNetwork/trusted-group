@@ -24,8 +24,8 @@ func (grp *Group) drainOutputsFromNetwork(ctx context.Context, filter map[string
 			time.Sleep(3 * time.Second)
 			continue
 		}
-		outputs, err := grp.readSafeOutputs(ctx, grp.members, uint8(grp.threshold), checkpoint, batch)
-		logger.Verbosef("Group.readSafeOutputs(%d) => %d %v\n", checkpoint, len(outputs), err)
+		outputs, err := grp.readSafeOutputsAsUnspent(ctx, grp.members, uint8(grp.threshold), checkpoint, batch)
+		logger.Verbosef("Group.readSafeOutputsAsUnspent(%d) => %d %v\n", checkpoint, len(outputs), err)
 		if err != nil {
 			time.Sleep(3 * time.Second)
 			continue
@@ -108,7 +108,7 @@ func (grp *Group) writeDrainingCheckpoint(ctx context.Context, ckpt uint64) erro
 	return grp.store.WriteProperty(ctx, outputsDrainingKey, fmt.Sprint(ckpt))
 }
 
-func (grp *Group) readSafeOutputs(ctx context.Context, members []string, threshold uint8, offset uint64, limit int) ([]*UnifiedOutput, error) {
+func (grp *Group) readSafeOutputsAsUnspent(ctx context.Context, members []string, threshold uint8, offset uint64, limit int) ([]*UnifiedOutput, error) {
 	params := make(map[string]string)
 	if offset > 0 {
 		params["offset"] = fmt.Sprint(offset)
@@ -129,6 +129,9 @@ func (grp *Group) readSafeOutputs(ctx context.Context, members []string, thresho
 	var utxos []*UnifiedOutput
 	if err := grp.mixin.Get(ctx, "/safe/outputs", params, &utxos); err != nil {
 		return nil, err
+	}
+	for _, o := range utxos {
+		o.State = SafeUtxoStateUnspent
 	}
 	return utxos, nil
 }
