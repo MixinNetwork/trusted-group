@@ -335,6 +335,9 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) *common.
 		if err != nil {
 			panic(err)
 		}
+		if len(ver.SignaturesMap) != len(ver.Inputs) {
+			panic(len(ver.SignaturesMap))
+		}
 		for _, signatureMap := range ver.SignaturesMap {
 			if len(signatureMap) < int(req.SendersThreshold) {
 				panic(fmt.Errorf("invalid multisigs raw transaction: %s", req.RequestID))
