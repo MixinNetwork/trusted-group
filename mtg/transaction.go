@@ -321,9 +321,25 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) *common.
 	if err != nil {
 		panic(err)
 	}
-	req, err = grp.signMultisigUntilSufficient(ctx, req)
-	if err != nil {
-		panic(err)
+	if len(req.Signers) < int(req.SendersThreshold) && len(req.Views) > 0 {
+		req, err = grp.signMultisigUntilSufficient(ctx, req)
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		rb, err := hex.DecodeString(req.RawTransaction)
+		if err != nil {
+			panic(err)
+		}
+		ver, err := common.UnmarshalVersionedTransaction(rb)
+		if err != nil {
+			panic(err)
+		}
+		for _, signatureMap := range ver.SignaturesMap {
+			if len(signatureMap) < int(req.SendersThreshold) {
+				panic(fmt.Errorf("invalid multisigs raw transaction: %s", req.RequestID))
+			}
+		}
 	}
 
 	vn, err := grp.updateTxWithOutputs(ctx, tx, consumed, req)
