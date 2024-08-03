@@ -62,19 +62,10 @@ func (s *SQLite3Store) readRestorableAction(ctx context.Context, txn *sql.Tx, t 
 	return actionFromRow(row)
 }
 
-func (s *SQLite3Store) FinishAction(ctx context.Context, id string, state ActionState, ts []*Transaction) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
+func (s *SQLite3Store) finishAction(ctx context.Context, tx *sql.Tx, id string, state ActionState, ts []*Transaction) error {
 	act, err := s.readAction(ctx, tx, id)
-	if err != nil || act.ActionState != ActionStateInitial {
-		return err
+	if err != nil || act == nil || act.ActionState != ActionStateInitial {
+		return fmt.Errorf("invalid action to finish => %v %v", act, err)
 	}
 
 	err = s.execOne(ctx, tx, "UPDATE actions SET action_state=? WHERE output_id=? AND action_state=?", state, id, ActionStateInitial)
@@ -111,6 +102,24 @@ func (s *SQLite3Store) FinishAction(ctx context.Context, id string, state Action
 		if err != nil {
 			return fmt.Errorf("INSERT transactions %v", err)
 		}
+	}
+
+	return nil
+}
+
+func (s *SQLite3Store) FinishAction(ctx context.Context, id string, state ActionState, ts []*Transaction) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = s.finishAction(ctx, tx, id, state, ts)
+	if err != nil {
+		return err
 	}
 
 	return tx.Commit()
@@ -180,7 +189,7 @@ func (s *SQLite3Store) WriteAction(ctx context.Context, out *UnifiedOutput, stat
 	return tx.Commit()
 }
 
-func (s *SQLite3Store) RestoreAction(ctx context.Context, out *UnifiedOutput, t *Transaction) error {
+func (s *SQLite3Store) RestoreAction(ctx context.Context, act *Action, t *Transaction) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -190,23 +199,23 @@ func (s *SQLite3Store) RestoreAction(ctx context.Context, out *UnifiedOutput, t 
 	}
 	defer tx.Rollback()
 
-	old, err := s.readAction(ctx, tx, out.OutputId)
-	if err != nil || old != nil {
+	old, err := s.readAction(ctx, tx, act.OutputId)
+	if err != nil || old == nil {
 		return err
 	}
 
-	act, err := s.readRestorableAction(ctx, tx, t)
-	if err != nil || act == nil {
+	rAct, err := s.readRestorableAction(ctx, tx, t)
+	if err != nil || rAct == nil {
 		return err
 	}
 
 	query := "UPDATE actions SET action_state=?,restore_sequence=? WHERE output_id=? AND action_state=?"
-	err = s.execOne(ctx, tx, query, ActionStateInitial, out.Sequence, act.OutputId, ActionStateRestorable)
+	err = s.execOne(ctx, tx, query, ActionStateInitial, act.Sequence, rAct.OutputId, ActionStateRestorable)
 	if err != nil {
 		return fmt.Errorf("UPDATE actions %v", err)
 	}
 
-	err = s.writeOutputAndAction(ctx, tx, out, ActionStateDone)
+	err = s.finishAction(ctx, tx, act.OutputId, ActionStateDone, nil)
 	if err != nil {
 		return err
 	}

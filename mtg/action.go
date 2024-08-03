@@ -89,7 +89,7 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 			return fmt.Errorf("store.ReadTransactionByHash(%s) => %v", a.TransactionHash, err)
 		}
 		if tx != nil && tx.compaction {
-			return grp.store.RestoreAction(ctx, &a.UnifiedOutput, tx)
+			return grp.store.RestoreAction(ctx, a, tx)
 		}
 
 		wkr := grp.FindWorker(a.AppId)

@@ -116,7 +116,7 @@ func (grp *Group) checkChange(ctx context.Context, output *UnifiedOutput) (strin
 			appId = output.AppId
 		}
 		if output.AppId != appId {
-			return "", nil
+			return "", fmt.Errorf("invalid app id: %s", output.OutputId)
 		}
 	}
 	return appId, nil
