@@ -199,14 +199,9 @@ func (s *SQLite3Store) RestoreAction(ctx context.Context, act *Action, t *Transa
 	}
 	defer tx.Rollback()
 
-	old, err := s.readAction(ctx, tx, act.OutputId)
-	if err != nil || old == nil {
-		return err
-	}
-
 	rAct, err := s.readRestorableAction(ctx, tx, t)
 	if err != nil || rAct == nil {
-		return err
+		return fmt.Errorf("readRestorableAction(%v) => %v %v", t, rAct, err)
 	}
 
 	query := "UPDATE actions SET action_state=?,restore_sequence=? WHERE output_id=? AND action_state=?"
