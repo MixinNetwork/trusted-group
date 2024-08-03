@@ -2,11 +2,13 @@ package mtg
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strconv"
 	"time"
 
+	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 )
@@ -74,26 +76,50 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 	}
 	output.AppId = appId
 
-	tx, err := grp.store.ReadTransactionByHash(ctx, output.TransactionHash)
+	appId, err := grp.checkChange(ctx, output)
 	if err != nil {
 		panic(err)
 	}
-	if tx != nil {
-		if tx.compaction {
-			err = grp.store.RestoreAction(ctx, output, tx)
-			if err != nil {
-				panic(err)
-			}
-			return
-		}
-		// we must always ensure there are at most 2 outputs,
-		// and the last one is the change output
-		if output.OutputIndex == 1 {
-			output.AppId = tx.AppId
-			actionState = ActionStateDone
-		}
+	if appId != "" {
+		output.AppId = appId
+		actionState = ActionStateDone
 	}
 	grp.store.WriteAction(ctx, output, actionState)
+}
+
+func (grp *Group) checkChange(ctx context.Context, output *UnifiedOutput) (string, error) {
+	// we must always ensure there are at most 2 outputs,
+	// and the last one is the change output
+	if output.OutputIndex != 1 {
+		return "", nil
+	}
+	req, err := grp.readTransactionUntilSufficient(ctx, output.TransactionHash.String())
+	if err != nil {
+		return "", err
+	}
+	rb, err := hex.DecodeString(req.RawTransaction)
+	if err != nil {
+		return "", err
+	}
+	ver, err := common.UnmarshalVersionedTransaction(rb)
+	if err != nil {
+		return "", err
+	}
+
+	var appId string
+	for _, input := range ver.Inputs {
+		output, err := grp.store.ReadOutputByHashAndIndex(ctx, input.Hash.String(), input.Index)
+		if err != nil || output == nil {
+			return "", err
+		}
+		if appId == "" {
+			appId = output.AppId
+		}
+		if output.AppId != appId {
+			return "", nil
+		}
+	}
+	return appId, nil
 }
 
 func (grp *Group) readDrainingCheckpoint(ctx context.Context) (uint64, error) {

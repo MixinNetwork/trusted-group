@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/MixinNetwork/mixin/common"
+	"github.com/MixinNetwork/mixin/crypto"
 )
 
 const (
@@ -79,6 +80,18 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 		return fmt.Errorf("store.ListInitialActions() => %v", err)
 	}
 	for _, a := range as {
+		hash, err := crypto.HashFromString(a.TransactionHash)
+		if err != nil {
+			return err
+		}
+		tx, err := grp.store.ReadTransactionByHash(ctx, hash)
+		if err != nil {
+			return fmt.Errorf("store.ReadTransactionByHash(%s) => %v", a.TransactionHash, err)
+		}
+		if tx != nil && tx.compaction {
+			return grp.store.RestoreAction(ctx, &a.UnifiedOutput, tx)
+		}
+
 		wkr := grp.FindWorker(a.AppId)
 		if wkr == nil {
 			err = grp.store.FinishAction(ctx, a.OutputId, ActionStateDone, nil)
