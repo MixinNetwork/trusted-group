@@ -40,6 +40,9 @@ func UniqueId(a, b string) string {
 }
 
 func CheckRetryableError(err error) bool {
+	if err == nil {
+		return false
+	}
 	es := err.Error()
 	switch {
 	case strings.Contains(es, "Client.Timeout exceeded"):

@@ -274,8 +274,8 @@ func (s *SQLite3Store) UpdateTxWithOutputs(ctx context.Context, t *Transaction, 
 		refs = append(refs, r.String())
 	}
 
-	err = s.execOne(ctx, tx, "UPDATE transactions SET raw=?,hash=?,refs=?,state=?,updated_at=? WHERE trace_id=? AND state=?",
-		hex.EncodeToString(t.Raw), t.Hash.String(), strings.Join(refs, ","), t.State, t.UpdatedAt, t.TraceId, TransactionStateInitial)
+	err = s.execOne(ctx, tx, "UPDATE transactions SET raw=?,hash=?,refs=?,state=?,request_id=?,updated_at=? WHERE trace_id=? AND state=?",
+		hex.EncodeToString(t.Raw), t.Hash.String(), strings.Join(refs, ","), t.State, t.requestId, t.UpdatedAt, t.TraceId, TransactionStateInitial)
 	if err != nil {
 		return fmt.Errorf("UPDATE transactions %v", err)
 	}
