@@ -98,7 +98,7 @@ func (grp *Group) checkChange(ctx context.Context, output *UnifiedOutput) (strin
 
 func (grp *Group) checkMTGTransaction(ctx context.Context, txHash string) (string, error) {
 	req, err := grp.readTransactionUntilSufficient(ctx, txHash)
-	if err != nil {
+	if err != nil || req == nil {
 		return "", err
 	}
 	rb, err := hex.DecodeString(req.RawTransaction)

@@ -166,9 +166,19 @@ func (grp *Group) readTransactionUntilSufficient(ctx context.Context, id string)
 		if err != nil {
 			return nil, err
 		}
+		if tx == nil {
+			hash, err := crypto.HashFromString(id)
+			if err != nil {
+				return nil, err
+			}
+			tx, err = grp.store.ReadTransactionByHash(ctx, hash)
+			if err != nil || tx == nil {
+				return nil, err
+			}
+		}
 		return &mixin.SafeTransactionRequest{
 			RequestID:       tx.TraceId,
-			RawTransaction:  string(tx.Raw),
+			RawTransaction:  hex.EncodeToString(tx.Raw),
 			TransactionHash: tx.Hash.String(),
 			Signers:         []string{grp.GroupId},
 		}, nil
