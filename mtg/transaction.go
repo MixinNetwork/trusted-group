@@ -54,9 +54,10 @@ type Transaction struct {
 	storage        bool
 	references     []crypto.Hash
 	storageTraceId string
+	requestId      sql.NullString
 }
 
-var transactionCols = []string{"app_id", "opponent_app_id", "trace_id", "state", "asset_id", "receivers", "threshold", "amount", "memo", "raw", "hash", "refs", "sequence", "compaction", "storage", "storage_trace_id", "updated_at"}
+var transactionCols = []string{"app_id", "opponent_app_id", "trace_id", "state", "asset_id", "receivers", "threshold", "amount", "memo", "raw", "hash", "refs", "sequence", "compaction", "storage", "storage_trace_id", "request_id", "updated_at"}
 
 func (t *Transaction) values() []any {
 	var refs []string
@@ -68,14 +69,14 @@ func (t *Transaction) values() []any {
 		hash = sql.NullString{Valid: true, String: t.Hash.String()}
 		raw = sql.NullString{Valid: true, String: hex.EncodeToString(t.Raw)}
 	}
-	return []any{t.AppId, t.OpponentAppId, t.TraceId, t.State, t.AssetId, strings.Join(t.Receivers, ","), t.Threshold, t.Amount, t.Memo, raw, hash, strings.Join(refs, ","), t.Sequence, t.compaction, t.storage, t.storageTraceId, t.UpdatedAt}
+	return []any{t.AppId, t.OpponentAppId, t.TraceId, t.State, t.AssetId, strings.Join(t.Receivers, ","), t.Threshold, t.Amount, t.Memo, raw, hash, strings.Join(refs, ","), t.Sequence, t.compaction, t.storage, t.storageTraceId, t.requestId, t.UpdatedAt}
 }
 
 func transactionFromRow(row Row) (*Transaction, error) {
 	var t Transaction
 	var rs, refs string
 	var hash, raw sql.NullString
-	err := row.Scan(&t.AppId, &t.OpponentAppId, &t.TraceId, &t.State, &t.AssetId, &rs, &t.Threshold, &t.Amount, &t.Memo, &raw, &hash, &refs, &t.Sequence, &t.compaction, &t.storage, &t.storageTraceId, &t.UpdatedAt)
+	err := row.Scan(&t.AppId, &t.OpponentAppId, &t.TraceId, &t.State, &t.AssetId, &rs, &t.Threshold, &t.Amount, &t.Memo, &raw, &hash, &refs, &t.Sequence, &t.compaction, &t.storage, &t.storageTraceId, &t.requestId, &t.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -317,7 +318,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) *common.
 	}
 
 	raw := hex.EncodeToString(ver.Marshal())
-	req, err := grp.createMultisigUntilSufficient(ctx, tx.TraceId, raw)
+	req, err := grp.createMultisigUntilSufficient(ctx, tx.RequestID(), raw)
 	if err != nil {
 		panic(err)
 	}
@@ -374,6 +375,7 @@ func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outp
 	tx.Hash = ver.PayloadHash()
 	tx.UpdatedAt = time.Now()
 	tx.State = TransactionStateSigned
+	tx.requestId = sql.NullString{Valid: true, String: req.RequestID}
 
 	if tx.Hash.String() != req.TransactionHash {
 		panic(req.TransactionHash)
@@ -390,6 +392,13 @@ func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outp
 		panic(err)
 	}
 	return ver, nil
+}
+
+func (tx *Transaction) RequestID() string {
+	if tx.requestId.Valid {
+		return tx.requestId.String
+	}
+	return tx.TraceId
 }
 
 func (grp *Group) createMultisigUntilSufficient(ctx context.Context, id, raw string) (*mixin.SafeMultisigRequest, error) {
@@ -413,7 +422,14 @@ func (grp *Group) createMultisigUntilSufficient(ctx context.Context, id, raw str
 			time.Sleep(3 * time.Second)
 			continue
 		}
-		return req, err
+		if err != nil {
+			return nil, err
+		}
+		if req.RevokedBy != "" {
+			id = UniqueId(id, "next")
+			continue
+		}
+		return req, nil
 	}
 }
 

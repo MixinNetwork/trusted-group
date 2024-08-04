@@ -286,7 +286,7 @@ func (grp *Group) publishTransactions(ctx context.Context) error {
 		return err
 	}
 	for _, tx := range txs {
-		snapshot, err := grp.snapshotTransaction(ctx, tx.TraceId)
+		snapshot, err := grp.snapshotTransaction(ctx, tx.RequestID())
 		if err != nil {
 			return err
 		} else if !snapshot {
@@ -297,9 +297,9 @@ func (grp *Group) publishTransactions(ctx context.Context) error {
 	return nil
 }
 
-func (grp *Group) snapshotTransaction(ctx context.Context, id string) (bool, error) {
-	req, err := grp.readTransactionUntilSufficient(ctx, id)
-	logger.Verbosef("group.readTransactionUntilSufficient(%s) => %v", id, err)
+func (grp *Group) snapshotTransaction(ctx context.Context, requestId string) (bool, error) {
+	req, err := grp.readTransactionUntilSufficient(ctx, requestId)
+	logger.Verbosef("group.readTransactionUntilSufficient(%s) => %v", requestId, err)
 	if err != nil {
 		return false, err
 	}
