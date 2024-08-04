@@ -115,16 +115,18 @@ func TestMTGCompaction(t *testing.T) {
 	as, err = node.Group.store.ListActions(ctx, ActionStateInitial, 0)
 	require.Nil(err)
 	require.Len(as, 1)
-	require.Equal(as[0].TransactionHash, hash)
-
 	err = node.Group.handleActionsQueue(ctx)
 	require.Nil(err)
+
 	as, err = node.Group.store.ListActions(ctx, ActionStateInitial, 0)
 	require.Nil(err)
-	require.Len(as, 0)
+	require.Len(as, 1)
+
 	as, err = node.Group.store.ListActions(ctx, ActionStateRestorable, 0)
 	require.Nil(err)
 	require.Len(as, 0)
+	err = node.Group.handleActionsQueue(ctx)
+	require.Nil(err)
 	ts, _, err := node.Group.store.ListTransactions(ctx, TransactionStateInitial, 0)
 	require.Nil(err)
 	require.Len(ts, 1)

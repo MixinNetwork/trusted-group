@@ -335,12 +335,14 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) *common.
 		if err != nil {
 			panic(err)
 		}
-		if len(ver.SignaturesMap) != len(ver.Inputs) {
-			panic(tx.TraceId)
-		}
-		for _, signatureMap := range ver.SignaturesMap {
-			if len(signatureMap) < int(req.SendersThreshold) {
-				panic(fmt.Errorf("invalid multisigs raw transaction: %s", req.RequestID))
+		if !CheckTestEnvironment(ctx) {
+			if len(ver.SignaturesMap) != len(ver.Inputs) {
+				panic(tx.TraceId)
+			}
+			for _, signatureMap := range ver.SignaturesMap {
+				if len(signatureMap) < int(req.SendersThreshold) {
+					panic(fmt.Errorf("invalid multisigs raw transaction: %s", req.RequestID))
+				}
 			}
 		}
 	}

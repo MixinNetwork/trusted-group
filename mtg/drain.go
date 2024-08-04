@@ -2,11 +2,13 @@ package mtg
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strconv"
 	"time"
 
+	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 )
@@ -74,26 +76,73 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 	}
 	output.AppId = appId
 
-	tx, err := grp.store.ReadTransactionByHash(ctx, output.TransactionHash)
+	appId, err := grp.checkChange(ctx, output)
 	if err != nil {
 		panic(err)
 	}
-	if tx != nil {
-		if tx.compaction {
-			err = grp.store.RestoreAction(ctx, output, tx)
-			if err != nil {
-				panic(err)
-			}
-			return
-		}
-		// we must always ensure there are at most 2 outputs,
-		// and the last one is the change output
-		if output.OutputIndex == 1 {
-			output.AppId = tx.AppId
-			actionState = ActionStateDone
-		}
+	if appId != "" {
+		output.AppId = appId
+		actionState = ActionStateDone
 	}
 	grp.store.WriteAction(ctx, output, actionState)
+}
+
+func (grp *Group) checkChange(ctx context.Context, output *UnifiedOutput) (string, error) {
+	// we must always ensure there are at most 2 outputs,
+	// and the last one is the change output
+	if output.OutputIndex != 1 {
+		return "", nil
+	}
+	return grp.checkMTGTransaction(ctx, output.TransactionHash.String())
+}
+
+func (grp *Group) checkMTGTransaction(ctx context.Context, txHash string) (string, error) {
+	req, err := grp.readTransactionUntilSufficient(ctx, txHash)
+	if err != nil {
+		return "", err
+	}
+	if CheckTestEnvironment(ctx) && req == nil {
+		return "", nil
+	}
+	rb, err := hex.DecodeString(req.RawTransaction)
+	if err != nil {
+		return "", err
+	}
+	ver, err := common.UnmarshalVersionedTransaction(rb)
+	if err != nil {
+		return "", err
+	}
+
+	var outputs []*UnifiedOutput
+	for _, input := range ver.Inputs {
+		output, err := grp.store.ReadOutputByHashAndIndex(ctx, input.Hash.String(), input.Index)
+		if err != nil {
+			return "", err
+		}
+		if output != nil {
+			outputs = append(outputs, output)
+		}
+	}
+	if len(outputs) == 0 {
+		return "", nil
+	}
+	if len(outputs) != len(ver.Inputs) {
+		panic(txHash)
+	}
+
+	var appId string
+	for _, output := range outputs {
+		if output.AppId == "" {
+			panic(output.TraceId)
+		}
+		if appId == "" {
+			appId = output.AppId
+		}
+		if output.AppId != appId {
+			panic(output.TraceId)
+		}
+	}
+	return appId, nil
 }
 
 func (grp *Group) readDrainingCheckpoint(ctx context.Context) (uint64, error) {
