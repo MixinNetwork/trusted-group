@@ -93,7 +93,11 @@ func (grp *Group) checkChange(ctx context.Context, output *UnifiedOutput) (strin
 	if output.OutputIndex != 1 {
 		return "", nil
 	}
-	req, err := grp.readTransactionUntilSufficient(ctx, output.TransactionHash.String())
+	return grp.checkMTGTransaction(ctx, output.TransactionHash.String())
+}
+
+func (grp *Group) checkMTGTransaction(ctx context.Context, txHash string) (string, error) {
+	req, err := grp.readTransactionUntilSufficient(ctx, txHash)
 	if err != nil {
 		return "", err
 	}
@@ -106,17 +110,33 @@ func (grp *Group) checkChange(ctx context.Context, output *UnifiedOutput) (strin
 		return "", err
 	}
 
-	var appId string
+	var outputs []*UnifiedOutput
 	for _, input := range ver.Inputs {
 		output, err := grp.store.ReadOutputByHashAndIndex(ctx, input.Hash.String(), input.Index)
-		if err != nil || output == nil {
+		if err != nil {
 			return "", err
+		}
+		if output != nil {
+			outputs = append(outputs, output)
+		}
+	}
+	if len(outputs) == 0 {
+		return "", nil
+	}
+	if len(outputs) != len(ver.Inputs) {
+		panic(txHash)
+	}
+
+	var appId string
+	for _, output := range outputs {
+		if output.AppId == "" {
+			panic(output.TraceId)
 		}
 		if appId == "" {
 			appId = output.AppId
 		}
 		if output.AppId != appId {
-			return "", fmt.Errorf("invalid app id: %s", output.OutputId)
+			panic(output.TraceId)
 		}
 	}
 	return appId, nil
