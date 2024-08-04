@@ -4,7 +4,7 @@ go 1.22.5
 
 require (
 	github.com/MixinNetwork/mixin v0.18.12
-	github.com/fox-one/mixin-sdk-go/v2 v2.0.7
+	github.com/fox-one/mixin-sdk-go/v2 v2.0.8
 	github.com/gofrs/uuid/v5 v5.2.0
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/pelletier/go-toml v1.9.5
