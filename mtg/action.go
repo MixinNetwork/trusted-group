@@ -60,37 +60,6 @@ func actionJoinFromRow(row Row) (*Action, error) {
 	return &a, err
 }
 
-func (a *Action) ToOutput() *UnifiedOutput {
-	hash, err := crypto.HashFromString(a.TransactionHash)
-	if err != nil {
-		panic(err)
-	}
-	return &UnifiedOutput{
-		OutputId:           a.OutputId,
-		RequestId:          a.RequestId,
-		TransactionHash:    hash,
-		OutputIndex:        a.OutputIndex,
-		AssetId:            a.AssetId,
-		KernelAssetId:      a.KernelAssetId,
-		Amount:             a.Amount,
-		Mask:               a.Mask,
-		Keys:               a.Keys,
-		SendersHash:        a.SendersHash,
-		SendersThreshold:   a.SendersThreshold,
-		Senders:            a.Senders,
-		ReceiversHash:      a.ReceiversHash,
-		ReceiversThreshold: a.ReceiversThreshold,
-		Receivers:          a.Receivers,
-		Extra:              a.Extra,
-		State:              a.State,
-		Sequence:           a.Sequence,
-		CreatedAt:          a.CreatedAt,
-		UpdatedAt:          a.UpdatedAt,
-		Signers:            a.Signers,
-		SignedBy:           a.SignedBy,
-	}
-}
-
 func ReplayCheck(a *Action, txs1, txs2 []*Transaction, asset1, asset2 string) {
 	if asset1 != asset2 {
 		err := fmt.Errorf("action %s compaction asset %s => %s", a.OutputId, asset1, asset2)
@@ -104,9 +73,9 @@ func ReplayCheck(a *Action, txs1, txs2 []*Transaction, asset1, asset2 string) {
 	}
 }
 
-func (grp *Group) checkCompactionTransaction(ctx context.Context, out *UnifiedOutput) (*Transaction, bool) {
-	if out.RequestId == "" {
-		d, err := grp.readOutputDepositUntilSufficient(ctx, out.OutputId)
+func (grp *Group) checkCompactionTransaction(ctx context.Context, action *Action) (*Transaction, bool) {
+	if action.RequestId == "" {
+		d, err := grp.readOutputDepositUntilSufficient(ctx, action.OutputId)
 		if err != nil {
 			panic(err)
 		}
@@ -114,20 +83,24 @@ func (grp *Group) checkCompactionTransaction(ctx context.Context, out *UnifiedOu
 			Destination: d.Destination,
 			Tag:         d.Tag,
 		}.UniqueKey())
-		if appId != out.AppId {
-			panic(out.OutputId)
+		if appId != action.AppId {
+			panic(action.OutputId)
 		}
 		return nil, false
 	}
 
-	appId, err := grp.checkMTGTransaction(ctx, out.TransactionHash.String())
+	appId, err := grp.checkMTGTransaction(ctx, action.TransactionHash)
 	if err != nil {
 		panic(err)
 	}
 	if appId == "" {
 		return nil, false
 	}
-	tx, err := grp.store.ReadTransactionByHash(ctx, out.TransactionHash)
+	hash, err := crypto.HashFromString(action.TransactionHash)
+	if err != nil {
+		panic(err)
+	}
+	tx, err := grp.store.ReadTransactionByHash(ctx, hash)
 	if err != nil {
 		panic(err)
 	}
@@ -141,7 +114,7 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 		return fmt.Errorf("store.ListInitialActions() => %v", err)
 	}
 	for _, a := range as {
-		tx, isMTG := grp.checkCompactionTransaction(ctx, a.ToOutput())
+		tx, isMTG := grp.checkCompactionTransaction(ctx, a)
 		if isMTG && tx == nil {
 			return nil
 		}
