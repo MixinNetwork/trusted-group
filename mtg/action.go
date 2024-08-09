@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/MixinNetwork/mixin/common"
+	"github.com/MixinNetwork/mixin/crypto"
 )
 
 const (
@@ -57,6 +58,37 @@ func actionJoinFromRow(row Row) (*Action, error) {
 	a.Receivers = strings.Split(receivers, ",")
 	a.Signers = strings.Split(signers, ",")
 	return &a, err
+}
+
+func (a *Action) ToOutput() *UnifiedOutput {
+	hash, err := crypto.HashFromString(a.TransactionHash)
+	if err != nil {
+		panic(err)
+	}
+	return &UnifiedOutput{
+		OutputId:           a.OutputId,
+		RequestId:          a.RequestId,
+		TransactionHash:    hash,
+		OutputIndex:        a.OutputIndex,
+		AssetId:            a.AssetId,
+		KernelAssetId:      a.KernelAssetId,
+		Amount:             a.Amount,
+		Mask:               a.Mask,
+		Keys:               a.Keys,
+		SendersHash:        a.SendersHash,
+		SendersThreshold:   a.SendersThreshold,
+		Senders:            a.Senders,
+		ReceiversHash:      a.ReceiversHash,
+		ReceiversThreshold: a.ReceiversThreshold,
+		Receivers:          a.Receivers,
+		Extra:              a.Extra,
+		State:              a.State,
+		Sequence:           a.Sequence,
+		CreatedAt:          a.CreatedAt,
+		UpdatedAt:          a.UpdatedAt,
+		Signers:            a.Signers,
+		SignedBy:           a.SignedBy,
+	}
 }
 
 func ReplayCheck(a *Action, txs1, txs2 []*Transaction, asset1, asset2 string) {
@@ -109,7 +141,7 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 		return fmt.Errorf("store.ListInitialActions() => %v", err)
 	}
 	for _, a := range as {
-		tx, isMTG := grp.checkCompactionTransaction(ctx, &a.UnifiedOutput)
+		tx, isMTG := grp.checkCompactionTransaction(ctx, a.ToOutput())
 		if isMTG && tx == nil {
 			return nil
 		}
