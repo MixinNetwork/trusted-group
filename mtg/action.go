@@ -73,6 +73,40 @@ func ReplayCheck(a *Action, txs1, txs2 []*Transaction, asset1, asset2 string) {
 	}
 }
 
+func (grp *Group) checkCompactionTransaction(ctx context.Context, action *Action) (*Transaction, bool) {
+	if action.RequestId == "" {
+		d, err := grp.readOutputDepositUntilSufficient(ctx, action.OutputId)
+		if err != nil {
+			panic(err)
+		}
+		appId := grp.FindAppByEntry(DepositEntry{
+			Destination: d.Destination,
+			Tag:         d.Tag,
+		}.UniqueKey())
+		if appId != action.AppId {
+			panic(action.OutputId)
+		}
+		return nil, false
+	}
+
+	appId, err := grp.checkMTGTransaction(ctx, action.TransactionHash)
+	if err != nil {
+		panic(err)
+	}
+	if appId == "" {
+		return nil, false
+	}
+	hash, err := crypto.HashFromString(action.TransactionHash)
+	if err != nil {
+		panic(err)
+	}
+	tx, err := grp.store.ReadTransactionByHash(ctx, hash)
+	if err != nil {
+		panic(err)
+	}
+	return tx, true
+}
+
 // actions queue is all the utxos ordered by their sequence
 func (grp *Group) handleActionsQueue(ctx context.Context) error {
 	as, err := grp.store.ListActions(ctx, ActionStateInitial, 16)
@@ -80,25 +114,12 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 		return fmt.Errorf("store.ListInitialActions() => %v", err)
 	}
 	for _, a := range as {
-		appId, err := grp.checkMTGTransaction(ctx, a.TransactionHash)
-		if err != nil {
-			return err
+		tx, isMTG := grp.checkCompactionTransaction(ctx, a)
+		if isMTG && tx == nil {
+			return nil
 		}
-		if appId != "" {
-			hash, err := crypto.HashFromString(a.TransactionHash)
-			if err != nil {
-				return err
-			}
-			tx, err := grp.store.ReadTransactionByHash(ctx, hash)
-			if err != nil {
-				return fmt.Errorf("store.ReadTransactionByHash(%s) => %v", a.TransactionHash, err)
-			}
-			if tx == nil {
-				return nil
-			}
-			if tx.compaction {
-				return grp.store.RestoreAction(ctx, a, tx)
-			}
+		if tx != nil && tx.compaction {
+			return grp.store.RestoreAction(ctx, a, tx)
 		}
 
 		wkr := grp.FindWorker(a.AppId)
