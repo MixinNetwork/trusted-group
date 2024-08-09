@@ -55,7 +55,7 @@ func (grp *Group) processSafeOutputs(ctx context.Context, filter map[string]bool
 }
 
 func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) {
-	logger.Verbosef("Group.processSafeOutput(%v) \n", output)
+	logger.Verbosef("Group.processSafeOutput(%v)\n", output)
 	actionState := ActionStateInitial
 
 	appId, _ := DecodeMixinExtraHEX(output.Extra)
@@ -64,12 +64,10 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 		if err != nil {
 			panic(err)
 		}
-		if d != nil {
-			appId = grp.FindAppByEntry(DepositEntry{
-				Destination: d.Destination,
-				Tag:         d.Tag,
-			}.UniqueKey())
-		}
+		appId = grp.FindAppByEntry(DepositEntry{
+			Destination: d.Destination,
+			Tag:         d.Tag,
+		}.UniqueKey())
 	}
 	if appId == "" {
 		appId = grp.GroupId
