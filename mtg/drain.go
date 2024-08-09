@@ -58,33 +58,42 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 	logger.Verbosef("Group.processSafeOutput(%v) \n", output)
 	actionState := ActionStateInitial
 
-	appId, _ := DecodeMixinExtraHEX(output.Extra)
 	if output.RequestId == "" {
 		d, err := grp.readOutputDepositUntilSufficient(ctx, output.OutputId)
 		if err != nil {
 			panic(err)
 		}
 		if d != nil {
-			appId = grp.FindAppByEntry(DepositEntry{
+			appId := grp.FindAppByEntry(DepositEntry{
 				Destination: d.Destination,
 				Tag:         d.Tag,
 			}.UniqueKey())
+			grp.saveOutput(ctx, output, appId, actionState)
+			return
 		}
 	}
+
+	appId, _ := DecodeMixinExtraHEX(output.Extra)
+	originAppId, err := grp.checkChange(ctx, output)
+	if err != nil {
+		panic(err)
+	}
+	if originAppId != "" {
+		appId = originAppId
+		actionState = ActionStateDone
+	}
+	grp.saveOutput(ctx, output, appId, actionState)
+}
+
+func (grp *Group) saveOutput(ctx context.Context, output *UnifiedOutput, appId string, state ActionState) {
 	if appId == "" {
 		appId = grp.GroupId
 	}
 	output.AppId = appId
-
-	appId, err := grp.checkChange(ctx, output)
+	err := grp.store.WriteAction(ctx, output, state)
 	if err != nil {
 		panic(err)
 	}
-	if appId != "" {
-		output.AppId = appId
-		actionState = ActionStateDone
-	}
-	grp.store.WriteAction(ctx, output, actionState)
 }
 
 func (grp *Group) checkChange(ctx context.Context, output *UnifiedOutput) (string, error) {
