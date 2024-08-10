@@ -64,10 +64,13 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 		if err != nil {
 			panic(err)
 		}
-		appId = grp.FindAppByEntry(DepositEntry{
-			Destination: d.Destination,
-			Tag:         d.Tag,
-		}.UniqueKey())
+		if d != nil {
+			// there may be utxo from direct kernel instead of sequencer
+			appId = grp.FindAppByEntry(DepositEntry{
+				Destination: d.Destination,
+				Tag:         d.Tag,
+			}.UniqueKey())
+		}
 	}
 	if appId == "" {
 		appId = grp.GroupId
