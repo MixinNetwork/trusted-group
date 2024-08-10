@@ -79,12 +79,17 @@ func (grp *Group) checkCompactionTransaction(ctx context.Context, action *Action
 		if err != nil {
 			panic(err)
 		}
-		appId := grp.GroupId
-		if d != nil {
+		var appId string
+		if d == nil {
+			appId, _ = DecodeMixinExtraHEX(action.Extra)
+		} else {
 			appId = grp.FindAppByEntry(DepositEntry{
 				Destination: d.Destination,
 				Tag:         d.Tag,
 			}.UniqueKey())
+		}
+		if appId == "" {
+			appId = grp.GroupId
 		}
 		if appId != action.AppId {
 			panic(action.OutputId)

@@ -13,7 +13,6 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
-	"github.com/MixinNetwork/mixin/rpc"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/gofrs/uuid/v5"
@@ -176,7 +175,7 @@ func (grp *Group) readKernelTransactionUntilSufficient(ctx context.Context, txHa
 		}
 		return common.UnmarshalVersionedTransaction(tx.Raw)
 	}
-	ver, _, err := rpc.GetTransaction("https://kernel.mixin.dev", txHash)
+	ver, _, err := GetKernelTransaction("https://kernel.mixin.dev", txHash)
 	return ver, err
 }
 
