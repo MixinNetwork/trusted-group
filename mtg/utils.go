@@ -13,6 +13,7 @@ import (
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/MixinNetwork/mixin/rpc"
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/gofrs/uuid/v5"
@@ -163,21 +164,27 @@ func (grp *Group) readMultisigUntilSufficient(ctx context.Context, id string) (*
 	}
 }
 
+func (grp *Group) readKernelTransactionUntilSufficient(ctx context.Context, txHash string) (*common.VersionedTransaction, error) {
+	if CheckTestEnvironment(ctx) {
+		hash, err := crypto.HashFromString(txHash)
+		if err != nil {
+			return nil, err
+		}
+		tx, err := grp.store.ReadTransactionByHash(ctx, hash)
+		if err != nil || tx == nil {
+			return nil, err
+		}
+		return common.UnmarshalVersionedTransaction(tx.Raw)
+	}
+	ver, _, err := rpc.GetTransaction("https://kernel.mixin.dev", txHash)
+	return ver, err
+}
+
 func (grp *Group) readTransactionUntilSufficient(ctx context.Context, id string) (*mixin.SafeTransactionRequest, error) {
 	if CheckTestEnvironment(ctx) {
 		tx, err := grp.store.ReadTransactionByTraceId(ctx, id)
 		if err != nil {
 			return nil, err
-		}
-		if tx == nil {
-			hash, err := crypto.HashFromString(id)
-			if err != nil {
-				return nil, err
-			}
-			tx, err = grp.store.ReadTransactionByHash(ctx, hash)
-			if err != nil || tx == nil {
-				return nil, err
-			}
 		}
 		return &mixin.SafeTransactionRequest{
 			RequestID:       tx.TraceId,

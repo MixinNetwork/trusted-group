@@ -2,13 +2,11 @@ package mtg
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"strconv"
 	"time"
 
-	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 )
@@ -98,20 +96,12 @@ func (grp *Group) checkChange(ctx context.Context, output *UnifiedOutput) (strin
 }
 
 func (grp *Group) checkMTGTransaction(ctx context.Context, txHash string) (string, error) {
-	req, err := grp.readTransactionUntilSufficient(ctx, txHash)
+	ver, err := grp.readKernelTransactionUntilSufficient(ctx, txHash)
 	if err != nil {
 		return "", err
 	}
-	if CheckTestEnvironment(ctx) && req == nil {
+	if ver == nil && CheckTestEnvironment(ctx) {
 		return "", nil
-	}
-	rb, err := hex.DecodeString(req.RawTransaction)
-	if err != nil {
-		return "", err
-	}
-	ver, err := common.UnmarshalVersionedTransaction(rb)
-	if err != nil {
-		return "", err
 	}
 
 	var outputs []*UnifiedOutput
