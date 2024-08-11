@@ -229,8 +229,8 @@ func (grp *Group) ListOutputsForTransaction(ctx context.Context, traceId string,
 }
 
 // this function or rpc should be used only in ProcessOutput
-func (act *Action) CheckAssetBalanceAt(ctx context.Context, appId, assetId string, sequence uint64) decimal.Decimal {
-	os, err := act.group.store.ListOutputsForAsset(ctx, appId, assetId, act.consumed[assetId], sequence, SafeUtxoStateUnspent, OutputsBatchSize)
+func (act *Action) CheckAssetBalanceAt(ctx context.Context, assetId string) decimal.Decimal {
+	os, err := act.group.store.ListOutputsForAsset(ctx, act.AppId, assetId, act.consumed[assetId], act.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
 	if err != nil {
 		panic(err)
 	}
@@ -242,13 +242,13 @@ func (act *Action) CheckAssetBalanceAt(ctx context.Context, appId, assetId strin
 	return total
 }
 
-func (act *Action) CheckAssetBalanceForStorageAt(ctx context.Context, appId string, extra []byte, sequence uint64) bool {
+func (act *Action) CheckAssetBalanceForStorageAt(ctx context.Context, extra []byte) bool {
 	if len(extra) > common.ExtraSizeStorageCapacity {
 		panic(fmt.Errorf("too large extra %d > %d", len(extra), common.ExtraSizeStorageCapacity))
 	}
 
 	amount := getStorageTransactionAmount(extra)
-	total := act.CheckAssetBalanceAt(ctx, appId, StorageAssetId, sequence)
+	total := act.CheckAssetBalanceAt(ctx, StorageAssetId)
 	return common.NewIntegerFromString(total.String()).Cmp(amount) > 0
 }
 

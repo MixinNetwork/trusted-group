@@ -44,7 +44,7 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 	for _, tx := range items {
 		if tx == "storage" {
 			extra := []byte("storage-memo")
-			enough := a.CheckAssetBalanceForStorageAt(ctx, a.AppId, extra, a.Sequence)
+			enough := a.CheckAssetBalanceForStorageAt(ctx, extra)
 			if !enough {
 				panic(a.Sequence)
 			}
@@ -53,7 +53,7 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 			txs = append(txs, t)
 		} else {
 			amt := decimal.RequireFromString(tx)
-			balance := a.CheckAssetBalanceAt(ctx, a.AppId, a.AssetId, a.Sequence)
+			balance := a.CheckAssetBalanceAt(ctx, a.AssetId)
 			if balance.Cmp(amt) < 0 {
 				return nil, USDTAssetId
 			}
