@@ -154,6 +154,7 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 		a.consumed = make(map[string]uint64)
 		txs, compactionAsset := wkr.ProcessOutput(ctx, a)
 		if grp.debug {
+			a.consumed = make(map[string]uint64)
 			txs2, compactionAsset2 := wkr.ProcessOutput(ctx, a)
 			ReplayCheck(a, txs, txs2, compactionAsset, compactionAsset2)
 		}
