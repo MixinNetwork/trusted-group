@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/logger"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 )
@@ -56,26 +57,27 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 	logger.Verbosef("Group.processSafeOutput(%v)\n", output)
 	actionState := ActionStateInitial
 
-	appId, _ := DecodeMixinExtraHEX(output.Extra)
-	if output.RequestId == "" {
+	ver, err := grp.readKernelTransactionUntilSufficient(ctx, output.TransactionHash.String())
+	if err != nil {
+		panic(err)
+	}
+	appId, _ := DecodeMixinExtraBase64(string(ver.Extra))
+	if ver.DepositData() != nil {
 		d, err := grp.readOutputDepositUntilSufficient(ctx, output.OutputId)
 		if err != nil {
 			panic(err)
 		}
-		if d != nil {
-			// there may be utxo from direct kernel instead of sequencer
-			appId = grp.FindAppByEntry(DepositEntry{
-				Destination: d.Destination,
-				Tag:         d.Tag,
-			}.UniqueKey())
-		}
+		appId = grp.FindAppByEntry(DepositEntry{
+			Destination: d.Destination,
+			Tag:         d.Tag,
+		}.UniqueKey())
 	}
 	if appId == "" {
 		appId = grp.GroupId
 	}
 	output.AppId = appId
 
-	appId, err := grp.checkChange(ctx, output)
+	appId, err = grp.checkChange(ctx, output, ver)
 	if err != nil {
 		panic(err)
 	}
@@ -86,24 +88,16 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 	grp.store.WriteAction(ctx, output, actionState)
 }
 
-func (grp *Group) checkChange(ctx context.Context, output *UnifiedOutput) (string, error) {
+func (grp *Group) checkChange(ctx context.Context, output *UnifiedOutput, ver *common.VersionedTransaction) (string, error) {
 	// we must always ensure there are at most 2 outputs,
 	// and the last one is the change output
 	if output.OutputIndex != 1 {
 		return "", nil
 	}
-	return grp.checkMTGTransaction(ctx, output.TransactionHash.String())
+	return grp.checkMTGTransaction(ctx, ver)
 }
 
-func (grp *Group) checkMTGTransaction(ctx context.Context, txHash string) (string, error) {
-	ver, err := grp.readKernelTransactionUntilSufficient(ctx, txHash)
-	if err != nil {
-		return "", err
-	}
-	if ver == nil && CheckTestEnvironment(ctx) {
-		return "", nil
-	}
-
+func (grp *Group) checkMTGTransaction(ctx context.Context, ver *common.VersionedTransaction) (string, error) {
 	var outputs []*UnifiedOutput
 	for _, input := range ver.Inputs {
 		output, err := grp.store.ReadOutputByHashAndIndex(ctx, input.Hash.String(), input.Index)
@@ -118,7 +112,7 @@ func (grp *Group) checkMTGTransaction(ctx context.Context, txHash string) (strin
 		return "", nil
 	}
 	if len(outputs) != len(ver.Inputs) {
-		panic(txHash)
+		panic(ver.PayloadHash().String())
 	}
 
 	var appId string

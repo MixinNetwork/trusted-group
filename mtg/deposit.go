@@ -2,6 +2,7 @@ package mtg
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -27,6 +28,35 @@ func (e DepositEntry) UniqueKey() string {
 }
 
 func (grp *Group) readOutputDepositUntilSufficient(ctx context.Context, id string) (*SafeDepositView, error) {
+	key := fmt.Sprintf("readOutputDepositUntilSufficient(%s)", id)
+	val, err := grp.store.ReadCache(ctx, key)
+	if err != nil {
+		panic(err)
+	}
+	if val != "" {
+		var r SafeDepositView
+		err = json.Unmarshal([]byte(val), &r)
+		if err != nil {
+			panic(err)
+		}
+		return &r, nil
+	}
+	r, err := grp.readOutputDepositUntilSufficientImpl(ctx, id)
+	if err != nil || r == nil {
+		return r, err
+	}
+	b, err := json.Marshal(r)
+	if err != nil {
+		panic(err)
+	}
+	err = grp.store.WriteCache(ctx, key, string(b))
+	if err != nil {
+		panic(err)
+	}
+	return r, nil
+}
+
+func (grp *Group) readOutputDepositUntilSufficientImpl(ctx context.Context, id string) (*SafeDepositView, error) {
 	for {
 		var deposit *SafeDepositView
 		err := grp.mixin.Get(ctx, fmt.Sprintf("/safe/outputs/%s/deposit", id), nil, &deposit)

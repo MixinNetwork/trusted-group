@@ -49,7 +49,7 @@ func actionFromRow(row Row) (*Action, error) {
 func actionJoinFromRow(row Row) (*Action, error) {
 	var a Action
 	var keys, senders, receivers, signers string
-	err := row.Scan(&a.OutputId, &a.TransactionHash, &a.ActionState, &a.Sequence, &a.restoreSequence, &a.RequestId, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.Mask, &keys, &a.SendersThreshold, &senders, &a.ReceiversThreshold, &receivers, &a.Extra, &a.State, &a.CreatedAt, &a.UpdatedAt, &signers, &a.SignedBy, &a.SignedTx, &a.TraceId, &a.AppId)
+	err := row.Scan(&a.OutputId, &a.TransactionHash, &a.ActionState, &a.Sequence, &a.restoreSequence, &a.requestId, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.Mask, &keys, &a.SendersThreshold, &senders, &a.ReceiversThreshold, &receivers, &a.Extra, &a.State, &a.CreatedAt, &a.UpdatedAt, &signers, &a.SignedBy, &a.SignedTx, &a.TraceId, &a.AppId)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -74,20 +74,19 @@ func ReplayCheck(a *Action, txs1, txs2 []*Transaction, asset1, asset2 string) {
 }
 
 func (grp *Group) checkCompactionTransaction(ctx context.Context, action *Action) (*Transaction, bool) {
-	if action.RequestId == "" {
+	ver, err := grp.readKernelTransactionUntilSufficient(ctx, action.TransactionHash)
+	if err != nil {
+		panic(err)
+	}
+	if ver.DepositData() != nil {
 		d, err := grp.readOutputDepositUntilSufficient(ctx, action.OutputId)
 		if err != nil {
 			panic(err)
 		}
-		var appId string
-		if d == nil {
-			appId, _ = DecodeMixinExtraHEX(action.Extra)
-		} else {
-			appId = grp.FindAppByEntry(DepositEntry{
-				Destination: d.Destination,
-				Tag:         d.Tag,
-			}.UniqueKey())
-		}
+		appId := grp.FindAppByEntry(DepositEntry{
+			Destination: d.Destination,
+			Tag:         d.Tag,
+		}.UniqueKey())
 		if appId == "" {
 			appId = grp.GroupId
 		}
@@ -96,8 +95,15 @@ func (grp *Group) checkCompactionTransaction(ctx context.Context, action *Action
 		}
 		return nil, false
 	}
+	appId, _ := DecodeMixinExtraHEX(action.Extra)
+	if appId == "" {
+		appId = grp.GroupId
+	}
+	if appId != action.AppId {
+		panic(action.OutputId)
+	}
 
-	appId, err := grp.checkMTGTransaction(ctx, action.TransactionHash)
+	appId, err = grp.checkMTGTransaction(ctx, ver)
 	if err != nil {
 		panic(err)
 	}

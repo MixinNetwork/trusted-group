@@ -200,8 +200,12 @@ func (grp *Group) readKernelTransactionUntilSufficientImpl(ctx context.Context, 
 			return nil, err
 		}
 		tx, err := grp.store.ReadTransactionByHash(ctx, hash)
-		if err != nil || tx == nil {
+		if err != nil {
 			return nil, err
+		}
+		if tx == nil {
+			ver := common.NewTransactionV5(common.XINAssetId).AsVersioned()
+			return ver, nil
 		}
 		return common.UnmarshalVersionedTransaction(tx.Raw)
 	}
