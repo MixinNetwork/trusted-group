@@ -44,16 +44,16 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 	for _, tx := range items {
 		if tx == "storage" {
 			extra := []byte("storage-memo")
-			enough := n.Group.CheckAssetBalanceForStorageAt(ctx, a.AppId, extra, a.Sequence)
+			enough := a.CheckAssetBalanceForStorageAt(ctx, a.AppId, extra, a.Sequence)
 			if !enough {
 				panic(a.Sequence)
 			}
-			t := n.Group.BuildStorageTransaction(ctx, extra)
+			t := a.BuildStorageTransaction(ctx, extra)
 			storageTraceId = t.TraceId
 			txs = append(txs, t)
 		} else {
 			amt := decimal.RequireFromString(tx)
-			balance := n.Group.CheckAssetBalanceAt(ctx, a.AppId, a.AssetId, a.Sequence)
+			balance := a.CheckAssetBalanceAt(ctx, a.AppId, a.AssetId, a.Sequence)
 			if balance.Cmp(amt) < 0 {
 				return nil, USDTAssetId
 			}
@@ -62,9 +62,9 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 			id := UniqueId(amount, testSender)
 			var t *Transaction
 			if storageTraceId != "" {
-				t = n.Group.BuildTransactionWithStorageTraceId(id, UniqueId(a.AppId, "opponent"), a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold(), storageTraceId)
+				t = a.BuildTransactionWithStorageTraceId(ctx, id, UniqueId(a.AppId, "opponent"), a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold(), storageTraceId)
 			} else {
-				t = n.Group.BuildTransaction(id, UniqueId(a.AppId, "opponent"), a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold())
+				t = a.BuildTransaction(ctx, id, UniqueId(a.AppId, "opponent"), a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold())
 			}
 			txs = append(txs, t)
 		}
@@ -151,7 +151,7 @@ func TestMTGCheckTxs(t *testing.T) {
 	require.NotNil(wkr)
 	err = node.Group.handleActionsQueue(ctx)
 	require.NotNil(err)
-	require.True(strings.Contains(err.Error(), "insufficient balance"))
+	require.True(strings.Contains(err.Error(), "insufficient outputs"))
 }
 
 func TestMTGStorage(t *testing.T) {
@@ -208,7 +208,7 @@ func testHandleCompactionTransaction(ctx context.Context, require *require.Asser
 
 	tx := ts[0]
 	require.True(tx.compaction)
-	outputs := group.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, tx.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
+	outputs := group.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, 0, tx.Sequence, SafeUtxoStateAssigned, OutputsBatchSize)
 	require.Len(outputs, 36)
 	ver, consumed, err := group.buildRawTransaction(ctx, tx, outputs)
 	require.Nil(err)
