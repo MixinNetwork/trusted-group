@@ -1,3 +1,14 @@
+CREATE TABLE IF NOT EXISTS caches (
+  key           VARCHAR NOT NULL,
+  value         VARCHAR NOT NULL,
+  created_at    TIMESTAMP NOT NULL,
+  PRIMARY KEY ('key')
+);
+
+CREATE INDEX IF NOT EXISTS caches_by_created ON caches(created_at);
+
+
+
 CREATE TABLE IF NOT EXISTS properties (
   key           VARCHAR NOT NULL,
   value         VARCHAR NOT NULL,

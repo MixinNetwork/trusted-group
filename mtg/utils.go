@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -164,6 +165,35 @@ func (grp *Group) readMultisigUntilSufficient(ctx context.Context, id string) (*
 }
 
 func (grp *Group) readKernelTransactionUntilSufficient(ctx context.Context, txHash string) (*common.VersionedTransaction, error) {
+	key := fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", txHash)
+	val, err := grp.store.ReadCache(ctx, key)
+	if err != nil {
+		panic(err)
+	}
+	if val != "" {
+		b, err := base64.RawURLEncoding.DecodeString(val)
+		if err != nil {
+			panic(err)
+		}
+		ver, err := common.UnmarshalVersionedTransaction(b)
+		if err != nil {
+			panic(err)
+		}
+		return ver, nil
+	}
+	ver, err := grp.readKernelTransactionUntilSufficientImpl(ctx, txHash)
+	if err != nil || ver == nil {
+		return ver, err
+	}
+	val = base64.RawURLEncoding.EncodeToString(ver.Marshal())
+	err = grp.store.WriteCache(ctx, key, val)
+	if err != nil {
+		panic(err)
+	}
+	return ver, nil
+}
+
+func (grp *Group) readKernelTransactionUntilSufficientImpl(ctx context.Context, txHash string) (*common.VersionedTransaction, error) {
 	if CheckTestEnvironment(ctx) {
 		hash, err := crypto.HashFromString(txHash)
 		if err != nil {
@@ -175,11 +205,46 @@ func (grp *Group) readKernelTransactionUntilSufficient(ctx context.Context, txHa
 		}
 		return common.UnmarshalVersionedTransaction(tx.Raw)
 	}
-	ver, _, err := GetKernelTransaction("https://kernel.mixin.dev", txHash)
-	return ver, err
+	for {
+		ver, _, err := GetKernelTransaction("https://kernel.mixin.dev", txHash)
+		if err != nil && CheckRetryableError(err) {
+			time.Sleep(time.Second)
+			continue
+		}
+		return ver, err
+	}
 }
 
 func (grp *Group) readTransactionUntilSufficient(ctx context.Context, id string) (*mixin.SafeTransactionRequest, error) {
+	key := fmt.Sprintf("readTransactionUntilSufficient(%s)", id)
+	val, err := grp.store.ReadCache(ctx, key)
+	if err != nil {
+		panic(err)
+	}
+	if val != "" {
+		var r mixin.SafeTransactionRequest
+		err = json.Unmarshal([]byte(val), &r)
+		if err != nil {
+			panic(err)
+		}
+		return &r, nil
+	}
+	r, err := grp.readTransactionUntilSufficientImpl(ctx, id)
+	if err != nil || r == nil {
+		return r, err
+	}
+	b, err := json.Marshal(r)
+	if err != nil {
+		panic(err)
+	}
+	err = grp.store.WriteCache(ctx, key, string(b))
+	if err != nil {
+		panic(err)
+	}
+	return r, nil
+}
+
+func (grp *Group) readTransactionUntilSufficientImpl(ctx context.Context, id string) (*mixin.SafeTransactionRequest, error) {
 	if CheckTestEnvironment(ctx) {
 		tx, err := grp.store.ReadTransactionByTraceId(ctx, id)
 		if err != nil {
@@ -197,7 +262,7 @@ func (grp *Group) readTransactionUntilSufficient(ctx context.Context, id string)
 		logger.Verbosef("Group.SafeReadTransactionRequest(%s) => %v %v\n", id, req, err)
 		if err != nil {
 			if CheckRetryableError(err) {
-				time.Sleep(3 * time.Second)
+				time.Sleep(time.Second)
 				continue
 			}
 			if strings.Contains(err.Error(), "not found") {
