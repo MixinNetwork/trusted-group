@@ -140,6 +140,12 @@ func (act *Action) BuildTransaction(ctx context.Context, traceId, opponentAppId,
 		// 16452583
 		"640ae809-4c32-3e6a-8ffc-0e45a5086ac5": {"a3cc6067-3461-3fa4-a606-017de4e38aa0"},
 		"baef789c-18ed-3ea8-a55e-a6dde9f638d1": {"eed4d045-6f8e-320c-be85-9082f4bf35e7"},
+		// 16534005
+		"181d5330-5cb3-33f2-bb1c-6b0f93a2adf0": {"f3fa77a3-b5d7-349d-94d9-7bda187ceee0"},
+		"44130753-26f8-369d-8700-f076db1ad5e5": {"f84012a7-83f0-3321-b60e-889bdfc1a129"},
+		"74fd2b7e-ac11-3f3d-865b-315d816c95c7": {"cfd87b97-1547-3995-990d-1b3f988aaa73"},
+		"9f91c79b-3f5e-37c2-a94a-4fab0226e601": {"bdb537b8-7799-3960-9e4a-88202455956b"},
+		"da84ca18-04a5-37ed-b04b-059ff3d51726": {"405a797b-1277-33a1-9cdf-508f38f552e8"},
 	}
 	if ids := safeTransactionSequenceOrderHack[tx.TraceId]; len(ids) > 0 {
 		hack, err := act.group.store.ListOutputs(ctx, ids)
