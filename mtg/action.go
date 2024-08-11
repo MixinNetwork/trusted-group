@@ -49,7 +49,7 @@ func actionFromRow(row Row) (*Action, error) {
 func actionJoinFromRow(row Row) (*Action, error) {
 	var a Action
 	var keys, senders, receivers, signers string
-	err := row.Scan(&a.OutputId, &a.TransactionHash, &a.ActionState, &a.Sequence, &a.restoreSequence, &a.requestId, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.Mask, &keys, &a.SendersThreshold, &senders, &a.ReceiversThreshold, &receivers, &a.Extra, &a.State, &a.CreatedAt, &a.UpdatedAt, &signers, &a.SignedBy, &a.SignedTx, &a.TraceId, &a.AppId)
+	err := row.Scan(&a.OutputId, &a.TransactionHash, &a.ActionState, &a.Sequence, &a.restoreSequence, &a.TransactionRequestId, &a.OutputIndex, &a.AssetId, &a.KernelAssetId, &a.Amount, &a.Mask, &keys, &a.SendersThreshold, &senders, &a.ReceiversThreshold, &receivers, &a.Extra, &a.State, &a.CreatedAt, &a.UpdatedAt, &signers, &a.SignedBy, &a.SignedTx, &a.TraceId, &a.AppId)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

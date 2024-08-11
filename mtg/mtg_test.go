@@ -271,22 +271,22 @@ func testBuildOutput(group *Group, require *require.Assertions, asset, amount st
 	amt := decimal.RequireFromString(amount)
 
 	return &UnifiedOutput{
-		OutputId:           oid,
-		requestId:          rid,
-		TransactionHash:    h,
-		OutputIndex:        0,
-		AssetId:            asset,
-		Amount:             amt,
-		SendersThreshold:   int64(1),
-		Senders:            []string{testSender},
-		ReceiversThreshold: int64(group.GetThreshold()),
-		Receivers:          group.GetMembers(),
-		Extra:              extra,
-		State:              state,
-		Sequence:           sequence,
-		CreatedAt:          time.Now(),
-		UpdatedAt:          time.Now(),
-		AppId:              group.GroupId,
+		OutputId:             oid,
+		TransactionRequestId: rid,
+		TransactionHash:      h,
+		OutputIndex:          0,
+		AssetId:              asset,
+		Amount:               amt,
+		SendersThreshold:     int64(1),
+		Senders:              []string{testSender},
+		ReceiversThreshold:   int64(group.GetThreshold()),
+		Receivers:            group.GetMembers(),
+		Extra:                extra,
+		State:                state,
+		Sequence:             sequence,
+		CreatedAt:            time.Now(),
+		UpdatedAt:            time.Now(),
+		AppId:                group.GroupId,
 	}
 }
 
