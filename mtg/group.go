@@ -18,8 +18,9 @@ import (
 )
 
 const (
-	groupGenesisId  = "group-genesis-id"
-	groupBootSynced = "group-boot-synced"
+	groupGenesisId   = "group-genesis-id"
+	groupBootSynced  = "group-boot-synced"
+	defaultKernelRPC = "https://kernel.mixin.dev"
 )
 
 type Worker interface {
@@ -50,6 +51,7 @@ type Group struct {
 	epoch           uint64
 	spendPrivateKey string
 	debug           bool
+	kernelRPC       string
 }
 
 func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (*Group, error) {
@@ -89,6 +91,7 @@ func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (
 		waitDuration:    time.Duration(conf.LoopWaitDuration),
 		workers:         make(map[string]Worker),
 		entries:         make(map[string]string),
+		kernelRPC:       defaultKernelRPC,
 	}
 	if grp.groupSize <= 0 {
 		grp.groupSize = OutputsBatchSize
@@ -143,6 +146,10 @@ func (grp *Group) GetThreshold() int {
 
 func (grp *Group) EnableDebug() {
 	grp.debug = true
+}
+
+func (grp *Group) SetKernelRPC(rpc string) {
+	grp.kernelRPC = rpc
 }
 
 func (grp *Group) Synced(ctx context.Context) bool {

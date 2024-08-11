@@ -206,7 +206,7 @@ func (grp *Group) readKernelTransactionUntilSufficientImpl(ctx context.Context, 
 		return ver, "", err
 	}
 	for {
-		ver, snapshot, err := GetKernelTransaction("https://kernel.mixin.dev", txHash)
+		ver, snapshot, err := GetKernelTransaction(grp.kernelRPC, txHash)
 		if err != nil && CheckRetryableError(err) {
 			time.Sleep(time.Second)
 			continue
