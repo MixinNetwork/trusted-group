@@ -229,6 +229,25 @@ func (s *SQLite3Store) RestoreAction(ctx context.Context, act *Action, t *Transa
 	return tx.Commit()
 }
 
+func (s *SQLite3Store) ListOutputs(ctx context.Context, ids []string) ([]*UnifiedOutput, error) {
+	query := fmt.Sprintf("SELECT %s FROM outputs WHERE output_id IN (?) ORDER sequence ASC", strings.Join(outputCols, ","))
+	rows, err := s.db.QueryContext(ctx, query, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var os []*UnifiedOutput
+	for rows.Next() {
+		o, err := outputFromRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		os = append(os, o)
+	}
+	return os, nil
+}
+
 func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, traceId string, sequence uint64) ([]*UnifiedOutput, error) {
 	query := fmt.Sprintf("SELECT %s FROM outputs WHERE trace_id=? AND sequence<=? ORDER BY trace_id, sequence ASC", strings.Join(outputCols, ","))
 	rows, err := s.db.QueryContext(ctx, query, traceId, sequence)
