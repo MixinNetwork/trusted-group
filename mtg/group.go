@@ -212,8 +212,8 @@ func (grp *Group) Run(ctx context.Context) {
 	}
 }
 
-func (grp *Group) ListOutputsForAsset(ctx context.Context, appId, assetId string, sequence uint64, state SafeUtxoState, limit int) []*UnifiedOutput {
-	outputs, err := grp.store.ListOutputsForAsset(ctx, appId, assetId, sequence, state, limit)
+func (grp *Group) ListOutputsForAsset(ctx context.Context, appId, assetId string, consumedUntil, sequence uint64, state SafeUtxoState, limit int) []*UnifiedOutput {
+	outputs, err := grp.store.ListOutputsForAsset(ctx, appId, assetId, consumedUntil, sequence, state, limit)
 	if err != nil {
 		panic(err)
 	}
@@ -229,8 +229,8 @@ func (grp *Group) ListOutputsForTransaction(ctx context.Context, traceId string,
 }
 
 // this function or rpc should be used only in ProcessOutput
-func (grp *Group) CheckAssetBalanceAt(ctx context.Context, appId, assetId string, sequence uint64) decimal.Decimal {
-	os, err := grp.store.ListOutputsForAsset(ctx, appId, assetId, sequence, SafeUtxoStateUnspent, OutputsBatchSize)
+func (act *Action) CheckAssetBalanceAt(ctx context.Context, appId, assetId string, sequence uint64) decimal.Decimal {
+	os, err := act.group.store.ListOutputsForAsset(ctx, appId, assetId, act.consumed[assetId], sequence, SafeUtxoStateUnspent, OutputsBatchSize)
 	if err != nil {
 		panic(err)
 	}
@@ -242,13 +242,13 @@ func (grp *Group) CheckAssetBalanceAt(ctx context.Context, appId, assetId string
 	return total
 }
 
-func (grp *Group) CheckAssetBalanceForStorageAt(ctx context.Context, appId string, extra []byte, sequence uint64) bool {
+func (act *Action) CheckAssetBalanceForStorageAt(ctx context.Context, appId string, extra []byte, sequence uint64) bool {
 	if len(extra) > common.ExtraSizeStorageCapacity {
 		panic(fmt.Errorf("too large extra %d > %d", len(extra), common.ExtraSizeStorageCapacity))
 	}
 
 	amount := getStorageTransactionAmount(extra)
-	total := grp.CheckAssetBalanceAt(ctx, appId, StorageAssetId, sequence)
+	total := act.CheckAssetBalanceAt(ctx, appId, StorageAssetId, sequence)
 	return common.NewIntegerFromString(total.String()).Cmp(amount) > 0
 }
 

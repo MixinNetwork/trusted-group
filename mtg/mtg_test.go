@@ -62,9 +62,9 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 			id := UniqueId(amount, testSender)
 			var t *Transaction
 			if storageTraceId != "" {
-				t = n.Group.BuildTransactionWithStorageTraceId(id, UniqueId(a.AppId, "opponent"), a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold(), storageTraceId)
+				t = n.Group.BuildTransactionWithStorageTraceId(ctx, id, UniqueId(a.AppId, "opponent"), a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold(), storageTraceId)
 			} else {
-				t = n.Group.BuildTransaction(id, UniqueId(a.AppId, "opponent"), a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold())
+				t = n.Group.BuildTransaction(ctx, id, UniqueId(a.AppId, "opponent"), a.AssetId, amount, "", n.Group.GetMembers(), n.Group.GetThreshold())
 			}
 			txs = append(txs, t)
 		}

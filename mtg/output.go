@@ -12,9 +12,10 @@ import (
 const (
 	OutputTypeSafeOutput = "kernel_output"
 
-	SafeUtxoStateUnspent SafeUtxoState = "unspent"
-	SafeUtxoStateSigned  SafeUtxoState = "signed"
-	SafeUtxoStateSpent   SafeUtxoState = "spent"
+	SafeUtxoStateUnspent  SafeUtxoState = "unspent"
+	SafeUtxoStateAssigned SafeUtxoState = "assigned"
+	SafeUtxoStateSigned   SafeUtxoState = "signed"
+	SafeUtxoStateSpent    SafeUtxoState = "spent"
 )
 
 type SafeUtxoState string

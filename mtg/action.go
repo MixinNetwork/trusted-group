@@ -27,6 +27,8 @@ type Action struct {
 	restoreSequence uint64
 
 	UnifiedOutput
+	group    *Group
+	consumed map[string]uint64
 }
 
 var actionCols = []string{"output_id", "transaction_hash", "action_state", "sequence", "restore_sequence"}
@@ -148,6 +150,8 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 		if a.restoreSequence > a.Sequence {
 			a.Sequence = a.restoreSequence
 		}
+		a.group = grp
+		a.consumed = make(map[string]uint64)
 		txs, compactionAsset := wkr.ProcessOutput(ctx, a)
 		if grp.debug {
 			txs2, compactionAsset2 := wkr.ProcessOutput(ctx, a)
@@ -182,9 +186,6 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 func (grp *Group) checkTransactions(ctx context.Context, act *Action, txs []*Transaction) error {
 	totalAmount := make(map[string]common.Integer)
 	for _, t := range txs {
-		t.AppId = act.AppId
-		t.Sequence = act.Sequence
-
 		err := t.check(ctx, act)
 		if err != nil {
 			return err
@@ -198,7 +199,7 @@ func (grp *Group) checkTransactions(ctx context.Context, act *Action, txs []*Tra
 	}
 
 	for asset, amount := range totalAmount {
-		outputs := grp.ListOutputsForAsset(ctx, act.AppId, asset, act.Sequence, SafeUtxoStateUnspent, 0)
+		outputs := grp.ListOutputsForAsset(ctx, act.AppId, asset, 0, act.Sequence, SafeUtxoStateUnspent, 0)
 		total := common.NewInteger(0)
 		for _, os := range outputs {
 			total = total.Add(common.NewIntegerFromString(os.Amount.String()))

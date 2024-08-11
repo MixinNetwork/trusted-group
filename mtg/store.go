@@ -74,8 +74,11 @@ func (s *SQLite3Store) finishAction(ctx context.Context, tx *sql.Tx, id string, 
 	}
 
 	for _, t := range ts {
+		if len(t.consumed) == 0 {
+			panic(t.TraceId)
+		}
 		if t.State != TransactionStateInitial {
-			panic(t.State)
+			panic(t.TraceId)
 		}
 		if t.storage {
 			if t.AssetId != StorageAssetId || t.Threshold != 64 || len(t.Receivers) != 1 {
@@ -101,6 +104,14 @@ func (s *SQLite3Store) finishAction(ctx context.Context, tx *sql.Tx, id string, 
 		err = s.execOne(ctx, tx, buildInsertionSQL("transactions", transactionCols), t.values()...)
 		if err != nil {
 			return fmt.Errorf("INSERT transactions %v", err)
+		}
+
+		for _, o := range t.consumed {
+			query := "UPDATE outputs SET state=?,trace_id=? WHERE output_id=? AND state=?"
+			err = s.execOne(ctx, tx, query, SafeUtxoStateAssigned, t.TraceId, o.OutputId, SafeUtxoStateUnspent)
+			if err != nil {
+				return fmt.Errorf("UPDATE outputs %v", err)
+			}
 		}
 	}
 
@@ -237,12 +248,12 @@ func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, traceId st
 	return os, nil
 }
 
-func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, appId, assetId string, sequence uint64, state SafeUtxoState, limit int) ([]*UnifiedOutput, error) {
-	query := fmt.Sprintf("SELECT %s FROM outputs WHERE app_id=? AND asset_id=? AND state=? AND sequence<=? ORDER BY app_id, asset_id, state, sequence ASC", strings.Join(outputCols, ","))
+func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, appId, assetId string, consumedUntil, sequence uint64, state SafeUtxoState, limit int) ([]*UnifiedOutput, error) {
+	query := fmt.Sprintf("SELECT %s FROM outputs WHERE app_id=? AND asset_id=? AND state=? AND sequence>? AND sequence<=? ORDER BY app_id, asset_id, state, sequence ASC", strings.Join(outputCols, ","))
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
-	rows, err := s.db.QueryContext(ctx, query, appId, assetId, state, sequence)
+	rows, err := s.db.QueryContext(ctx, query, appId, assetId, state, consumedUntil, sequence)
 	if err != nil {
 		return nil, err
 	}
@@ -281,8 +292,8 @@ func (s *SQLite3Store) UpdateTxWithOutputs(ctx context.Context, t *Transaction, 
 	}
 
 	for _, o := range os {
-		err = s.execOne(ctx, tx, "UPDATE outputs SET trace_id=?,state=?,signed_by=?,signed_tx=? WHERE output_id=? AND state=?",
-			t.TraceId, o.State, o.SignedBy, o.SignedTx, o.OutputId, SafeUtxoStateUnspent)
+		query := "UPDATE outputs SET state=?,signed_by=?,signed_tx=? WHERE output_id=? AND state=? AND trace_id=?"
+		err = s.execOne(ctx, tx, query, o.State, o.SignedBy, o.SignedTx, o.OutputId, SafeUtxoStateAssigned, t.TraceId)
 		if err != nil {
 			return fmt.Errorf("UPDATE outputs %v", err)
 		}
