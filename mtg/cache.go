@@ -27,7 +27,7 @@ func (s *SQLite3Store) WriteCache(ctx context.Context, k, v string) error {
 	}
 	defer tx.Rollback()
 
-	threshold := time.Now().Add(-time.Hour).UTC()
+	threshold := time.Now().Add(-24 * time.Hour).UTC()
 	_, err = tx.ExecContext(ctx, "DELETE FROM caches WHERE created_at<?", threshold)
 	if err != nil {
 		return err

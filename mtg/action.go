@@ -81,7 +81,7 @@ func ReplayCheck(a *Action, txs1, txs2 []*Transaction, asset1, asset2 string) {
 }
 
 func (grp *Group) checkCompactionTransaction(ctx context.Context, action *Action) (*Transaction, bool) {
-	ver, err := grp.readKernelTransactionUntilSufficient(ctx, action.TransactionHash)
+	ver, err := grp.ReadKernelTransactionUntilSufficient(ctx, action.TransactionHash)
 	if err != nil {
 		panic(err)
 	}

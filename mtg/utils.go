@@ -159,7 +159,7 @@ func (grp *Group) readMultisigUntilSufficient(ctx context.Context, id string) (*
 	}
 }
 
-func (grp *Group) readKernelTransactionUntilSufficient(ctx context.Context, txHash string) (*common.VersionedTransaction, error) {
+func (grp *Group) ReadKernelTransactionUntilSufficient(ctx context.Context, txHash string) (*common.VersionedTransaction, error) {
 	key := fmt.Sprintf("readKernelTransactionUntilSufficient(%s)", txHash)
 	val, err := grp.store.ReadCache(ctx, key)
 	if err != nil {
@@ -176,8 +176,8 @@ func (grp *Group) readKernelTransactionUntilSufficient(ctx context.Context, txHa
 		}
 		return ver, nil
 	}
-	ver, err := grp.readKernelTransactionUntilSufficientImpl(ctx, txHash)
-	if err != nil || ver == nil {
+	ver, snapshot, err := grp.readKernelTransactionUntilSufficientImpl(ctx, txHash)
+	if err != nil || snapshot == "" {
 		return ver, err
 	}
 	val = base64.RawURLEncoding.EncodeToString(ver.Marshal())
@@ -188,29 +188,30 @@ func (grp *Group) readKernelTransactionUntilSufficient(ctx context.Context, txHa
 	return ver, nil
 }
 
-func (grp *Group) readKernelTransactionUntilSufficientImpl(ctx context.Context, txHash string) (*common.VersionedTransaction, error) {
+func (grp *Group) readKernelTransactionUntilSufficientImpl(ctx context.Context, txHash string) (*common.VersionedTransaction, string, error) {
 	if CheckTestEnvironment(ctx) {
 		hash, err := crypto.HashFromString(txHash)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		tx, err := grp.store.ReadTransactionByHash(ctx, hash)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		if tx == nil {
 			ver := common.NewTransactionV5(common.XINAssetId).AsVersioned()
-			return ver, nil
+			return ver, "", nil
 		}
-		return common.UnmarshalVersionedTransaction(tx.Raw)
+		ver, err := common.UnmarshalVersionedTransaction(tx.Raw)
+		return ver, "", err
 	}
 	for {
-		ver, _, err := GetKernelTransaction("https://kernel.mixin.dev", txHash)
+		ver, snapshot, err := GetKernelTransaction("https://kernel.mixin.dev", txHash)
 		if err != nil && CheckRetryableError(err) {
 			time.Sleep(time.Second)
 			continue
 		}
-		return ver, err
+		return ver, snapshot, err
 	}
 }
 

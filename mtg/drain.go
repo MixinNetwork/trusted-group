@@ -57,7 +57,7 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 	logger.Verbosef("Group.processSafeOutput(%v)\n", output)
 	actionState := ActionStateInitial
 
-	ver, err := grp.readKernelTransactionUntilSufficient(ctx, output.TransactionHash.String())
+	ver, err := grp.ReadKernelTransactionUntilSufficient(ctx, output.TransactionHash.String())
 	if err != nil {
 		panic(err)
 	}
