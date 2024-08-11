@@ -62,6 +62,11 @@ func actionJoinFromRow(row Row) (*Action, error) {
 	return &a, err
 }
 
+func (a *Action) TestAttachActionToGroup(g *Group) {
+	a.group = g
+	a.consumed = make(map[string]uint64)
+}
+
 func ReplayCheck(a *Action, txs1, txs2 []*Transaction, asset1, asset2 string) {
 	if asset1 != asset2 {
 		err := fmt.Errorf("action %s compaction asset %s => %s", a.OutputId, asset1, asset2)
