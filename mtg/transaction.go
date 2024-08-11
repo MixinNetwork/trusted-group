@@ -137,6 +137,7 @@ func (act *Action) BuildTransaction(ctx context.Context, traceId, opponentAppId,
 	// transactions, the service may choose utxos in a different order from the
 	// ProcessOutput return value
 	safeTransactionSequenceOrderHack := map[string][]string{
+		// 16452583
 		"640ae809-4c32-3e6a-8ffc-0e45a5086ac5": {"a3cc6067-3461-3fa4-a606-017de4e38aa0"},
 		"baef789c-18ed-3ea8-a55e-a6dde9f638d1": {"eed4d045-6f8e-320c-be85-9082f4bf35e7"},
 	}
@@ -511,7 +512,11 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 
 	ver := common.NewTransactionV5(crypto.Sha256Hash([]byte(tx.AssetId)))
 	for _, in := range inputs {
-		ver.AddInput(in.TransactionHash, uint(in.OutputIndex))
+		h, err := crypto.HashFromString(in.TransactionHash)
+		if err != nil {
+			panic(in.TransactionHash)
+		}
+		ver.AddInput(h, uint(in.OutputIndex))
 	}
 
 	keys, err := grp.createGhostKeysUntilSufficient(ctx, tx, tr)

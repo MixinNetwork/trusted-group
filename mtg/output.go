@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/shopspring/decimal"
 )
 
@@ -24,7 +23,7 @@ type UnifiedOutput struct {
 	Type                 string          `json:"type"`
 	OutputId             string          `json:"output_id"`
 	TransactionRequestId string          `json:"request_id,omitempty"`
-	TransactionHash      crypto.Hash     `json:"transaction_hash"`
+	TransactionHash      string          `json:"transaction_hash"`
 	OutputIndex          int             `json:"output_index"`
 	AssetId              string          `json:"asset_id"`
 	KernelAssetId        string          `json:"kernel_asset_id"`
@@ -53,18 +52,16 @@ type UnifiedOutput struct {
 var outputCols = []string{"output_id", "request_id", "transaction_hash", "output_index", "asset_id", "kernel_asset_id", "amount", "mask", "keys", "senders_threshold", "senders", "receivers_threshold", "receivers", "extra", "state", "sequence", "created_at", "updated_at", "signers", "signed_by", "signed_tx", "trace_id", "app_id"}
 
 func (o *UnifiedOutput) values() []any {
-	return []any{o.OutputId, o.TransactionRequestId, o.TransactionHash.String(), o.OutputIndex, o.AssetId, o.KernelAssetId, o.Amount, o.Mask, strings.Join(o.Keys, ","), o.SendersThreshold, strings.Join(o.Senders, ","), o.ReceiversThreshold, strings.Join(o.Receivers, ","), o.Extra, o.State, o.Sequence, o.CreatedAt, o.UpdatedAt, strings.Join(o.Signers, ","), o.SignedBy, o.SignedTx, o.TraceId, o.AppId}
+	return []any{o.OutputId, o.TransactionRequestId, o.TransactionHash, o.OutputIndex, o.AssetId, o.KernelAssetId, o.Amount, o.Mask, strings.Join(o.Keys, ","), o.SendersThreshold, strings.Join(o.Senders, ","), o.ReceiversThreshold, strings.Join(o.Receivers, ","), o.Extra, o.State, o.Sequence, o.CreatedAt, o.UpdatedAt, strings.Join(o.Signers, ","), o.SignedBy, o.SignedTx, o.TraceId, o.AppId}
 }
 
 func outputFromRow(row Row) (*UnifiedOutput, error) {
 	var o UnifiedOutput
-	var hash, keys, senders, receivers, signers string
-	err := row.Scan(&o.OutputId, &o.TransactionRequestId, &hash, &o.OutputIndex, &o.AssetId, &o.KernelAssetId, &o.Amount, &o.Mask, &keys, &o.SendersThreshold, &senders, &o.ReceiversThreshold, &receivers, &o.Extra, &o.State, &o.Sequence, &o.CreatedAt, &o.UpdatedAt, &signers, &o.SignedBy, &o.SignedTx, &o.TraceId, &o.AppId)
+	var keys, senders, receivers, signers string
+	err := row.Scan(&o.OutputId, &o.TransactionRequestId, &o.TransactionHash, &o.OutputIndex, &o.AssetId, &o.KernelAssetId, &o.Amount, &o.Mask, &keys, &o.SendersThreshold, &senders, &o.ReceiversThreshold, &receivers, &o.Extra, &o.State, &o.Sequence, &o.CreatedAt, &o.UpdatedAt, &signers, &o.SignedBy, &o.SignedTx, &o.TraceId, &o.AppId)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
-	h, _ := crypto.HashFromString(hash)
-	o.TransactionHash = h
 	o.Keys = strings.Split(keys, ",")
 	o.Senders = strings.Split(senders, ",")
 	o.Receivers = strings.Split(receivers, ",")

@@ -273,7 +273,7 @@ func testBuildOutput(group *Group, require *require.Assertions, asset, amount st
 	return &UnifiedOutput{
 		OutputId:             oid,
 		TransactionRequestId: rid,
-		TransactionHash:      h,
+		TransactionHash:      h.String(),
 		OutputIndex:          0,
 		AssetId:              asset,
 		Amount:               amt,

@@ -20,10 +20,7 @@ const (
 type ActionState int
 
 type Action struct {
-	OutputId        string
-	TransactionHash string
 	ActionState     ActionState
-	Sequence        uint64
 	restoreSequence uint64
 
 	UnifiedOutput
