@@ -67,21 +67,16 @@ func NewMixAddress(ctx context.Context, members []string, threshold byte, storag
 		}
 	}
 
-	thr := threshold
-	if storage {
-		threshold = 1
-	}
-
 	isUuidMembers := false
-	ma, err := mixin.NewMainnetMixAddress(members, threshold)
+	ma, err := mixin.NewMainnetMixAddress(members, 1)
 	if err != nil {
-		ma, err = mixin.NewMixAddress(members, threshold)
+		ma, err = mixin.NewMixAddress(members, 1)
 		if err != nil {
 			return nil, false, err
 		}
 		isUuidMembers = true
 	}
-	ma.Threshold = thr
+	ma.Threshold = threshold
 	return ma, isUuidMembers, nil
 }
 
