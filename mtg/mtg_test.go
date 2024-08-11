@@ -151,7 +151,7 @@ func TestMTGCheckTxs(t *testing.T) {
 	require.NotNil(wkr)
 	err = node.Group.handleActionsQueue(ctx)
 	require.NotNil(err)
-	require.True(strings.Contains(err.Error(), "insufficient balance"))
+	require.True(strings.Contains(err.Error(), "insufficient outputs"))
 }
 
 func TestMTGStorage(t *testing.T) {
@@ -208,7 +208,7 @@ func testHandleCompactionTransaction(ctx context.Context, require *require.Asser
 
 	tx := ts[0]
 	require.True(tx.compaction)
-	outputs := group.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, 0, tx.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
+	outputs := group.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, 0, tx.Sequence, SafeUtxoStateAssigned, OutputsBatchSize)
 	require.Len(outputs, 36)
 	ver, consumed, err := group.buildRawTransaction(ctx, tx, outputs)
 	require.Nil(err)

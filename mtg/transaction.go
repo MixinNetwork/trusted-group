@@ -252,6 +252,7 @@ func (t *Transaction) check(ctx context.Context, act *Action) error {
 }
 
 func (grp *Group) buildCompactionTransaction(ctx context.Context, asset string, act *Action) (*Transaction, error) {
+	// compaction transaction is special, this is the sole transaction for an action
 	compaction := grp.ListOutputsForAsset(ctx, act.AppId, asset, act.consumed[asset], act.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
 	if len(compaction) != OutputsBatchSize {
 		return nil, fmt.Errorf("insufficient outputs to build compaction transaction: %d", len(compaction))
@@ -266,20 +267,10 @@ func (grp *Group) buildCompactionTransaction(ctx context.Context, asset string, 
 		return nil, err
 	}
 
-	tx := &Transaction{
-		TraceId:       UniqueId(act.OutputId, "compaction"),
-		AppId:         act.AppId,
-		OpponentAppId: act.AppId,
-		State:         TransactionStateInitial,
-		AssetId:       asset,
-		Receivers:     grp.GetMembers(),
-		Threshold:     grp.GetThreshold(),
-		Amount:        total.String(),
-		Memo:          "",
-		references:    []crypto.Hash{hash},
-		compaction:    true,
-		Sequence:      act.Sequence,
-	}
+	traceId := UniqueId(act.OutputId, "compaction")
+	tx := act.BuildTransaction(ctx, traceId, act.AppId, asset, total.String(), "", grp.GetMembers(), grp.GetThreshold())
+	tx.references = []crypto.Hash{hash}
+	tx.compaction = true
 	return tx, nil
 }
 

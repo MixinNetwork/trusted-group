@@ -56,7 +56,7 @@ func CheckRetryableError(err error) bool {
 	return true
 }
 
-func NewMixAddress(ctx context.Context, members []string, threshold byte, storage bool) (*mixin.MixAddress, bool, error) {
+func NewMixAddress(ctx context.Context, members []string, threshold byte) (*mixin.MixAddress, bool, error) {
 	if CheckTestEnvironment(ctx) {
 		for i, m := range members {
 			_, err := mixinnet.AddressFromString(m)
@@ -273,7 +273,7 @@ func (grp *Group) readTransactionUntilSufficientImpl(ctx context.Context, id str
 }
 
 func (grp *Group) getTransactionInputsAndRecipients(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput) ([]*UnifiedOutput, []*TransactionRecipient, error) {
-	ma, uuidMember, err := NewMixAddress(ctx, tx.Receivers, byte(tx.Threshold), tx.storage)
+	ma, uuidMember, err := NewMixAddress(ctx, tx.Receivers, byte(tx.Threshold))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -300,7 +300,7 @@ func (grp *Group) getTransactionInputsAndRecipients(ctx context.Context, tx *Tra
 	if change.Sign() < 0 {
 		return nil, nil, fmt.Errorf("insufficient %d %s %s", len(outputs), total, tx.Amount)
 	} else if change.Sign() > 0 {
-		ma, uuidMember, err := NewMixAddress(ctx, grp.GetMembers(), byte(grp.GetThreshold()), false)
+		ma, uuidMember, err := NewMixAddress(ctx, grp.GetMembers(), byte(grp.GetThreshold()))
 		if err != nil {
 			return nil, nil, err
 		}
