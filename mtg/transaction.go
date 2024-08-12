@@ -134,7 +134,7 @@ func (act *Action) BuildTransaction(ctx context.Context, traceId, opponentAppId,
 		panic(tx.TraceId)
 	}
 	if ids := safeTransactionSequenceOrderHack[tx.TraceId]; len(ids) > 0 {
-		hack, err := act.group.store.ListOutputs(ctx, ids)
+		hack, err := act.group.store.listOutputs(ctx, ids)
 		if err != nil {
 			panic(err)
 		}
