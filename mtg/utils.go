@@ -230,7 +230,7 @@ func (grp *Group) readTransactionUntilSufficient(ctx context.Context, id string)
 		return &r, nil
 	}
 	r, err := grp.readTransactionUntilSufficientImpl(ctx, id)
-	if err != nil || r == nil {
+	if err != nil || r == nil || r.State != mixin.SafeUtxoStateSpent {
 		return r, err
 	}
 	b, err := json.Marshal(r)
