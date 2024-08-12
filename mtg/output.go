@@ -42,6 +42,7 @@ type UnifiedOutput struct {
 	Sequence             uint64          `json:"sequence"`
 	Signers              []string        `json:"signers"`
 	SignedBy             string          `json:"signed_by"`
+	SequencerCreatedAt   string          `json:"created_at"`
 
 	createdAt time.Time
 	updatedAt time.Time
