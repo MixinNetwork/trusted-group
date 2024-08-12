@@ -93,7 +93,10 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 		output.AppId = appId
 		actionState = ActionStateDone
 	}
-	grp.store.WriteAction(ctx, output, actionState)
+	err = grp.store.WriteAction(ctx, output, actionState)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func (grp *Group) checkChange(ctx context.Context, output *UnifiedOutput, ver *common.VersionedTransaction) (string, error) {
