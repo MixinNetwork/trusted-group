@@ -193,7 +193,7 @@ func (node *Group) Index() int {
 }
 
 func (grp *Group) Run(ctx context.Context) {
-	logger.Printf("Group(%s, %d, %s).Run(v0.8.2)\n", mixinnet.HashMembers(grp.members), grp.threshold, grp.GenesisId())
+	logger.Printf("Group(%s, %d, %s).Run(v0.9.0)\n", mixinnet.HashMembers(grp.members), grp.threshold, grp.GenesisId())
 	filter := make(map[string]bool)
 	for {
 		time.Sleep(grp.waitDuration)

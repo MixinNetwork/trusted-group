@@ -232,7 +232,7 @@ func (s *SQLite3Store) RestoreAction(ctx context.Context, act *Action, t *Transa
 func (s *SQLite3Store) listOutputs(ctx context.Context, ids []string) ([]*UnifiedOutput, error) {
 	cols := strings.Join(outputCols, ",")
 	sets := "'" + strings.Join(ids, "','") + "'"
-	query := fmt.Sprintf("SELECT %s FROM outputs WHERE output_id IN (%s) ORDER sequence ASC", cols, sets)
+	query := fmt.Sprintf("SELECT %s FROM outputs WHERE output_id IN (%s) ORDER BY sequence ASC", cols, sets)
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
