@@ -32,43 +32,38 @@ type UnifiedOutput struct {
 	AssetId              string          `json:"asset_id"`
 	KernelAssetId        string          `json:"kernel_asset_id"`
 	Amount               decimal.Decimal `json:"amount"`
-	Mask                 string          `json:"mask"`
-	Keys                 []string        `json:"keys"`
 	SendersHash          string          `json:"senders_hash"`
 	SendersThreshold     int64           `json:"senders_threshold"`
 	Senders              []string        `json:"senders"`
 	ReceiversHash        string          `json:"receivers_hash"`
 	ReceiversThreshold   int64           `json:"receivers_threshold"`
-	Receivers            []string        `json:"receivers"`
 	Extra                string          `json:"extra"`
 	State                SafeUtxoState   `json:"state"`
 	Sequence             uint64          `json:"sequence"`
-	CreatedAt            time.Time       `json:"created_at"`
-	UpdatedAt            time.Time       `json:"updated_at"`
 	Signers              []string        `json:"signers"`
 	SignedBy             string          `json:"signed_by"`
 
-	SignedTx string
-	TraceId  string
-	AppId    string
+	createdAt time.Time
+	updatedAt time.Time
+	SignedTx  string
+	TraceId   string
+	AppId     string
 }
 
-var outputCols = []string{"output_id", "request_id", "transaction_hash", "output_index", "asset_id", "kernel_asset_id", "amount", "mask", "keys", "senders_threshold", "senders", "receivers_threshold", "receivers", "extra", "state", "sequence", "created_at", "updated_at", "signers", "signed_by", "signed_tx", "trace_id", "app_id"}
+var outputCols = []string{"output_id", "request_id", "transaction_hash", "output_index", "asset_id", "kernel_asset_id", "amount", "senders_threshold", "senders", "receivers_threshold", "extra", "state", "sequence", "created_at", "updated_at", "signers", "signed_by", "signed_tx", "trace_id", "app_id"}
 
 func (o *UnifiedOutput) values() []any {
-	return []any{o.OutputId, o.TransactionRequestId, o.TransactionHash, o.OutputIndex, o.AssetId, o.KernelAssetId, o.Amount, o.Mask, strings.Join(o.Keys, ","), o.SendersThreshold, strings.Join(o.Senders, ","), o.ReceiversThreshold, strings.Join(o.Receivers, ","), o.Extra, o.State, o.Sequence, o.CreatedAt, o.UpdatedAt, strings.Join(o.Signers, ","), o.SignedBy, o.SignedTx, o.TraceId, o.AppId}
+	return []any{o.OutputId, o.TransactionRequestId, o.TransactionHash, o.OutputIndex, o.AssetId, o.KernelAssetId, o.Amount, o.SendersThreshold, strings.Join(o.Senders, ","), o.ReceiversThreshold, o.Extra, o.State, o.Sequence, o.createdAt, o.updatedAt, strings.Join(o.Signers, ","), o.SignedBy, o.SignedTx, o.TraceId, o.AppId}
 }
 
 func outputFromRow(row Row) (*UnifiedOutput, error) {
 	var o UnifiedOutput
-	var keys, senders, receivers, signers string
-	err := row.Scan(&o.OutputId, &o.TransactionRequestId, &o.TransactionHash, &o.OutputIndex, &o.AssetId, &o.KernelAssetId, &o.Amount, &o.Mask, &keys, &o.SendersThreshold, &senders, &o.ReceiversThreshold, &receivers, &o.Extra, &o.State, &o.Sequence, &o.CreatedAt, &o.UpdatedAt, &signers, &o.SignedBy, &o.SignedTx, &o.TraceId, &o.AppId)
+	var senders, signers string
+	err := row.Scan(&o.OutputId, &o.TransactionRequestId, &o.TransactionHash, &o.OutputIndex, &o.AssetId, &o.KernelAssetId, &o.Amount, &o.SendersThreshold, &senders, &o.ReceiversThreshold, &o.Extra, &o.State, &o.Sequence, &o.createdAt, &o.updatedAt, &signers, &o.SignedBy, &o.SignedTx, &o.TraceId, &o.AppId)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
-	o.Keys = strings.Split(keys, ",")
 	o.Senders = strings.Split(senders, ",")
-	o.Receivers = strings.Split(receivers, ",")
 	o.Signers = strings.Split(signers, ",")
 	return &o, err
 }

@@ -389,7 +389,7 @@ func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outp
 	ver, _ := common.UnmarshalVersionedTransaction(rb)
 	tx.Raw = rb
 	tx.Hash = ver.PayloadHash()
-	tx.UpdatedAt = time.Now()
+	tx.UpdatedAt = time.Now().UTC()
 	tx.State = TransactionStateSigned
 	tx.requestId = sql.NullString{Valid: true, String: req.RequestID}
 

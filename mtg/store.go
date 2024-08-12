@@ -107,8 +107,8 @@ func (s *SQLite3Store) finishAction(ctx context.Context, tx *sql.Tx, id string, 
 		}
 
 		for _, o := range t.consumed {
-			query := "UPDATE outputs SET state=?,trace_id=? WHERE output_id=? AND state=?"
-			err = s.execOne(ctx, tx, query, SafeUtxoStateAssigned, t.TraceId, o.OutputId, SafeUtxoStateUnspent)
+			query := "UPDATE outputs SET state=?,trace_id=?,updated_at=? WHERE output_id=? AND state=?"
+			err = s.execOne(ctx, tx, query, SafeUtxoStateAssigned, t.TraceId, time.Now().UTC(), o.OutputId, SafeUtxoStateUnspent)
 			if err != nil {
 				return fmt.Errorf("UPDATE outputs %v", err)
 			}
@@ -162,6 +162,8 @@ func (s *SQLite3Store) writeOutputAndAction(ctx context.Context, tx *sql.Tx, out
 		panic(reason)
 	}
 
+	out.createdAt = time.Now()
+	out.updatedAt = out.createdAt
 	err = s.execOne(ctx, tx, buildInsertionSQL("outputs", outputCols), out.values()...)
 	if err != nil {
 		return fmt.Errorf("INSERT outputs %v", err)
@@ -313,8 +315,8 @@ func (s *SQLite3Store) UpdateTxWithOutputs(ctx context.Context, t *Transaction, 
 	}
 
 	for _, o := range os {
-		query := "UPDATE outputs SET state=?,signed_by=?,signed_tx=? WHERE output_id=? AND state=? AND trace_id=?"
-		err = s.execOne(ctx, tx, query, o.State, o.SignedBy, o.SignedTx, o.OutputId, SafeUtxoStateAssigned, t.TraceId)
+		query := "UPDATE outputs SET state=?,signed_by=?,signed_tx=?,updated_at=? WHERE output_id=? AND state=? AND trace_id=?"
+		err = s.execOne(ctx, tx, query, o.State, o.SignedBy, o.SignedTx, t.UpdatedAt, o.OutputId, SafeUtxoStateAssigned, t.TraceId)
 		if err != nil {
 			return fmt.Errorf("UPDATE outputs %v", err)
 		}
@@ -339,8 +341,8 @@ func (s *SQLite3Store) FinishTransaction(ctx context.Context, traceId string) er
 		return fmt.Errorf("UPDATE transactions %v", err)
 	}
 
-	_, err = tx.ExecContext(ctx, "UPDATE outputs SET state=? WHERE trace_id=? AND state=?",
-		SafeUtxoStateSpent, traceId, SafeUtxoStateSigned)
+	_, err = tx.ExecContext(ctx, "UPDATE outputs SET state=?,updated_at=? WHERE trace_id=? AND state=?",
+		SafeUtxoStateSpent, time.Now().UTC(), traceId, SafeUtxoStateSigned)
 	if err != nil {
 		return fmt.Errorf("UPDATE outputs %v", err)
 	}

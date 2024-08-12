@@ -8,7 +8,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
@@ -282,12 +281,9 @@ func testBuildOutput(group *Group, require *require.Assertions, asset, amount st
 		SendersThreshold:     int64(1),
 		Senders:              []string{testSender},
 		ReceiversThreshold:   int64(group.GetThreshold()),
-		Receivers:            group.GetMembers(),
 		Extra:                extra,
 		State:                state,
 		Sequence:             sequence,
-		CreatedAt:            time.Now(),
-		UpdatedAt:            time.Now(),
 		AppId:                group.GroupId,
 	}
 }
