@@ -61,6 +61,14 @@ func (grp *Group) processSafeOutput(ctx context.Context, output *UnifiedOutput) 
 	if err != nil {
 		panic(err)
 	}
+	vo := ver.Outputs[output.OutputIndex]
+	if vo.Amount.Cmp(common.NewIntegerFromString(output.Amount.String())) != 0 {
+		panic(output.OutputId)
+	}
+	if !output.checkId() {
+		panic(output.OutputId)
+	}
+
 	appId, _ := DecodeMixinExtraBase64(string(ver.Extra))
 	if ver.DepositData() != nil {
 		d, err := grp.readOutputDepositUntilSufficient(ctx, output.OutputId)

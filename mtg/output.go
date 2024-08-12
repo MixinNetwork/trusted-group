@@ -1,10 +1,14 @@
 package mtg
 
 import (
+	"crypto/md5"
 	"database/sql"
+	"fmt"
+	"io"
 	"strings"
 	"time"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/shopspring/decimal"
 )
 
@@ -67,4 +71,18 @@ func outputFromRow(row Row) (*UnifiedOutput, error) {
 	o.Receivers = strings.Split(receivers, ",")
 	o.Signers = strings.Split(signers, ",")
 	return &o, err
+}
+
+func (o *UnifiedOutput) checkId() bool {
+	h := md5.New()
+	oid := fmt.Sprintf("%s:%d", o.TransactionHash, o.OutputIndex)
+	io.WriteString(h, oid)
+	sum := h.Sum(nil)
+	sum[6] = (sum[6] & 0x0f) | 0x30
+	sum[8] = (sum[8] & 0x3f) | 0x80
+	id, err := uuid.FromBytes(sum)
+	if err != nil {
+		panic(err)
+	}
+	return id.String() == o.OutputId
 }

@@ -12,6 +12,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/MixinNetwork/mixin/logger"
+	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/gofrs/uuid/v5"
 	"github.com/pelletier/go-toml"
 	"github.com/shopspring/decimal"
@@ -268,6 +269,7 @@ func testBuildOutput(group *Group, require *require.Assertions, asset, amount st
 		require.Nil(err)
 		h = hash
 	}
+	oid = mixin.UniqueConversationID(fmt.Sprintf("%s:%d", h, 0), "")
 	amt := decimal.RequireFromString(amount)
 
 	return &UnifiedOutput{
