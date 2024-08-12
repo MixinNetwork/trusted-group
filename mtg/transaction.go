@@ -309,11 +309,10 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) *common.
 		if err != nil {
 			panic(err)
 		}
-		ref, err := crypto.HashFromString(t.TransactionHash)
-		if err != nil {
-			panic(err)
+		if storageTx.Hash.String() != t.TransactionHash {
+			panic(tx.TraceId)
 		}
-		tx.references = []crypto.Hash{ref}
+		tx.references = []crypto.Hash{storageTx.Hash}
 	}
 
 	outputs := grp.ListOutputsForTransaction(ctx, tx.TraceId, tx.Sequence)

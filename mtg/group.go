@@ -293,7 +293,7 @@ func (grp *Group) publishTransactions(ctx context.Context) error {
 		return err
 	}
 	for _, tx := range txs {
-		snapshot, err := grp.snapshotTransaction(ctx, tx.RequestID())
+		snapshot, err := grp.snapshotTransaction(ctx, tx)
 		if err != nil {
 			return err
 		} else if !snapshot {
@@ -304,16 +304,16 @@ func (grp *Group) publishTransactions(ctx context.Context) error {
 	return nil
 }
 
-func (grp *Group) snapshotTransaction(ctx context.Context, requestId string) (bool, error) {
-	req, err := grp.readTransactionUntilSufficient(ctx, requestId)
-	logger.Verbosef("group.readTransactionUntilSufficient(%s) => %v", requestId, err)
-	if err != nil {
+func (grp *Group) snapshotTransaction(ctx context.Context, tx *Transaction) (bool, error) {
+	req, err := grp.readTransactionUntilSufficient(ctx, tx.RequestID())
+	logger.Verbosef("group.readTransactionUntilSufficient(%s, %s) => %v", tx.TraceId, tx.RequestID(), err)
+	if err != nil || req == nil {
 		return false, err
 	}
-	if req != nil && req.State == mixin.SafeUtxoStateSpent {
-		return true, nil
+	if req.TransactionHash != tx.Hash.String() {
+		panic(tx.TraceId)
 	}
-	return false, nil
+	return req.State == mixin.SafeUtxoStateSpent, nil
 }
 
 func generateGenesisId(conf *Configuration) string {
