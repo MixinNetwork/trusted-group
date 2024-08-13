@@ -162,8 +162,7 @@ func (s *SQLite3Store) writeOutputAndAction(ctx context.Context, tx *sql.Tx, out
 		panic(reason)
 	}
 
-	out.createdAt = time.Now()
-	out.updatedAt = out.createdAt
+	out.updatedAt = time.Now().UTC()
 	err = s.execOne(ctx, tx, buildInsertionSQL("outputs", outputCols), out.values()...)
 	if err != nil {
 		return fmt.Errorf("INSERT outputs %v", err)
