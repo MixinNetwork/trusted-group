@@ -222,7 +222,6 @@ func testHandleCompactionTransaction(ctx context.Context, require *require.Asser
 	for _, out := range consumed {
 		out.State = SafeUtxoStateSpent
 		out.SignedBy = tx.Hash.String()
-		out.SignedTx = hex.EncodeToString(tx.Raw)
 	}
 	err = group.store.UpdateTxWithOutputs(ctx, tx, consumed)
 	require.Nil(err)

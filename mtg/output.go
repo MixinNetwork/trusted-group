@@ -46,21 +46,20 @@ type UnifiedOutput struct {
 
 	createdAt time.Time
 	updatedAt time.Time
-	SignedTx  string
 	TraceId   string
 	AppId     string
 }
 
-var outputCols = []string{"output_id", "request_id", "transaction_hash", "output_index", "asset_id", "kernel_asset_id", "amount", "senders_threshold", "senders", "receivers_threshold", "extra", "state", "sequence", "created_at", "updated_at", "signers", "signed_by", "signed_tx", "trace_id", "app_id"}
+var outputCols = []string{"output_id", "request_id", "transaction_hash", "output_index", "asset_id", "kernel_asset_id", "amount", "senders_threshold", "senders", "receivers_threshold", "extra", "state", "sequence", "created_at", "updated_at", "signers", "signed_by", "trace_id", "app_id"}
 
 func (o *UnifiedOutput) values() []any {
-	return []any{o.OutputId, o.TransactionRequestId, o.TransactionHash, o.OutputIndex, o.AssetId, o.KernelAssetId, o.Amount, o.SendersThreshold, strings.Join(o.Senders, ","), o.ReceiversThreshold, o.Extra, o.State, o.Sequence, o.createdAt, o.updatedAt, strings.Join(o.Signers, ","), o.SignedBy, o.SignedTx, o.TraceId, o.AppId}
+	return []any{o.OutputId, o.TransactionRequestId, o.TransactionHash, o.OutputIndex, o.AssetId, o.KernelAssetId, o.Amount, o.SendersThreshold, strings.Join(o.Senders, ","), o.ReceiversThreshold, o.Extra, o.State, o.Sequence, o.createdAt, o.updatedAt, strings.Join(o.Signers, ","), o.SignedBy, o.TraceId, o.AppId}
 }
 
 func outputFromRow(row Row) (*UnifiedOutput, error) {
 	var o UnifiedOutput
 	var senders, signers string
-	err := row.Scan(&o.OutputId, &o.TransactionRequestId, &o.TransactionHash, &o.OutputIndex, &o.AssetId, &o.KernelAssetId, &o.Amount, &o.SendersThreshold, &senders, &o.ReceiversThreshold, &o.Extra, &o.State, &o.Sequence, &o.createdAt, &o.updatedAt, &signers, &o.SignedBy, &o.SignedTx, &o.TraceId, &o.AppId)
+	err := row.Scan(&o.OutputId, &o.TransactionRequestId, &o.TransactionHash, &o.OutputIndex, &o.AssetId, &o.KernelAssetId, &o.Amount, &o.SendersThreshold, &senders, &o.ReceiversThreshold, &o.Extra, &o.State, &o.Sequence, &o.createdAt, &o.updatedAt, &signers, &o.SignedBy, &o.TraceId, &o.AppId)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

@@ -49,7 +49,6 @@ CREATE TABLE IF NOT EXISTS outputs (
   updated_at           TIMESTAMP NOT NULL,
   signers              VARCHAR NOT NULL,
   signed_by            VARCHAR NOT NULL,
-  signed_tx            VARCHAR NOT NULL,
   trace_id             VARCHAR NOT NULL,
   app_id               VARCHAR NOT NULL,
   PRIMARY KEY ('output_id')

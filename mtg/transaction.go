@@ -379,7 +379,6 @@ func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outp
 		out.TraceId = tx.TraceId
 		out.State = SafeUtxoStateSigned
 		out.SignedBy = req.TransactionHash
-		out.SignedTx = req.RawTransaction
 	}
 
 	rb, err := hex.DecodeString(req.RawTransaction)

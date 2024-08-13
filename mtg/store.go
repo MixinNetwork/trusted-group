@@ -315,8 +315,8 @@ func (s *SQLite3Store) UpdateTxWithOutputs(ctx context.Context, t *Transaction, 
 	}
 
 	for _, o := range os {
-		query := "UPDATE outputs SET state=?,signed_by=?,signed_tx=?,updated_at=? WHERE output_id=? AND state=? AND trace_id=?"
-		err = s.execOne(ctx, tx, query, o.State, o.SignedBy, o.SignedTx, t.UpdatedAt, o.OutputId, SafeUtxoStateAssigned, t.TraceId)
+		query := "UPDATE outputs SET state=?,signed_by=?,updated_at=? WHERE output_id=? AND state=? AND trace_id=?"
+		err = s.execOne(ctx, tx, query, o.State, o.SignedBy, t.UpdatedAt, o.OutputId, SafeUtxoStateAssigned, t.TraceId)
 		if err != nil {
 			return fmt.Errorf("UPDATE outputs %v", err)
 		}
