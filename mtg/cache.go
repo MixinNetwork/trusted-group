@@ -7,14 +7,22 @@ import (
 	"time"
 )
 
+const cacheTTL = 24 * time.Hour
+
 func (s *SQLite3Store) ReadCache(ctx context.Context, k string) (string, error) {
-	row := s.db.QueryRowContext(ctx, "SELECT value FROM caches WHERE key=?", k)
+	row := s.db.QueryRowContext(ctx, "SELECT value,created_at FROM caches WHERE key=?", k)
 	var value string
-	err := row.Scan(&value)
+	var createdAt time.Time
+	err := row.Scan(&value, &createdAt)
 	if err == sql.ErrNoRows {
 		return "", nil
+	} else if err != nil {
+		return "", err
 	}
-	return value, err
+	if createdAt.Add(cacheTTL).Before(time.Now()) {
+		return "", nil
+	}
+	return value, nil
 }
 
 func (s *SQLite3Store) WriteCache(ctx context.Context, k, v string) error {
@@ -27,7 +35,7 @@ func (s *SQLite3Store) WriteCache(ctx context.Context, k, v string) error {
 	}
 	defer tx.Rollback()
 
-	threshold := time.Now().Add(-24 * time.Hour).UTC()
+	threshold := time.Now().Add(-cacheTTL).UTC()
 	_, err = tx.ExecContext(ctx, "DELETE FROM caches WHERE created_at<?", threshold)
 	if err != nil {
 		return err
