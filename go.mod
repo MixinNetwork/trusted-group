@@ -1,10 +1,10 @@
 module github.com/MixinNetwork/trusted-group
 
-go 1.22.5
+go 1.23.0
 
 require (
 	github.com/MixinNetwork/mixin v0.18.12
-	github.com/fox-one/mixin-sdk-go/v2 v2.0.8
+	github.com/fox-one/mixin-sdk-go/v2 v2.0.9
 	github.com/gofrs/uuid/v5 v5.3.0
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/pelletier/go-toml v1.9.5
