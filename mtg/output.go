@@ -70,7 +70,10 @@ func outputFromRow(row Row) (*UnifiedOutput, error) {
 func (o *UnifiedOutput) checkId() bool {
 	h := md5.New()
 	oid := fmt.Sprintf("%s:%d", o.TransactionHash, o.OutputIndex)
-	io.WriteString(h, oid)
+	n, err := io.WriteString(h, oid)
+	if err != nil || n != len(oid) {
+		panic(err)
+	}
 	sum := h.Sum(nil)
 	sum[6] = (sum[6] & 0x0f) | 0x30
 	sum[8] = (sum[8] & 0x3f) | 0x80

@@ -200,22 +200,31 @@ func (grp *Group) Run(ctx context.Context) {
 		// drain all the utxos in the order of sequence
 		logger.Verbosef("Group.Run(drainOutputsFromNetwork) created\n")
 		grp.drainOutputsFromNetwork(ctx, filter, 500)
-		grp.store.WriteProperty(ctx, groupBootSynced, "1")
+		err := grp.store.WriteProperty(ctx, groupBootSynced, "1")
+		if err != nil {
+			panic(err)
+		}
 
 		// handle the utxos queue by sequence
 		logger.Verbosef("Group.Run(handleActionsQueue)\n")
-		err := grp.handleActionsQueue(ctx)
+		err = grp.handleActionsQueue(ctx)
 		if err != nil {
 			panic(err)
 		}
 
 		// sign any possible transactions from BuildTransaction
 		logger.Verbosef("Group.Run(signTransactions)\n")
-		grp.signTransactions(ctx)
+		err = grp.signTransactions(ctx)
+		if err != nil {
+			panic(err)
+		}
 
 		// verify all transactions
 		logger.Verbosef("Group.Run(publishTransactions)\n")
-		grp.publishTransactions(ctx)
+		err = grp.publishTransactions(ctx)
+		if err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -299,7 +308,10 @@ func (grp *Group) publishTransactions(ctx context.Context) error {
 		} else if !snapshot {
 			continue
 		}
-		grp.store.FinishTransaction(ctx, tx.TraceId)
+		err = grp.store.FinishTransaction(ctx, tx.TraceId)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

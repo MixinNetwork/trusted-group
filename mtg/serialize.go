@@ -26,10 +26,13 @@ func writeBool(enc *common.Encoder, f bool) {
 	if f {
 		data = 1
 	}
-	enc.WriteByte(data)
+	err := enc.WriteByte(data)
+	if err != nil {
+		panic(err)
+	}
 }
 
-func writeReferences(enc *common.Encoder, refs []crypto.Hash) error {
+func writeReferences(enc *common.Encoder, refs []crypto.Hash) {
 	rl := len(refs)
 	enc.WriteInt(rl)
 	for _, r := range refs {
@@ -38,7 +41,6 @@ func writeReferences(enc *common.Encoder, refs []crypto.Hash) error {
 		}
 		enc.Write(r[:])
 	}
-	return nil
 }
 
 func (tx *Transaction) Serialize() []byte {

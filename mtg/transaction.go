@@ -210,7 +210,7 @@ func (t *Transaction) Equal(tx *Transaction) bool {
 		slices.Equal(t.references, tx.references)
 }
 
-func (t *Transaction) check(ctx context.Context, act *Action) error {
+func (t *Transaction) check(_ context.Context, act *Action) error {
 	logger.Debugf("Group.checkTransaction(%v)\n", t)
 	if _, err := uuid.FromString(t.AppId); err != nil {
 		panic(err)

@@ -149,8 +149,11 @@ func (grp *Group) readDrainingCheckpoint(ctx context.Context) (uint64, error) {
 	return strconv.ParseUint(val, 10, 64)
 }
 
-func (grp *Group) writeDrainingCheckpoint(ctx context.Context, ckpt uint64) error {
-	return grp.store.WriteProperty(ctx, outputsDrainingKey, fmt.Sprint(ckpt))
+func (grp *Group) writeDrainingCheckpoint(ctx context.Context, ckpt uint64) {
+	err := grp.store.WriteProperty(ctx, outputsDrainingKey, fmt.Sprint(ckpt))
+	if err != nil {
+		panic(err)
+	}
 }
 
 func (grp *Group) readSafeOutputsAsUnspent(ctx context.Context, members []string, threshold uint8, offset uint64, limit int) ([]*UnifiedOutput, error) {

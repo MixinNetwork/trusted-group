@@ -19,8 +19,10 @@ import (
 	"github.com/gofrs/uuid/v5"
 )
 
+type contextKeyTyp string
+
 const (
-	contextKeyEnvironment = "environment"
+	contextKeyEnvironment = contextKeyTyp("environment")
 )
 
 func EnableTestEnvironment(ctx context.Context) context.Context {
@@ -139,23 +141,6 @@ func (grp *Group) getSpendPublicKeyUntilSufficient(ctx context.Context) (string,
 			continue
 		}
 		return me.SpendPublicKey, err
-	}
-}
-
-func (grp *Group) readMultisigUntilSufficient(ctx context.Context, id string) (*mixin.SafeMultisigRequest, error) {
-	for {
-		req, err := grp.mixin.SafeReadMultisigRequests(ctx, id)
-		logger.Verbosef("Group.SafeReadMultisigRequests(%s) => %v %v\n", id, req, err)
-		if err != nil {
-			if CheckRetryableError(err) {
-				time.Sleep(3 * time.Second)
-				continue
-			}
-			if strings.Contains(err.Error(), "not found") {
-				return nil, nil
-			}
-		}
-		return req, err
 	}
 }
 

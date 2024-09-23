@@ -126,7 +126,7 @@ func (s *SQLite3Store) FinishAction(ctx context.Context, id string, state Action
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer rollBack(tx)
 
 	err = s.finishAction(ctx, tx, id, state, ts)
 	if err != nil {
@@ -191,7 +191,7 @@ func (s *SQLite3Store) WriteAction(ctx context.Context, out *UnifiedOutput, stat
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer rollBack(tx)
 
 	err = s.writeOutputAndAction(ctx, tx, out, state)
 	if err != nil {
@@ -209,7 +209,7 @@ func (s *SQLite3Store) RestoreAction(ctx context.Context, act *Action, t *Transa
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer rollBack(tx)
 
 	rAct, err := s.readRestorableAction(ctx, tx, t)
 	if err != nil || rAct == nil {
@@ -300,7 +300,7 @@ func (s *SQLite3Store) UpdateTxWithOutputs(ctx context.Context, t *Transaction, 
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer rollBack(tx)
 
 	var refs []string
 	for _, r := range t.references {
@@ -332,7 +332,7 @@ func (s *SQLite3Store) FinishTransaction(ctx context.Context, traceId string) er
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer rollBack(tx)
 
 	err = s.execOne(ctx, tx, "UPDATE transactions SET state=?, updated_at=? WHERE trace_id=? AND state=?",
 		TransactionStateSnapshot, time.Now(), traceId, TransactionStateSigned)
@@ -382,7 +382,7 @@ func (s *SQLite3Store) WriteIteration(ctx context.Context, ir *Iteration) error 
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer rollBack(tx)
 
 	old, err := s.readIteration(ctx, tx, ir.NodeId)
 	if err != nil {
@@ -464,4 +464,12 @@ func (s *SQLite3Store) ReadTransactionByTraceId(ctx context.Context, id string) 
 
 type Row interface {
 	Scan(dest ...any) error
+}
+
+func rollBack(txn *sql.Tx) {
+	err := txn.Rollback()
+	const already = "transaction has already been committed or rolled back"
+	if err != nil && !strings.Contains(err.Error(), already) {
+		panic(err)
+	}
 }
