@@ -3,10 +3,10 @@ project = "mtg-test"
 
 [app]
 app-id = "094ac88f-4671-3976-b60a-09064f1811e8"
-session-id = ""
-session-private-key = ""
-server-public-key = ""
-spend-private-key = ""
+session-id = "194ac88f-4671-3976-b60a-09064f1811e8"
+session-private-key = "9b727c4954c0f29d9e76258a97f45c4c32a748c3536bee03e486a17d7ba59409"
+server-public-key = "849bd198be846981839a5e5bef929cf8b71543ec31d5ff3cee4f272656a921d5"
+spend-private-key = "6004d10dab1c2ee8fb512399eeb9aa8ce2112eee07c20df780fb76d840cbcd0e"
 
 [genesis]
 members = [

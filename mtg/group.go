@@ -48,6 +48,7 @@ type Group struct {
 	GroupId         string
 	members         []string
 	threshold       int
+	index           int
 	epoch           uint64
 	spendPrivateKey string
 	debug           bool
@@ -62,22 +63,20 @@ func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (
 		return nil, fmt.Errorf("app %s not belongs to the group", conf.App.AppId)
 	}
 
-	var client *mixin.Client
+	client, err := mixin.NewFromKeystore(&mixin.Keystore{
+		AppID:             conf.App.AppId,
+		SessionID:         conf.App.SessionId,
+		SessionPrivateKey: conf.App.SessionPrivateKey,
+		ServerPublicKey:   conf.App.ServerPublicKey,
+	})
+	if err != nil {
+		return nil, err
+	}
 	if !CheckTestEnvironment(ctx) {
-		c, err := mixin.NewFromKeystore(&mixin.Keystore{
-			AppID:             conf.App.AppId,
-			SessionID:         conf.App.SessionId,
-			SessionPrivateKey: conf.App.SessionPrivateKey,
-			ServerPublicKey:   conf.App.ServerPublicKey,
-		})
+		_, err := client.UserMe(ctx)
 		if err != nil {
 			return nil, err
 		}
-		_, err = c.UserMe(ctx)
-		if err != nil {
-			return nil, err
-		}
-		client = c
 	}
 
 	id := generateGenesisId(conf)
@@ -92,6 +91,7 @@ func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (
 		workers:         make(map[string]Worker),
 		entries:         make(map[string]string),
 		kernelRPC:       defaultKernelRPC,
+		index:           -1,
 	}
 	if grp.groupSize <= 0 {
 		grp.groupSize = OutputsBatchSize
@@ -128,6 +128,7 @@ func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (
 
 	grp.members = members
 	grp.threshold = threshold
+	grp.index = grp.calculateIndex()
 	grp.epoch = epoch
 	return grp, nil
 }
@@ -138,12 +139,22 @@ func (grp *Group) GenesisId() string {
 
 func (grp *Group) GetMembers() []string {
 	ms := make([]string, len(grp.members))
-	copy(ms, grp.members)
+	n := copy(ms, grp.members)
+	if len(grp.members) != n {
+		panic(n)
+	}
 	return ms
 }
 
 func (grp *Group) GetThreshold() int {
 	return grp.threshold
+}
+
+func (grp *Group) Index() int {
+	if grp.index < 0 {
+		panic(grp.index)
+	}
+	return grp.index
 }
 
 func (grp *Group) EnableDebug() {
@@ -185,13 +196,13 @@ func (grp *Group) FindAppByEntry(entry string) string {
 	return grp.entries[entry]
 }
 
-func (node *Group) Index() int {
-	for i, id := range node.members {
-		if node.mixin.ClientID == id {
+func (grp *Group) calculateIndex() int {
+	for i, id := range grp.GetMembers() {
+		if grp.mixin.ClientID == id {
 			return i
 		}
 	}
-	panic(node.mixin.ClientID)
+	panic(grp.mixin.ClientID)
 }
 
 func (grp *Group) Run(ctx context.Context) {
