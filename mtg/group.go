@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -46,7 +47,7 @@ type Group struct {
 
 	id              string
 	GroupId         string
-	members         []string
+	rawMembers      []string
 	threshold       int
 	index           int
 	epoch           uint64
@@ -126,7 +127,7 @@ func BuildGroup(ctx context.Context, store *SQLite3Store, conf *Configuration) (
 	}
 	sort.Strings(members)
 
-	grp.members = members
+	grp.rawMembers = members
 	grp.threshold = threshold
 	grp.index = grp.calculateIndex()
 	grp.epoch = epoch
@@ -138,10 +139,16 @@ func (grp *Group) GenesisId() string {
 }
 
 func (grp *Group) GetMembers() []string {
-	ms := make([]string, len(grp.members))
-	n := copy(ms, grp.members)
-	if len(grp.members) != n {
+	ms := make([]string, len(grp.rawMembers))
+	n := copy(ms, grp.rawMembers)
+	if len(grp.rawMembers) != n {
 		panic(n)
+	}
+	if grp.debug {
+		sort.Strings(ms)
+		if !slices.Equal(ms, grp.rawMembers) {
+			panic(ms)
+		}
 	}
 	return ms
 }
