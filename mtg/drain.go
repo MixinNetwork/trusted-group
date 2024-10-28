@@ -25,7 +25,7 @@ func (grp *Group) drainOutputsFromNetwork(ctx context.Context, filter map[string
 			time.Sleep(3 * time.Second)
 			continue
 		}
-		outputs, err := grp.readSafeOutputsAsUnspent(ctx, grp.members, uint8(grp.threshold), checkpoint, batch)
+		outputs, err := grp.readSafeOutputsAsUnspent(ctx, grp.GetMembers(), uint8(grp.threshold), checkpoint, batch)
 		logger.Verbosef("Group.readSafeOutputsAsUnspent(%d) => %d %v\n", checkpoint, len(outputs), err)
 		if err != nil {
 			time.Sleep(3 * time.Second)
