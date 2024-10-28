@@ -356,7 +356,7 @@ func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transa
 	}
 
 	for {
-		keys, err := grp.mixin.SafeCreateGhostKeys(ctx, uuidGkrs, grp.members...)
+		keys, err := grp.mixin.SafeCreateGhostKeys(ctx, uuidGkrs, grp.GetMembers()...)
 		logger.Verbosef("Group.SafeCreateGhostKeys(%s) => %v %v\n", tx.TraceId, keys, err)
 		if err != nil && CheckRetryableError(err) {
 			time.Sleep(3 * time.Second)

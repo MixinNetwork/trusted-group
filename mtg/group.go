@@ -137,7 +137,9 @@ func (grp *Group) GenesisId() string {
 }
 
 func (grp *Group) GetMembers() []string {
-	return grp.members
+	ms := make([]string, len(grp.members))
+	copy(ms, grp.members)
+	return ms
 }
 
 func (grp *Group) GetThreshold() int {
@@ -193,7 +195,7 @@ func (node *Group) Index() int {
 }
 
 func (grp *Group) Run(ctx context.Context) {
-	logger.Printf("Group(%s, %d, %s).Run(v0.9.4)\n", mixinnet.HashMembers(grp.members), grp.threshold, grp.GenesisId())
+	logger.Printf("Group(%s, %d, %s).Run(v0.9.4)\n", mixinnet.HashMembers(grp.GetMembers()), grp.threshold, grp.GenesisId())
 	filter := make(map[string]bool)
 	for {
 		time.Sleep(grp.waitDuration)
