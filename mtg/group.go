@@ -137,7 +137,9 @@ func (grp *Group) GenesisId() string {
 }
 
 func (grp *Group) GetMembers() []string {
-	return grp.members
+	ms := make([]string, len(grp.members))
+	copy(ms, grp.members)
+	return ms
 }
 
 func (grp *Group) GetThreshold() int {
