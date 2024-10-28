@@ -112,7 +112,10 @@ func transactionFromRow(row Row) (*Transaction, error) {
 }
 
 func (act *Action) BuildTransaction(ctx context.Context, traceId, opponentAppId, assetId, amount, memo string, receivers []string, threshold int) *Transaction {
-	sort.Strings(receivers)
+	rs := make([]string, len(receivers))
+	copy(rs, receivers)
+	sort.Strings(rs)
+
 	tx := &Transaction{
 		TraceId:       traceId,
 		OpponentAppId: opponentAppId,
