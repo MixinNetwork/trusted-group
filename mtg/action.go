@@ -211,3 +211,30 @@ func (grp *Group) checkTransactions(ctx context.Context, act *Action, txs []*Tra
 	}
 	return nil
 }
+
+func (action *Action) AttachTxsConsumed(ctx context.Context, txs []*Transaction) error {
+	for _, tx := range txs {
+		if len(tx.consumed) > 0 {
+			continue
+		}
+		if len(tx.consumedIds) == 0 {
+			panic(fmt.Sprintf("tx %s has empty consumedIds", tx.TraceId))
+		}
+		outputs, err := action.group.store.listOutputs(ctx, tx.consumedIds)
+		if err != nil {
+			return err
+		}
+		tx.consumed = outputs
+		for _, o := range tx.consumed {
+			if o.State != SafeUtxoStateUnspent {
+				panic(fmt.Sprintf("invalid output %s state %s for tx %s", o.OutputId, o.State, tx.TraceId))
+			}
+			if o.Sequence >= action.consumed[tx.AssetId] {
+				action.consumed[tx.AssetId] = o.Sequence
+			} else {
+				panic(fmt.Sprintf("invalid outputs sequence %d for action %s consumed %d", o.Sequence, tx.AssetId, action.consumed[tx.AssetId]))
+			}
+		}
+	}
+	return nil
+}
