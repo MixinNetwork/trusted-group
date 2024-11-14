@@ -56,6 +56,7 @@ type Transaction struct {
 	storageTraceId string
 	requestId      sql.NullString
 	consumed       []*UnifiedOutput
+	consumedIds    []string
 }
 
 var transactionCols = []string{"app_id", "opponent_app_id", "trace_id", "state", "asset_id", "receivers", "threshold", "amount", "memo", "raw", "hash", "refs", "sequence", "compaction", "storage", "storage_trace_id", "request_id", "updated_at"}
@@ -191,6 +192,20 @@ func getStorageTransactionAmount(extra []byte) common.Integer {
 	return step.Mul(len(extra)/common.ExtraSizeStorageStep + 1)
 }
 
+func (t *Transaction) getConsumedString() string {
+	if len(t.consumedIds) > 0 {
+		return strings.Join(t.consumedIds, ",")
+	}
+	if len(t.consumed) > 0 {
+		var res []string
+		for _, output := range t.consumed {
+			res = append(res, output.OutputId)
+		}
+		return strings.Join(res, ",")
+	}
+	return ""
+}
+
 func (t *Transaction) Equal(tx *Transaction) bool {
 	return tx.TraceId == t.TraceId &&
 		uuid.FromStringOrNil(tx.AppId).String() == uuid.FromStringOrNil(t.AppId).String() &&
@@ -205,9 +220,10 @@ func (t *Transaction) Equal(tx *Transaction) bool {
 		tx.compaction == t.compaction &&
 		tx.storage == t.storage &&
 		tx.storageTraceId == t.storageTraceId &&
+		tx.getConsumedString() == t.getConsumedString() &&
 		bytes.Equal(tx.Raw, t.Raw) &&
 		slices.Equal(tx.Receivers, t.Receivers) &&
-		slices.Equal(t.references, tx.references)
+		slices.Equal(tx.references, t.references)
 }
 
 func (t *Transaction) check(_ context.Context, act *Action) error {

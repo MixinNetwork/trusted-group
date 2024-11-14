@@ -43,6 +43,14 @@ func writeReferences(enc *common.Encoder, refs []crypto.Hash) {
 	}
 }
 
+func writeConsumed(enc *common.Encoder, consumed []*UnifiedOutput) {
+	cl := len(consumed)
+	enc.WriteInt(cl)
+	for _, output := range consumed {
+		writeUuid(enc, output.OutputId)
+	}
+}
+
 func (tx *Transaction) Serialize() []byte {
 	enc := common.NewEncoder()
 	writeUuid(enc, tx.TraceId)
@@ -59,6 +67,7 @@ func (tx *Transaction) Serialize() []byte {
 	writeBool(enc, tx.storage)
 	writeReferences(enc, tx.references)
 	writeUuid(enc, tx.storageTraceId)
+	writeConsumed(enc, tx.consumed)
 	return enc.Bytes()
 }
 
@@ -105,6 +114,22 @@ func readReferences(dec *common.Decoder) ([]crypto.Hash, error) {
 		refs = append(refs, r)
 	}
 	return refs, nil
+}
+
+func readConsumed(dec *common.Decoder) ([]string, error) {
+	cl, err := dec.ReadInt()
+	if err != nil {
+		return nil, err
+	}
+	var outputs []string
+	for ; cl > 0; cl -= 1 {
+		oid, err := readUuid(dec)
+		if err != nil {
+			return nil, err
+		}
+		outputs = append(outputs, oid)
+	}
+	return outputs, nil
 }
 
 func Deserialize(rb []byte) (*Transaction, error) {
@@ -166,6 +191,10 @@ func Deserialize(rb []byte) (*Transaction, error) {
 	if err != nil {
 		return nil, err
 	}
+	ids, err := readConsumed(dec)
+	if err != nil {
+		return nil, err
+	}
 
 	tx := &Transaction{
 		TraceId:       traceId,
@@ -181,6 +210,7 @@ func Deserialize(rb []byte) (*Transaction, error) {
 		compaction:    compaction,
 		storage:       storage,
 		references:    refs,
+		consumedIds:   ids,
 	}
 	if storageTraceId != uuid.Nil.String() {
 		tx.storageTraceId = storageTraceId
