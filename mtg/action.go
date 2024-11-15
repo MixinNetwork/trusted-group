@@ -171,6 +171,10 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 			return fmt.Errorf("invalid compactionAsset: %s", compactionAsset)
 		}
 
+		err = a.attachTxsConsumed(ctx, txs)
+		if err != nil {
+			return fmt.Errorf("group.attachTxsConsumed(%v) => %v", a, err)
+		}
 		err = grp.checkTransactions(ctx, a, txs)
 		if err != nil {
 			return fmt.Errorf("group.checkTransactions(%v) => %v", a, err)
@@ -208,6 +212,36 @@ func (grp *Group) checkTransactions(ctx context.Context, act *Action, txs []*Tra
 		if total.Cmp(amount) < 0 {
 			return fmt.Errorf("insufficient balance for asset %s: %s %s", asset, total.String(), amount.String())
 		}
+	}
+	return nil
+}
+
+func (action *Action) attachTxsConsumed(ctx context.Context, txs []*Transaction) error {
+	for _, tx := range txs {
+		if len(tx.consumedIds) == 0 {
+			panic(fmt.Sprintf("tx %s has empty consumedIds", tx.TraceId))
+		}
+		if len(tx.consumed) > 0 {
+			if len(tx.consumed) != len(tx.consumedIds) {
+				panic(tx.TraceId)
+			}
+			continue
+		}
+		outputs, err := action.group.store.listOutputs(ctx, tx.consumedIds)
+		if err != nil {
+			return err
+		}
+		for _, o := range outputs {
+			if o.State != SafeUtxoStateUnspent {
+				panic(fmt.Sprintf("invalid output %s state %s for tx %s", o.OutputId, o.State, tx.TraceId))
+			}
+			if o.Sequence <= action.Sequence && o.Sequence >= action.consumed[tx.AssetId] {
+				action.consumed[tx.AssetId] = o.Sequence
+			} else {
+				panic(fmt.Sprintf("invalid outputs sequence %d for action sequence %d or asset %s consumed %d", o.Sequence, action.Sequence, tx.AssetId, action.consumed[tx.AssetId]))
+			}
+		}
+		tx.consumed = outputs
 	}
 	return nil
 }
