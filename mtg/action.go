@@ -228,17 +228,17 @@ func (action *Action) attachTxsConsumed(ctx context.Context, txs []*Transaction)
 		if err != nil {
 			return err
 		}
-		tx.consumed = outputs
-		for _, o := range tx.consumed {
+		for _, o := range outputs {
 			if o.State != SafeUtxoStateUnspent {
 				panic(fmt.Sprintf("invalid output %s state %s for tx %s", o.OutputId, o.State, tx.TraceId))
 			}
-			if o.Sequence >= action.consumed[tx.AssetId] {
+			if o.Sequence <= action.Sequence && o.Sequence >= action.consumed[tx.AssetId] {
 				action.consumed[tx.AssetId] = o.Sequence
 			} else {
-				panic(fmt.Sprintf("invalid outputs sequence %d for action %s consumed %d", o.Sequence, tx.AssetId, action.consumed[tx.AssetId]))
+				panic(fmt.Sprintf("invalid outputs sequence %d for action sequence %d or asset %s consumed %d", o.Sequence, action.Sequence, tx.AssetId, action.consumed[tx.AssetId]))
 			}
 		}
+		tx.consumed = outputs
 	}
 	return nil
 }
