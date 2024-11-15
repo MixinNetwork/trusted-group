@@ -27,7 +27,21 @@ type Node struct {
 	Group *Group
 }
 
+var actionResult map[string]string
+
 func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, string) {
+	if actionResult[a.OutputId] != "" {
+		data, err := hex.DecodeString(actionResult[a.OutputId])
+		if err != nil {
+			panic(err)
+		}
+		txs, err := DeserializeTransactions(data)
+		if err != nil {
+			panic(err)
+		}
+		return txs, ""
+	}
+
 	b, err := hex.DecodeString(a.Extra)
 	if err != nil {
 		panic(err)
@@ -69,6 +83,12 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 			txs = append(txs, t)
 		}
 	}
+
+	if actionResult[a.OutputId] == "" {
+		data := SerializeTransactions(txs)
+		actionResult[a.OutputId] = hex.EncodeToString(data)
+	}
+
 	return txs, ""
 }
 
@@ -346,4 +366,8 @@ func teardownTestDatabase(store *SQLite3Store) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func init() {
+	actionResult = make(map[string]string)
 }

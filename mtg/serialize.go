@@ -43,11 +43,19 @@ func writeReferences(enc *common.Encoder, refs []crypto.Hash) {
 	}
 }
 
-func writeConsumed(enc *common.Encoder, consumed []*UnifiedOutput) {
-	cl := len(consumed)
+func writeConsumed(enc *common.Encoder, consumed []*UnifiedOutput, consumedId []string) {
+	if len(consumed) > 0 {
+		cl := len(consumed)
+		enc.WriteInt(cl)
+		for _, output := range consumed {
+			writeUuid(enc, output.OutputId)
+		}
+		return
+	}
+	cl := len(consumedId)
 	enc.WriteInt(cl)
-	for _, output := range consumed {
-		writeUuid(enc, output.OutputId)
+	for _, id := range consumedId {
+		writeUuid(enc, id)
 	}
 }
 
@@ -67,7 +75,7 @@ func (tx *Transaction) Serialize() []byte {
 	writeBool(enc, tx.storage)
 	writeReferences(enc, tx.references)
 	writeUuid(enc, tx.storageTraceId)
-	writeConsumed(enc, tx.consumed)
+	writeConsumed(enc, tx.consumed, tx.consumedIds)
 	return enc.Bytes()
 }
 
