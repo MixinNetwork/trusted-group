@@ -218,11 +218,14 @@ func (grp *Group) checkTransactions(ctx context.Context, act *Action, txs []*Tra
 
 func (action *Action) attachTxsConsumed(ctx context.Context, txs []*Transaction) error {
 	for _, tx := range txs {
-		if len(tx.consumed) > 0 {
-			continue
-		}
 		if len(tx.consumedIds) == 0 {
 			panic(fmt.Sprintf("tx %s has empty consumedIds", tx.TraceId))
+		}
+		if len(tx.consumed) > 0 {
+			if len(tx.consumed) != len(tx.consumedIds) {
+				panic(tx.TraceId)
+			}
+			continue
 		}
 		outputs, err := action.group.store.listOutputs(ctx, tx.consumedIds)
 		if err != nil {

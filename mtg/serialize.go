@@ -43,18 +43,13 @@ func writeReferences(enc *common.Encoder, refs []crypto.Hash) {
 	}
 }
 
-func writeConsumed(enc *common.Encoder, consumed []*UnifiedOutput, consumedId []string) {
-	if len(consumed) > 0 {
-		cl := len(consumed)
-		enc.WriteInt(cl)
-		for _, output := range consumed {
-			writeUuid(enc, output.OutputId)
-		}
-		return
+func writeConsumed(enc *common.Encoder, consumed []*UnifiedOutput, consumedIds []string) {
+	if len(consumed) > 0 && len(consumed) != len(consumedIds) {
+		panic(len(consumedIds))
 	}
-	cl := len(consumedId)
+	cl := len(consumedIds)
 	enc.WriteInt(cl)
-	for _, id := range consumedId {
+	for _, id := range consumedIds {
 		writeUuid(enc, id)
 	}
 }

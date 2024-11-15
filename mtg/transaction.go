@@ -147,6 +147,7 @@ func (act *Action) BuildTransaction(ctx context.Context, traceId, opponentAppId,
 	}
 	tx.consumed = inputs
 	for _, o := range tx.consumed {
+		tx.consumedIds = append(tx.consumedIds, o.OutputId)
 		if o.Sequence > act.consumed[assetId] {
 			act.consumed[assetId] = o.Sequence
 		}
@@ -193,17 +194,13 @@ func getStorageTransactionAmount(extra []byte) common.Integer {
 }
 
 func (t *Transaction) getConsumedString() string {
-	if len(t.consumedIds) > 0 {
-		return strings.Join(t.consumedIds, ",")
+	if len(t.consumedIds) == 0 {
+		panic(t.TraceId)
 	}
-	if len(t.consumed) > 0 {
-		var res []string
-		for _, output := range t.consumed {
-			res = append(res, output.OutputId)
-		}
-		return strings.Join(res, ",")
+	if len(t.consumed) > 0 && len(t.consumed) != len(t.consumedIds) {
+		panic(t.TraceId)
 	}
-	return ""
+	return strings.Join(t.consumedIds, ",")
 }
 
 func (t *Transaction) Equal(tx *Transaction) bool {
