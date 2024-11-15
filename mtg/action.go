@@ -171,6 +171,10 @@ func (grp *Group) handleActionsQueue(ctx context.Context) error {
 			return fmt.Errorf("invalid compactionAsset: %s", compactionAsset)
 		}
 
+		err = a.attachTxsConsumed(ctx, txs)
+		if err != nil {
+			return fmt.Errorf("group.attachTxsConsumed(%v) => %v", a, err)
+		}
 		err = grp.checkTransactions(ctx, a, txs)
 		if err != nil {
 			return fmt.Errorf("group.checkTransactions(%v) => %v", a, err)
@@ -212,7 +216,7 @@ func (grp *Group) checkTransactions(ctx context.Context, act *Action, txs []*Tra
 	return nil
 }
 
-func (action *Action) AttachTxsConsumed(ctx context.Context, txs []*Transaction) error {
+func (action *Action) attachTxsConsumed(ctx context.Context, txs []*Transaction) error {
 	for _, tx := range txs {
 		if len(tx.consumed) > 0 {
 			continue
