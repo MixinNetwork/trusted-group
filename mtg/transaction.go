@@ -33,6 +33,9 @@ type TransactionRecipient struct {
 	MixAddress *mixin.MixAddress
 	Amount     string
 	UuidMember bool
+
+	Destination string
+	Tag         string
 }
 
 type Transaction struct {
@@ -54,12 +57,18 @@ type Transaction struct {
 	storage        bool
 	references     []crypto.Hash
 	storageTraceId string
+	destination    sql.NullString
+	tag            sql.NullString
+	withdrawalHash sql.NullString
 	requestId      sql.NullString
 	consumed       []*UnifiedOutput
 	consumedIds    []string
 }
 
-var transactionCols = []string{"app_id", "opponent_app_id", "trace_id", "state", "asset_id", "receivers", "threshold", "amount", "memo", "raw", "hash", "refs", "sequence", "compaction", "storage", "storage_trace_id", "request_id", "updated_at"}
+var transactionCols = []string{
+	"trace_id", "app_id", "opponent_app_id", "state", "asset_id", "receivers", "threshold", "amount", "memo", "raw", "hash", "refs", "sequence",
+	"compaction", "storage", "storage_trace_id", "destination", "tag", "withdrawal_hash", "request_id", "updated_at",
+}
 
 func (t *Transaction) values() []any {
 	var refs []string
@@ -71,14 +80,19 @@ func (t *Transaction) values() []any {
 		hash = sql.NullString{Valid: true, String: t.Hash.String()}
 		raw = sql.NullString{Valid: true, String: hex.EncodeToString(t.Raw)}
 	}
-	return []any{t.AppId, t.OpponentAppId, t.TraceId, t.State, t.AssetId, strings.Join(t.Receivers, ","), t.Threshold, t.Amount, t.Memo, raw, hash, strings.Join(refs, ","), t.Sequence, t.compaction, t.storage, t.storageTraceId, t.requestId, t.UpdatedAt}
+	return []any{
+		t.TraceId, t.AppId, t.OpponentAppId, t.State, t.AssetId, strings.Join(t.Receivers, ","), t.Threshold, t.Amount, t.Memo, raw, hash, strings.Join(refs, ","), t.Sequence,
+		t.compaction, t.storage, t.storageTraceId, t.destination, t.tag, t.withdrawalHash, t.requestId, t.UpdatedAt,
+	}
 }
 
 func transactionFromRow(row Row) (*Transaction, error) {
 	var t Transaction
 	var rs, refs string
 	var hash, raw sql.NullString
-	err := row.Scan(&t.AppId, &t.OpponentAppId, &t.TraceId, &t.State, &t.AssetId, &rs, &t.Threshold, &t.Amount, &t.Memo, &raw, &hash, &refs, &t.Sequence, &t.compaction, &t.storage, &t.storageTraceId, &t.requestId, &t.UpdatedAt)
+	err := row.Scan(
+		&t.TraceId, &t.AppId, &t.OpponentAppId, &t.State, &t.AssetId, &rs, &t.Threshold, &t.Amount, &t.Memo, &raw, &hash, &refs, &t.Sequence,
+		&t.compaction, &t.storage, &t.storageTraceId, t.destination, &t.tag, &t.withdrawalHash, &t.requestId, &t.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -191,6 +205,44 @@ func (act *Action) BuildStorageTransaction(ctx context.Context, extra []byte) *T
 	return t
 }
 
+func (act *Action) BuildWithdrawTransaction(ctx context.Context, traceId, assetId, amount, memo, destination, tag string) *Transaction {
+	tx := &Transaction{
+		TraceId:        traceId,
+		AppId:          act.AppId,
+		State:          TransactionStateInitial,
+		AssetId:        assetId,
+		Amount:         amount,
+		Memo:           memo,
+		Sequence:       act.Sequence,
+		destination:    sql.NullString{Valid: true, String: destination},
+		tag:            sql.NullString{Valid: true, String: tag},
+		withdrawalHash: sql.NullString{Valid: false},
+	}
+	outputs := act.group.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, act.consumed[assetId], tx.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
+	if len(outputs) == 0 {
+		panic(tx.TraceId)
+	}
+	if ids := safeTransactionSequenceOrderHack[tx.TraceId]; len(ids) > 0 {
+		hack, err := act.group.store.listOutputs(ctx, ids)
+		if err != nil {
+			panic(err)
+		}
+		outputs = hack
+	}
+	inputs, _, err := act.group.getTransactionInputsAndRecipients(ctx, tx, outputs)
+	if err != nil {
+		panic(err)
+	}
+	tx.consumed = inputs
+	for _, o := range tx.consumed {
+		tx.consumedIds = append(tx.consumedIds, o.OutputId)
+		if o.Sequence > act.consumed[assetId] {
+			act.consumed[assetId] = o.Sequence
+		}
+	}
+	return tx
+}
+
 func getStorageTransactionAmount(extra []byte) common.Integer {
 	step := common.NewIntegerFromString(common.ExtraStoragePriceStep)
 	return step.Mul(len(extra)/common.ExtraSizeStorageStep + 1)
@@ -221,6 +273,9 @@ func (t *Transaction) Equal(tx *Transaction) bool {
 		tx.storage == t.storage &&
 		tx.storageTraceId == t.storageTraceId &&
 		tx.getConsumedString() == t.getConsumedString() &&
+		tx.destination.String == t.destination.String &&
+		tx.tag.String == t.tag.String &&
+		tx.withdrawalHash.String == t.withdrawalHash.String &&
 		bytes.Equal(tx.Raw, t.Raw) &&
 		slices.Equal(tx.Receivers, t.Receivers) &&
 		slices.Equal(tx.references, t.references)
@@ -242,8 +297,19 @@ func (t *Transaction) check(_ context.Context, act *Action) error {
 			return fmt.Errorf("invalid reference: %d %v", i, r)
 		}
 	}
-	if t.Threshold < 1 || t.Threshold > 128 {
-		return fmt.Errorf("invalid receivers threshold %d/%d", t.Threshold, len(t.Receivers))
+	if !t.destination.Valid {
+		if t.Threshold < 1 || t.Threshold > 128 {
+			return fmt.Errorf("invalid receivers threshold %d/%d", t.Threshold, len(t.Receivers))
+		}
+		for _, r := range t.Receivers {
+			id, _ := uuid.FromString(r)
+			if id.String() == uuid.Nil.String() {
+				_, err := mixinnet.AddressFromString(r)
+				if err != nil {
+					return fmt.Errorf("invalid receiver %s", r)
+				}
+			}
+		}
 	}
 	amt := decimal.RequireFromString(t.Amount)
 	min := decimal.RequireFromString("0.00000001")
@@ -251,21 +317,14 @@ func (t *Transaction) check(_ context.Context, act *Action) error {
 		return fmt.Errorf("invalid amount %s", t.Amount)
 	}
 
-	for _, r := range t.Receivers {
-		id, _ := uuid.FromString(r)
-		if id.String() == uuid.Nil.String() {
-			_, err := mixinnet.AddressFromString(r)
-			if err != nil {
-				return fmt.Errorf("invalid receiver %s", r)
-			}
-		}
-	}
-
 	limit := common.ExtraSizeGeneralLimit
+	s := encodeMixinExtra(t.OpponentAppId, []byte(t.Memo))
 	if t.storage {
 		limit = common.ExtraSizeStorageCapacity
 	}
-	s := encodeMixinExtra(t.OpponentAppId, []byte(t.Memo))
+	if t.destination.Valid || t.storage {
+		s = t.Memo
+	}
 	if len(s) >= limit {
 		return fmt.Errorf("invalid extra length: %d", len(s))
 	}
@@ -530,6 +589,21 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 		return nil, nil, err
 	}
 	for i, r := range tr {
+		if r.Destination == "" && r.MixAddress == nil {
+			panic(r)
+		}
+		if r.Destination != "" {
+			ver.Outputs = append(ver.Outputs, &common.Output{
+				Type:   common.OutputTypeWithdrawalSubmit,
+				Amount: common.NewIntegerFromString(r.Amount),
+				Withdrawal: &common.WithdrawalData{
+					Address: r.Destination,
+					Tag:     r.Tag,
+				},
+			})
+			continue
+		}
+
 		ver.Outputs = append(ver.Outputs, newCommonOutput(&mixinnet.Output{
 			Type:   common.OutputTypeScript,
 			Mask:   keys[i].Mask,
@@ -541,7 +615,7 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 
 	ver.References = tx.references
 	ver.Extra = []byte(tx.Memo)
-	if !tx.storage {
+	if !tx.storage && !tx.destination.Valid {
 		ver.Extra = []byte(EncodeMixinExtraBase64(tx.OpponentAppId, ver.Extra))
 	}
 

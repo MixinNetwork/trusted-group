@@ -259,16 +259,29 @@ func (grp *Group) readTransactionUntilSufficientImpl(ctx context.Context, id str
 }
 
 func (grp *Group) getTransactionInputsAndRecipients(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput) ([]*UnifiedOutput, []*TransactionRecipient, error) {
-	ma, uuidMember, err := NewMixAddress(ctx, tx.Receivers, byte(tx.Threshold))
-	if err != nil {
-		return nil, nil, err
-	}
-	tr := []*TransactionRecipient{
-		{
-			MixAddress: ma,
-			Amount:     tx.Amount,
-			UuidMember: uuidMember,
-		},
+	var tr []*TransactionRecipient
+	if tx.Receivers == nil && tx.Threshold == 0 && tx.destination.Valid {
+		tr = []*TransactionRecipient{
+			{
+				Amount:      tx.Amount,
+				Destination: tx.destination.String,
+			},
+		}
+		if tx.tag.Valid {
+			tr[0].Tag = tx.tag.String
+		}
+	} else {
+		ma, uuidMember, err := NewMixAddress(ctx, tx.Receivers, byte(tx.Threshold))
+		if err != nil {
+			return nil, nil, err
+		}
+		tr = []*TransactionRecipient{
+			{
+				MixAddress: ma,
+				Amount:     tx.Amount,
+				UuidMember: uuidMember,
+			},
+		}
 	}
 
 	target := common.NewIntegerFromString(tx.Amount)
@@ -317,6 +330,9 @@ func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transa
 
 	var uuidGkrs []*mixin.GhostInput
 	for i, r := range tr {
+		if r.MixAddress == nil {
+			continue
+		}
 		members := r.MixAddress.Members()
 		if r.UuidMember {
 			sort.Strings(members)

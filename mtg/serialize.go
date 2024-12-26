@@ -1,6 +1,7 @@
 package mtg
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 
@@ -8,6 +9,8 @@ import (
 	"github.com/MixinNetwork/mixin/crypto"
 	"github.com/gofrs/uuid/v5"
 )
+
+var magic = []byte{0x77, 0x77}
 
 func writeUuid(enc *common.Encoder, id string) {
 	uid := uuid.FromStringOrNil(id)
@@ -71,6 +74,11 @@ func (tx *Transaction) Serialize() []byte {
 	writeReferences(enc, tx.references)
 	writeUuid(enc, tx.storageTraceId)
 	writeConsumed(enc, tx.consumed, tx.consumedIds)
+	if tx.destination.Valid {
+		enc.Write(magic)
+		writeString(enc, tx.destination.String)
+		writeString(enc, tx.tag.String)
+	}
 	return enc.Bytes()
 }
 
@@ -198,6 +206,21 @@ func Deserialize(rb []byte) (*Transaction, error) {
 	if err != nil {
 		return nil, err
 	}
+	magic, err := dec.ReadMagic()
+	if err != nil {
+		return nil, err
+	}
+	var destination, tag string
+	if magic {
+		destination, err = readString(dec)
+		if err != nil {
+			return nil, err
+		}
+		tag, err = readString(dec)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	tx := &Transaction{
 		TraceId:       traceId,
@@ -217,6 +240,10 @@ func Deserialize(rb []byte) (*Transaction, error) {
 	}
 	if storageTraceId != uuid.Nil.String() {
 		tx.storageTraceId = storageTraceId
+	}
+	if destination != "" {
+		tx.destination = sql.NullString{Valid: true, String: destination}
+		tx.tag = sql.NullString{Valid: true, String: tag}
 	}
 
 	return tx, nil
