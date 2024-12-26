@@ -260,7 +260,8 @@ func (grp *Group) readTransactionUntilSufficientImpl(ctx context.Context, id str
 
 func (grp *Group) getTransactionInputsAndRecipients(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput) ([]*UnifiedOutput, []*TransactionRecipient, error) {
 	var tr []*TransactionRecipient
-	if tx.Receivers == nil && tx.Threshold == 0 && tx.destination.Valid {
+	receivers := strings.Join(tx.Receivers, ",")
+	if receivers == "" && tx.Threshold == 0 && tx.destination.Valid {
 		tr = []*TransactionRecipient{
 			{
 				Amount:      tx.Amount,
@@ -315,6 +316,17 @@ func (grp *Group) getTransactionInputsAndRecipients(ctx context.Context, tx *Tra
 func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transaction, tr []*TransactionRecipient) (map[int]*mixin.GhostKeys, error) {
 	gkm := make(map[int]*mixin.GhostKeys, len(tr))
 	if CheckTestEnvironment(ctx) {
+		if tx.TraceId == "cf0564ba-bf51-4e8c-b504-3beb6c5c65e3" {
+			tr[1].MixAddress.Threshold = 2
+			mask, _ := mixinnet.KeyFromString("f18e0e276648b1d42063f8bcf9d5a57252f4048c9939ded0999a0e263716976e")
+			key1, _ := mixinnet.KeyFromString("f5c8b3dbb7a5b2f7e1e4640d9f61c142cda547917f227ba21ebc5d554651c50d")
+			key2, _ := mixinnet.KeyFromString("18f71fbe1b5055f3d882a4ae2813fad315bf0dcb5a0e60f091121db882baff77")
+			gkm[1] = &mixin.GhostKeys{
+				Mask: mask,
+				Keys: []mixinnet.Key{key1, key2},
+			}
+			return gkm, nil
+		}
 		key1, err := testGetGhostKeys(tx, 0)
 		if err != nil {
 			return nil, err

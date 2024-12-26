@@ -471,7 +471,7 @@ func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outp
 	if tx.Hash.String() != req.TransactionHash {
 		panic(req.TransactionHash)
 	}
-	if !tx.storage {
+	if !tx.storage && !tx.destination.Valid {
 		aid, _ := DecodeMixinExtraBase64(string(ver.Extra))
 		if aid != tx.OpponentAppId {
 			panic(hex.EncodeToString(rb))

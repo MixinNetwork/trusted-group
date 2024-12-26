@@ -275,6 +275,40 @@ func TestMTGWithdrawal(t *testing.T) {
 	require.Equal(testWithdrawalDestination, tx.destination.String)
 	require.Equal("", tx.tag.String)
 	require.False(tx.withdrawalHash.Valid)
+
+	outputs := node.Group.ListOutputsForTransaction(ctx, tx.TraceId, tx.Sequence)
+	require.True(len(outputs) > 0)
+	ver, consumed, err := node.Group.buildRawTransaction(ctx, tx, outputs)
+	require.Nil(err)
+	require.True(len(outputs) == len(consumed))
+	raw := hex.EncodeToString(ver.Marshal())
+	require.Equal(
+		"77770005481360491383ebd4f0f97543f3440313b48b8fd06dcfa5a0c2cabe4252d3a8eb000101c43005fd06e0b8f06a0af04faf7530331603e352a11032afd0fd9dbd84e8ee0000000000000000000200a10003077a100000000000000000000000000000000000000000000000000000000000000000000000007777002c3733796f7a376b4b337a6768325363443961544a705843724b48455469317879454b664d544839357567666600000000000227100002f5c8b3dbb7a5b2f7e1e4640d9f61c142cda547917f227ba21ebc5d554651c50d18f71fbe1b5055f3d882a4ae2813fad315bf0dcb5a0e60f091121db882baff77f18e0e276648b1d42063f8bcf9d5a57252f4048c9939ded0999a0e263716976e0003fffe02000000000000000f7769746864726177616c2d746573740000",
+		raw,
+	)
+	_, err = node.Group.updateTxWithOutputs(ctx, tx, consumed, &mixin.SafeMultisigRequest{
+		RequestID:       tx.RequestID(),
+		TransactionHash: "f45e51276a031a46d25998605324e8a3f1b720d33f66dc226018448f53bda4c4",
+		RawTransaction:  raw,
+	})
+	require.Nil(err)
+
+	txs, _, err = node.Group.store.ListTransactions(ctx, TransactionStateInitial, 0)
+	require.Nil(err)
+	require.Len(txs, 0)
+	txs, _, err = node.Group.store.ListTransactions(ctx, TransactionStateSigned, 0)
+	require.Nil(err)
+	require.Len(txs, 1)
+
+	err = node.Group.store.FinishTransaction(ctx, tx.TraceId)
+	require.Nil(err)
+	txs, _, err = node.Group.store.ListTransactions(ctx, TransactionStateSigned, 0)
+	require.Nil(err)
+	require.Len(txs, 0)
+	txs, _, err = node.Group.store.ListTransactions(ctx, TransactionStateSnapshot, 0)
+	require.Nil(err)
+	require.Len(txs, 1)
+
 }
 
 func testHandleCompactionTransaction(ctx context.Context, require *require.Assertions, group *Group, hash string) *UnifiedOutput {
