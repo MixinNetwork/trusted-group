@@ -20,7 +20,12 @@ import (
 
 const (
 	USDTAssetId = "218bc6f4-7927-3f8e-8568-3a3725b74361"
+	SOLAssetId  = "64692c23-8971-4cf4-84a7-4dd1271dd887"
 	testSender  = "e14c1573-3aca-48b1-b437-766b4757b50d"
+
+	testWithdrawalDestination = "73yoz7kK3zgh2ScD9aTJpXCrKHETi1xyEKfMTH95ugff"
+	testWithdrawalAmouint     = "0.0049"
+	testWithdrawalMemo        = "withdrawal-test"
 )
 
 type Node struct {
@@ -56,7 +61,8 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 	var txs []*Transaction
 	var storageTraceId string
 	for _, tx := range items {
-		if tx == "storage" {
+		switch tx {
+		case "storage":
 			extra := []byte("storage-memo")
 			enough := a.CheckAssetBalanceForStorageAt(ctx, extra)
 			if !enough {
@@ -65,7 +71,11 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 			t := a.BuildStorageTransaction(ctx, extra)
 			storageTraceId = t.TraceId
 			txs = append(txs, t)
-		} else {
+		case "withdrawal":
+			tid := "cf0564ba-bf51-4e8c-b504-3beb6c5c65e3"
+			t := a.BuildWithdrawTransaction(ctx, tid, SOLAssetId, testWithdrawalAmouint, testWithdrawalMemo, testWithdrawalDestination, "")
+			txs = append(txs, t)
+		default:
 			amt := decimal.RequireFromString(tx)
 			balance := a.CheckAssetBalanceAt(ctx, a.AssetId)
 			if balance.Cmp(amt) < 0 {
@@ -219,6 +229,52 @@ func TestMTGStorage(t *testing.T) {
 	require.Nil(err)
 	require.NotEqual(TransactionStateInitial, tx.State)
 	require.Equal(storage.Hash.String(), tx.references[0].String())
+}
+
+func TestMTGWithdrawal(t *testing.T) {
+	require := require.New(t)
+	ctx, node := testBuildGroup(require)
+	require.NotNil(node)
+	defer teardownTestDatabase(node.Group.store)
+
+	d, err := decimal.NewFromString("0.005")
+	require.Nil(err)
+	err = node.Group.store.WriteAction(ctx, &UnifiedOutput{
+		OutputId:             "7514b939-db92-3d31-abf4-7841f035e400",
+		TransactionRequestId: "cf0564ba-bf51-4e8c-b504-3beb6c5c65e2",
+		TransactionHash:      "01c43005fd06e0b8f06a0af04faf7530331603e352a11032afd0fd9dbd84e8ee",
+		OutputIndex:          0,
+		AssetId:              SOLAssetId,
+		Amount:               d,
+		SendersThreshold:     int64(1),
+		Senders:              []string{testSender},
+		ReceiversThreshold:   int64(node.Group.GetThreshold()),
+		Extra:                "",
+		State:                SafeUtxoStateUnspent,
+		Sequence:             4655227,
+		AppId:                node.Group.GroupId,
+	}, ActionStateDone)
+	require.Nil(err)
+
+	testDrainInitialOutputs(ctx, require, node.Group, "withdrawal")
+	as, err := node.Group.store.ListActions(ctx, ActionStateInitial, 0)
+	require.Nil(err)
+	require.Len(as, 1)
+	wkr := node.Group.FindWorker(as[0].AppId)
+	require.NotNil(wkr)
+	err = node.Group.handleActionsQueue(ctx)
+	require.Nil(err)
+
+	txs, _, err := node.Group.store.ListTransactions(ctx, TransactionStateInitial, 0)
+	require.Nil(err)
+	require.Len(txs, 1)
+	tx := txs[0]
+	require.Equal(testWithdrawalAmouint, tx.Amount)
+	require.Equal(testWithdrawalMemo, tx.Memo)
+	require.Equal(SOLAssetId, tx.AssetId)
+	require.Equal(testWithdrawalDestination, tx.destination.String)
+	require.Equal("", tx.tag.String)
+	require.False(tx.withdrawalHash.Valid)
 }
 
 func testHandleCompactionTransaction(ctx context.Context, require *require.Assertions, group *Group, hash string) *UnifiedOutput {

@@ -92,7 +92,7 @@ func transactionFromRow(row Row) (*Transaction, error) {
 	var hash, raw sql.NullString
 	err := row.Scan(
 		&t.TraceId, &t.AppId, &t.OpponentAppId, &t.State, &t.AssetId, &rs, &t.Threshold, &t.Amount, &t.Memo, &raw, &hash, &refs, &t.Sequence,
-		&t.compaction, &t.storage, &t.storageTraceId, t.destination, &t.tag, &t.withdrawalHash, &t.requestId, &t.UpdatedAt)
+		&t.compaction, &t.storage, &t.storageTraceId, &t.destination, &t.tag, &t.withdrawalHash, &t.requestId, &t.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -209,6 +209,7 @@ func (act *Action) BuildWithdrawTransaction(ctx context.Context, traceId, assetI
 	tx := &Transaction{
 		TraceId:        traceId,
 		AppId:          act.AppId,
+		OpponentAppId:  act.group.GroupId,
 		State:          TransactionStateInitial,
 		AssetId:        assetId,
 		Amount:         amount,
@@ -318,12 +319,12 @@ func (t *Transaction) check(_ context.Context, act *Action) error {
 	}
 
 	limit := common.ExtraSizeGeneralLimit
-	s := encodeMixinExtra(t.OpponentAppId, []byte(t.Memo))
+	s := t.Memo
 	if t.storage {
 		limit = common.ExtraSizeStorageCapacity
 	}
-	if t.destination.Valid || t.storage {
-		s = t.Memo
+	if !t.destination.Valid && !t.storage {
+		s = encodeMixinExtra(t.OpponentAppId, []byte(t.Memo))
 	}
 	if len(s) >= limit {
 		return fmt.Errorf("invalid extra length: %d", len(s))
@@ -331,7 +332,7 @@ func (t *Transaction) check(_ context.Context, act *Action) error {
 
 	encoded := t.Serialize()
 	decoded, _ := Deserialize(encoded)
-	if !t.Equal(decoded) {
+	if !bytes.Equal(encoded, decoded.Serialize()) {
 		panic(hex.EncodeToString(encoded))
 	}
 	return nil
