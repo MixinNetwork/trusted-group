@@ -264,6 +264,14 @@ func (grp *Group) ListOutputsForTransaction(ctx context.Context, traceId string,
 	return outputs
 }
 
+func (grp *Group) ListOutputsByTransactionHash(ctx context.Context, hash string, sequence uint64) []*UnifiedOutput {
+	outputs, err := grp.store.ListOutputsByTransactionHash(ctx, hash, sequence)
+	if err != nil {
+		panic(err)
+	}
+	return outputs
+}
+
 // this function or rpc should be used only in ProcessOutput
 func (act *Action) CheckAssetBalanceAt(ctx context.Context, assetId string) decimal.Decimal {
 	os, err := act.group.store.ListOutputsForAsset(ctx, act.AppId, assetId, act.consumed[assetId], act.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)

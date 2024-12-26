@@ -270,6 +270,25 @@ func (s *SQLite3Store) ListOutputsForTransaction(ctx context.Context, traceId st
 	return os, nil
 }
 
+func (s *SQLite3Store) ListOutputsByTransactionHash(ctx context.Context, hash string, sequence uint64) ([]*UnifiedOutput, error) {
+	query := fmt.Sprintf("SELECT %s FROM outputs WHERE transaction_hash=? AND sequence<=? ORDER BY transaction_hash, sequence ASC", strings.Join(outputCols, ","))
+	rows, err := s.db.QueryContext(ctx, query, hash, sequence)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var os []*UnifiedOutput
+	for rows.Next() {
+		o, err := outputFromRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		os = append(os, o)
+	}
+	return os, nil
+}
+
 func (s *SQLite3Store) ListOutputsForAsset(ctx context.Context, appId, assetId string, consumedUntil, sequence uint64, state SafeUtxoState, limit int) ([]*UnifiedOutput, error) {
 	query := fmt.Sprintf("SELECT %s FROM outputs WHERE app_id=? AND asset_id=? AND state=? AND sequence>? AND sequence<=? ORDER BY app_id, asset_id, state, sequence ASC", strings.Join(outputCols, ","))
 	if limit > 0 {
