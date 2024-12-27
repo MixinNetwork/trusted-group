@@ -10,7 +10,10 @@ import (
 	"github.com/gofrs/uuid/v5"
 )
 
-var magic = []byte{0x77, 0x77}
+var (
+	null  = []byte{0x00, 0x00}
+	magic = []byte{0x77, 0x77}
+)
 
 func writeUuid(enc *common.Encoder, id string) {
 	uid := uuid.FromStringOrNil(id)
@@ -78,6 +81,8 @@ func (tx *Transaction) Serialize() []byte {
 		enc.Write(magic)
 		writeString(enc, tx.destination.String)
 		writeString(enc, tx.tag.String)
+	} else {
+		enc.Write(null)
 	}
 	return enc.Bytes()
 }
