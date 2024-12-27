@@ -170,7 +170,7 @@ func Deserialize(rb []byte) (*Transaction, error) {
 	if err != nil {
 		return nil, err
 	}
-	treshold, err := dec.ReadInt()
+	threshold, err := dec.ReadInt()
 	if err != nil {
 		return nil, err
 	}
@@ -229,7 +229,7 @@ func Deserialize(rb []byte) (*Transaction, error) {
 		State:         state,
 		AssetId:       assetId,
 		Receivers:     strings.Split(receivers, ","),
-		Threshold:     treshold,
+		Threshold:     threshold,
 		Amount:        amount,
 		Memo:          memo,
 		Sequence:      sequence,
