@@ -42,6 +42,7 @@ type Transaction struct {
 	TraceId       string
 	AppId         string
 	OpponentAppId string
+	ActionId      string
 	State         int
 	AssetId       string
 	Receivers     []string
@@ -66,7 +67,7 @@ type Transaction struct {
 }
 
 var transactionCols = []string{
-	"trace_id", "app_id", "opponent_app_id", "state", "asset_id", "receivers", "threshold", "amount", "memo", "raw", "hash", "refs", "sequence",
+	"trace_id", "app_id", "opponent_app_id", "action_id", "state", "asset_id", "receivers", "threshold", "amount", "memo", "raw", "hash", "refs", "sequence",
 	"compaction", "storage", "storage_trace_id", "destination", "tag", "withdrawal_hash", "request_id", "updated_at",
 }
 
@@ -81,7 +82,7 @@ func (t *Transaction) values() []any {
 		raw = sql.NullString{Valid: true, String: hex.EncodeToString(t.Raw)}
 	}
 	return []any{
-		t.TraceId, t.AppId, t.OpponentAppId, t.State, t.AssetId, strings.Join(t.Receivers, ","), t.Threshold, t.Amount, t.Memo, raw, hash, strings.Join(refs, ","), t.Sequence,
+		t.TraceId, t.AppId, t.OpponentAppId, t.ActionId, t.State, t.AssetId, strings.Join(t.Receivers, ","), t.Threshold, t.Amount, t.Memo, raw, hash, strings.Join(refs, ","), t.Sequence,
 		t.compaction, t.storage, t.storageTraceId, t.destination, t.tag, t.withdrawalHash, t.requestId, t.UpdatedAt,
 	}
 }
@@ -91,7 +92,7 @@ func transactionFromRow(row Row) (*Transaction, error) {
 	var rs, refs string
 	var hash, raw sql.NullString
 	err := row.Scan(
-		&t.TraceId, &t.AppId, &t.OpponentAppId, &t.State, &t.AssetId, &rs, &t.Threshold, &t.Amount, &t.Memo, &raw, &hash, &refs, &t.Sequence,
+		&t.TraceId, &t.AppId, &t.OpponentAppId, &t.ActionId, &t.State, &t.AssetId, &rs, &t.Threshold, &t.Amount, &t.Memo, &raw, &hash, &refs, &t.Sequence,
 		&t.compaction, &t.storage, &t.storageTraceId, &t.destination, &t.tag, &t.withdrawalHash, &t.requestId, &t.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -134,6 +135,7 @@ func (act *Action) BuildTransaction(ctx context.Context, traceId, opponentAppId,
 	tx := &Transaction{
 		TraceId:       traceId,
 		OpponentAppId: opponentAppId,
+		ActionId:      act.OutputId,
 		State:         TransactionStateInitial,
 		AssetId:       assetId,
 		Amount:        amount,
@@ -210,6 +212,7 @@ func (act *Action) BuildWithdrawTransaction(ctx context.Context, traceId, assetI
 		TraceId:        traceId,
 		AppId:          act.AppId,
 		OpponentAppId:  act.group.GroupId,
+		ActionId:       act.OutputId,
 		State:          TransactionStateInitial,
 		AssetId:        assetId,
 		Amount:         amount,
@@ -266,6 +269,7 @@ func (t *Transaction) Equal(tx *Transaction) bool {
 		tx.State == t.State &&
 		tx.AssetId == t.AssetId &&
 		tx.Threshold == t.Threshold &&
+		tx.ActionId == t.ActionId &&
 		tx.Amount == t.Amount &&
 		tx.Memo == t.Memo &&
 		tx.Hash == t.Hash &&
@@ -287,8 +291,8 @@ func (t *Transaction) check(_ context.Context, act *Action) error {
 	if _, err := uuid.FromString(t.AppId); err != nil {
 		panic(err)
 	}
-	if t.AppId != act.AppId || t.Sequence != act.Sequence {
-		return fmt.Errorf("invalid action origin: %s %d", t.AppId, t.Sequence)
+	if t.AppId != act.AppId || t.Sequence != act.Sequence || t.ActionId != act.OutputId {
+		return fmt.Errorf("invalid action origin: %s %d %s", t.AppId, t.Sequence, t.ActionId)
 	}
 	if len(t.references) > 2 {
 		return fmt.Errorf("invalid references length: %d", len(t.references))

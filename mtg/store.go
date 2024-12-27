@@ -46,12 +46,6 @@ func (s *SQLite3Store) ReadOutputByHashAndIndex(ctx context.Context, hash string
 	return outputFromRow(row)
 }
 
-func (s *SQLite3Store) ReadOutputBySequece(ctx context.Context, sequence uint64) (*UnifiedOutput, error) {
-	query := fmt.Sprintf("SELECT %s FROM outputs WHERE sequence=?", strings.Join(outputCols, ","))
-	row := s.db.QueryRowContext(ctx, query, sequence)
-	return outputFromRow(row)
-}
-
 func (s *SQLite3Store) readAction(ctx context.Context, tx *sql.Tx, id string) (*Action, error) {
 	query := fmt.Sprintf("SELECT %s FROM actions WHERE output_id=?", strings.Join(actionCols, ","))
 	row := tx.QueryRowContext(ctx, query, id)

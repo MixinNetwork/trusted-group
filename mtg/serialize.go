@@ -65,6 +65,7 @@ func (tx *Transaction) Serialize() []byte {
 	writeUuid(enc, tx.TraceId)
 	writeUuid(enc, tx.AppId)
 	writeUuid(enc, tx.OpponentAppId)
+	writeUuid(enc, tx.ActionId)
 	enc.WriteInt(tx.State)
 	writeUuid(enc, tx.AssetId)
 	writeString(enc, strings.Join(tx.Receivers, ","))
@@ -163,6 +164,10 @@ func Deserialize(rb []byte) (*Transaction, error) {
 	if err != nil {
 		return nil, err
 	}
+	actionId, err := readUuid(dec)
+	if err != nil {
+		return nil, err
+	}
 	state, err := dec.ReadInt()
 	if err != nil {
 		return nil, err
@@ -231,6 +236,7 @@ func Deserialize(rb []byte) (*Transaction, error) {
 		TraceId:       traceId,
 		AppId:         appId,
 		OpponentAppId: opponentAppId,
+		ActionId:      actionId,
 		State:         state,
 		AssetId:       assetId,
 		Receivers:     strings.Split(receivers, ","),

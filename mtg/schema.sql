@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   trace_id             VARCHAR NOT NULL,
   app_id               VARCHAR NOT NULL,
   opponent_app_id      VARCHAR NOT NULL,
+  action_id            VARCHAR NOT NULL,
   state                INTEGER NOT NULL,
   asset_id             VARCHAR NOT NULL,
   receivers            VARCHAR NOT NULL,
