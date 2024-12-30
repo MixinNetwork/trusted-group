@@ -245,6 +245,13 @@ func (grp *Group) Run(ctx context.Context) {
 		if err != nil {
 			panic(err)
 		}
+
+		// verify all withdrawal transactions
+		logger.Verbosef("Group.Run(confirmWithdrawalTransactions)\n")
+		err = grp.confirmWithdrawalTransactions(ctx)
+		if err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -270,6 +277,14 @@ func (grp *Group) ListOutputsByTransactionHash(ctx context.Context, hash string,
 		panic(err)
 	}
 	return outputs
+}
+
+func (grp *Group) ListUnconfirmedWithdrawalTransactions(ctx context.Context, limit int) []*Transaction {
+	txs, err := grp.store.ListUnconfirmedWithdrawalTransactions(ctx, limit)
+	if err != nil {
+		panic(err)
+	}
+	return txs
 }
 
 // this function or rpc should be used only in ProcessOutput
@@ -354,6 +369,22 @@ func (grp *Group) snapshotTransaction(ctx context.Context, tx *Transaction) (boo
 		panic(tx.TraceId)
 	}
 	return req.State == mixin.SafeUtxoStateSpent, nil
+}
+
+func (grp *Group) confirmWithdrawalTransactions(ctx context.Context) error {
+	txs, err := grp.store.ListUnconfirmedWithdrawalTransactions(ctx, 100)
+	if err != nil || len(txs) == 0 {
+		return err
+	}
+	for _, tx := range txs {
+		// TODO get withdrawal hash from api
+		hash := ""
+		err = grp.store.ConfirmWithdrawalTransaction(ctx, tx.TraceId, hash)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func generateGenesisId(conf *Configuration) string {
