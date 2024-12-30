@@ -272,9 +272,9 @@ func TestMTGWithdrawal(t *testing.T) {
 	require.Equal(testWithdrawalAmouint, tx.Amount)
 	require.Equal(testWithdrawalMemo, tx.Memo)
 	require.Equal(SOLAssetId, tx.AssetId)
-	require.Equal(testWithdrawalDestination, tx.destination.String)
-	require.Equal("", tx.tag.String)
-	require.False(tx.withdrawalHash.Valid)
+	require.Equal(testWithdrawalDestination, tx.Destination.String)
+	require.Equal("", tx.Tag.String)
+	require.False(tx.WithdrawalHash.Valid)
 
 	outputs := node.Group.ListOutputsForTransaction(ctx, tx.TraceId, tx.Sequence)
 	require.True(len(outputs) > 0)

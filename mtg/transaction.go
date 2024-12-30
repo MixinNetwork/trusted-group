@@ -59,9 +59,9 @@ type Transaction struct {
 	storage        bool
 	references     []crypto.Hash
 	storageTraceId string
-	destination    sql.NullString
-	tag            sql.NullString
-	withdrawalHash sql.NullString
+	Destination    sql.NullString
+	Tag            sql.NullString
+	WithdrawalHash sql.NullString
 	requestId      sql.NullString
 	consumed       []*UnifiedOutput
 	consumedIds    []string
@@ -84,7 +84,7 @@ func (t *Transaction) values() []any {
 	}
 	return []any{
 		t.TraceId, t.AppId, t.OpponentAppId, t.ActionId, t.State, t.AssetId, strings.Join(t.Receivers, ","), t.Threshold, t.Amount, t.Memo, raw, hash, strings.Join(refs, ","), t.Sequence,
-		t.compaction, t.storage, t.storageTraceId, t.destination, t.tag, t.withdrawalHash, t.requestId, t.UpdatedAt,
+		t.compaction, t.storage, t.storageTraceId, t.Destination, t.Tag, t.WithdrawalHash, t.requestId, t.UpdatedAt,
 	}
 }
 
@@ -94,7 +94,7 @@ func transactionFromRow(row Row) (*Transaction, error) {
 	var hash, raw sql.NullString
 	err := row.Scan(
 		&t.TraceId, &t.AppId, &t.OpponentAppId, &t.ActionId, &t.State, &t.AssetId, &rs, &t.Threshold, &t.Amount, &t.Memo, &raw, &hash, &refs, &t.Sequence,
-		&t.compaction, &t.storage, &t.storageTraceId, &t.destination, &t.tag, &t.withdrawalHash, &t.requestId, &t.UpdatedAt)
+		&t.compaction, &t.storage, &t.storageTraceId, &t.Destination, &t.Tag, &t.WithdrawalHash, &t.requestId, &t.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -219,9 +219,9 @@ func (act *Action) BuildWithdrawTransaction(ctx context.Context, traceId, assetI
 		Amount:         amount,
 		Memo:           memo,
 		Sequence:       act.Sequence,
-		destination:    sql.NullString{Valid: true, String: destination},
-		tag:            sql.NullString{Valid: true, String: tag},
-		withdrawalHash: sql.NullString{Valid: false},
+		Destination:    sql.NullString{Valid: true, String: destination},
+		Tag:            sql.NullString{Valid: true, String: tag},
+		WithdrawalHash: sql.NullString{Valid: false},
 	}
 	outputs := act.group.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, act.consumed[assetId], tx.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
 	if len(outputs) == 0 {
@@ -279,9 +279,9 @@ func (t *Transaction) Equal(tx *Transaction) bool {
 		tx.storage == t.storage &&
 		tx.storageTraceId == t.storageTraceId &&
 		tx.getConsumedString() == t.getConsumedString() &&
-		tx.destination.String == t.destination.String &&
-		tx.tag.String == t.tag.String &&
-		tx.withdrawalHash.String == t.withdrawalHash.String &&
+		tx.Destination.String == t.Destination.String &&
+		tx.Tag.String == t.Tag.String &&
+		tx.WithdrawalHash.String == t.WithdrawalHash.String &&
 		bytes.Equal(tx.Raw, t.Raw) &&
 		slices.Equal(tx.Receivers, t.Receivers) &&
 		slices.Equal(tx.references, t.references)
@@ -303,7 +303,7 @@ func (t *Transaction) check(_ context.Context, act *Action) error {
 			return fmt.Errorf("invalid reference: %d %v", i, r)
 		}
 	}
-	if !t.destination.Valid {
+	if !t.Destination.Valid {
 		if t.Threshold < 1 || t.Threshold > 128 {
 			return fmt.Errorf("invalid receivers threshold %d/%d", t.Threshold, len(t.Receivers))
 		}
@@ -328,7 +328,7 @@ func (t *Transaction) check(_ context.Context, act *Action) error {
 	if t.storage {
 		limit = common.ExtraSizeStorageCapacity
 	}
-	if !t.destination.Valid && !t.storage {
+	if !t.Destination.Valid && !t.storage {
 		s = encodeMixinExtra(t.OpponentAppId, []byte(t.Memo))
 	}
 	if len(s) >= limit {
@@ -476,7 +476,7 @@ func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outp
 	if tx.Hash.String() != req.TransactionHash {
 		panic(req.TransactionHash)
 	}
-	if !tx.storage && !tx.destination.Valid {
+	if !tx.storage && !tx.Destination.Valid {
 		aid, _ := DecodeMixinExtraBase64(string(ver.Extra))
 		if aid != tx.OpponentAppId {
 			panic(hex.EncodeToString(rb))
@@ -621,7 +621,7 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 
 	ver.References = tx.references
 	ver.Extra = []byte(tx.Memo)
-	if !tx.storage && !tx.destination.Valid {
+	if !tx.storage && !tx.Destination.Valid {
 		ver.Extra = []byte(EncodeMixinExtraBase64(tx.OpponentAppId, ver.Extra))
 	}
 

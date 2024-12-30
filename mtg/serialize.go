@@ -78,10 +78,10 @@ func (tx *Transaction) Serialize() []byte {
 	writeReferences(enc, tx.references)
 	writeUuid(enc, tx.storageTraceId)
 	writeConsumed(enc, tx.consumed, tx.consumedIds)
-	if tx.destination.Valid {
+	if tx.Destination.Valid {
 		enc.Write(magic)
-		writeString(enc, tx.destination.String)
-		writeString(enc, tx.tag.String)
+		writeString(enc, tx.Destination.String)
+		writeString(enc, tx.Tag.String)
 	} else {
 		enc.Write(null)
 	}
@@ -253,8 +253,8 @@ func Deserialize(rb []byte) (*Transaction, error) {
 		tx.storageTraceId = storageTraceId
 	}
 	if destination != "" {
-		tx.destination = sql.NullString{Valid: true, String: destination}
-		tx.tag = sql.NullString{Valid: true, String: tag}
+		tx.Destination = sql.NullString{Valid: true, String: destination}
+		tx.Tag = sql.NullString{Valid: true, String: tag}
 	}
 
 	return tx, nil

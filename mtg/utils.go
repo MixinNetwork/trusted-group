@@ -261,15 +261,15 @@ func (grp *Group) readTransactionUntilSufficientImpl(ctx context.Context, id str
 func (grp *Group) getTransactionInputsAndRecipients(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput) ([]*UnifiedOutput, []*TransactionRecipient, error) {
 	var tr []*TransactionRecipient
 	receivers := strings.Join(tx.Receivers, ",")
-	if receivers == "" && tx.Threshold == 0 && tx.destination.Valid {
+	if receivers == "" && tx.Threshold == 0 && tx.Destination.Valid {
 		tr = []*TransactionRecipient{
 			{
 				Amount:      tx.Amount,
-				Destination: tx.destination.String,
+				Destination: tx.Destination.String,
 			},
 		}
-		if tx.tag.Valid {
-			tr[0].Tag = tx.tag.String
+		if tx.Tag.Valid {
+			tr[0].Tag = tx.Tag.String
 		}
 	} else {
 		ma, uuidMember, err := NewMixAddress(ctx, tx.Receivers, byte(tx.Threshold))
