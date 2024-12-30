@@ -510,6 +510,28 @@ func (s *SQLite3Store) ListUnconfirmedWithdrawalTransactions(ctx context.Context
 	return ts, nil
 }
 
+func (s *SQLite3Store) ListConfirmedWithdrawalTransactions(ctx context.Context, limit int) ([]*Transaction, error) {
+	query := fmt.Sprintf("SELECT %s FROM transactions where state=? AND withdrawal_hash IS NOT NULL ORDER BY state,sequence,trace_id ASC", strings.Join(transactionCols, ","))
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", limit)
+	}
+	rows, err := s.db.QueryContext(ctx, query, TransactionStateWithdrawed)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ts []*Transaction
+	for rows.Next() {
+		t, err := transactionFromRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		ts = append(ts, t)
+	}
+	return ts, nil
+}
+
 func (s *SQLite3Store) ReadTransactionByHash(ctx context.Context, hash crypto.Hash) (*Transaction, error) {
 	query := fmt.Sprintf("SELECT %s FROM transactions WHERE hash=?", strings.Join(transactionCols, ","))
 	row := s.db.QueryRowContext(ctx, query, hash.String())
