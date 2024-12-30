@@ -28,6 +28,7 @@ const (
 
 	OutputsBatchSize = 36
 	StorageAssetId   = "c94ac88f-4671-3976-b60a-09064f1811e8"
+	MixinFeeUserId   = "674d6776-d600-4346-af46-58e77d8df185"
 )
 
 type TransactionRecipient struct {
