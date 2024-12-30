@@ -287,6 +287,14 @@ func (grp *Group) ListUnconfirmedWithdrawalTransactions(ctx context.Context, lim
 	return txs
 }
 
+func (grp *Group) ListConfirmedWithdrawalTransactionsBySequence(ctx context.Context, sequence uint64, limit int) []*Transaction {
+	txs, err := grp.store.ListConfirmedWithdrawalTransactionsBySequence(ctx, sequence, limit)
+	if err != nil {
+		panic(err)
+	}
+	return txs
+}
+
 // this function or rpc should be used only in ProcessOutput
 func (act *Action) CheckAssetBalanceAt(ctx context.Context, assetId string) decimal.Decimal {
 	os, err := act.group.store.ListOutputsForAsset(ctx, act.AppId, assetId, act.consumed[assetId], act.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
