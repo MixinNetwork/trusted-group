@@ -245,10 +245,3 @@ func (action *Action) attachTxsConsumed(ctx context.Context, txs []*Transaction)
 	}
 	return nil
 }
-
-func (action *Action) TestAttachTxsConsumed(ctx context.Context, txs []*Transaction) error {
-	if !CheckTestEnvironment(ctx) {
-		panic(action.OutputId)
-	}
-	return action.attachTxsConsumed(ctx, txs)
-}
