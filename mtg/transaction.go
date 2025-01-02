@@ -218,6 +218,7 @@ func (act *Action) BuildWithdrawTransaction(ctx context.Context, traceId, assetI
 		State:          TransactionStateInitial,
 		AssetId:        assetId,
 		Amount:         amount,
+		Receivers:      []string{},
 		Memo:           memo,
 		Sequence:       act.Sequence,
 		Destination:    sql.NullString{Valid: true, String: destination},
