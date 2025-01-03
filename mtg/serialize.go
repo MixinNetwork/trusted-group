@@ -78,7 +78,7 @@ func (tx *Transaction) Serialize() []byte {
 	writeReferences(enc, tx.references)
 	writeUuid(enc, tx.storageTraceId)
 	writeConsumed(enc, tx.consumed, tx.consumedIds)
-	if tx.Destination.Valid {
+	if tx.IsWithdrawal() {
 		enc.Write(magic)
 		writeString(enc, tx.Destination.String)
 		writeString(enc, tx.Tag.String)

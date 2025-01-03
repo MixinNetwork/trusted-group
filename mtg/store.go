@@ -80,7 +80,7 @@ func (s *SQLite3Store) finishAction(ctx context.Context, tx *sql.Tx, id string, 
 		if t.State != TransactionStateInitial {
 			panic(t.TraceId)
 		}
-		if t.storage {
+		if t.IsStorage() {
 			if t.AssetId != StorageAssetId || t.Threshold != 64 || len(t.Receivers) != 1 {
 				return fmt.Errorf("invalid storage transaction: %#v", t)
 			}

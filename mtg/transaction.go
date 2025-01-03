@@ -89,6 +89,18 @@ func (t *Transaction) values() []any {
 	}
 }
 
+func (t *Transaction) IsStorage() bool {
+	return t.storage
+}
+
+func (t *Transaction) IsWithdrawal() bool {
+	return t.Destination.Valid
+}
+
+func (t *Transaction) IsNormal() bool {
+	return !t.IsStorage() && !t.IsWithdrawal()
+}
+
 func transactionFromRow(row Row) (*Transaction, error) {
 	var t Transaction
 	var rs, refs string
@@ -304,7 +316,7 @@ func (t *Transaction) check(_ context.Context, act *Action) error {
 			return fmt.Errorf("invalid reference: %d %v", i, r)
 		}
 	}
-	if !t.Destination.Valid {
+	if !t.IsWithdrawal() {
 		if t.Threshold < 1 || t.Threshold > 128 {
 			return fmt.Errorf("invalid receivers threshold %d/%d", t.Threshold, len(t.Receivers))
 		}
@@ -326,10 +338,10 @@ func (t *Transaction) check(_ context.Context, act *Action) error {
 
 	limit := common.ExtraSizeGeneralLimit
 	s := t.Memo
-	if t.storage {
+	if t.IsStorage() {
 		limit = common.ExtraSizeStorageCapacity
 	}
-	if !t.Destination.Valid && !t.storage {
+	if t.IsNormal() {
 		s = encodeMixinExtra(t.OpponentAppId, []byte(t.Memo))
 	}
 	if len(s) >= limit {
@@ -338,7 +350,7 @@ func (t *Transaction) check(_ context.Context, act *Action) error {
 
 	encoded := t.Serialize()
 	decoded, _ := Deserialize(encoded)
-	if !bytes.Equal(encoded, decoded.Serialize()) {
+	if !t.Equal(decoded) {
 		panic(hex.EncodeToString(encoded))
 	}
 	return nil
@@ -477,7 +489,7 @@ func (grp *Group) updateTxWithOutputs(ctx context.Context, tx *Transaction, outp
 	if tx.Hash.String() != req.TransactionHash {
 		panic(req.TransactionHash)
 	}
-	if !tx.storage && !tx.Destination.Valid {
+	if tx.IsNormal() {
 		aid, _ := DecodeMixinExtraBase64(string(ver.Extra))
 		if aid != tx.OpponentAppId {
 			panic(hex.EncodeToString(rb))
@@ -622,7 +634,7 @@ func (grp *Group) buildRawTransaction(ctx context.Context, tx *Transaction, outp
 
 	ver.References = tx.references
 	ver.Extra = []byte(tx.Memo)
-	if !tx.storage && !tx.Destination.Valid {
+	if tx.IsNormal() {
 		ver.Extra = []byte(EncodeMixinExtraBase64(tx.OpponentAppId, ver.Extra))
 	}
 
