@@ -17,6 +17,7 @@ import (
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/gofrs/uuid/v5"
+	"github.com/shopspring/decimal"
 )
 
 type contextKeyTyp string
@@ -200,14 +201,14 @@ func (grp *Group) readKernelTransactionUntilSufficientImpl(ctx context.Context, 
 	}
 }
 
-func (grp *Group) readTransactionUntilSufficient(ctx context.Context, id string) (*mixin.SafeTransactionRequest, error) {
+func (grp *Group) readTransactionUntilSufficient(ctx context.Context, id string) (*SafeTransactionRequest, error) {
 	key := fmt.Sprintf("readTransactionUntilSufficient(%s)", id)
 	val, err := grp.store.ReadCache(ctx, key)
 	if err != nil {
 		panic(err)
 	}
 	if val != "" {
-		var r mixin.SafeTransactionRequest
+		var r SafeTransactionRequest
 		err = json.Unmarshal([]byte(val), &r)
 		if err != nil {
 			panic(err)
@@ -215,7 +216,7 @@ func (grp *Group) readTransactionUntilSufficient(ctx context.Context, id string)
 		return &r, nil
 	}
 	r, err := grp.readTransactionUntilSufficientImpl(ctx, id)
-	if err != nil || r == nil || r.State != mixin.SafeUtxoStateSpent {
+	if err != nil || r == nil || r.State != SafeUtxoStateSpent {
 		return r, err
 	}
 	b, err := json.Marshal(r)
@@ -229,13 +230,47 @@ func (grp *Group) readTransactionUntilSufficient(ctx context.Context, id string)
 	return r, nil
 }
 
-func (grp *Group) readTransactionUntilSufficientImpl(ctx context.Context, id string) (*mixin.SafeTransactionRequest, error) {
+type SafeTransactionReceiver struct {
+	Members        []string `json:"members,omitempty"`
+	MemberHash     string   `json:"members_hash,omitempty"`
+	Threshold      uint8    `json:"threshold,omitempty"`
+	Destination    string   `json:"destination,omitempty"`
+	Tag            string   `json:"Tag,omitempty"`
+	WithdrawalHash string   `json:"withdrawal_hash,omitempty"`
+}
+
+type SafeTransactionRequest struct {
+	RequestID        string                     `json:"request_id,omitempty"`
+	TransactionHash  string                     `json:"transaction_hash,omitempty"`
+	UserID           string                     `json:"user_id,omitempty"`
+	KernelAssetID    mixinnet.Hash              `json:"kernel_asset_id,omitempty"`
+	AssetID          mixinnet.Hash              `json:"asset_id,omitempty"`
+	Amount           decimal.Decimal            `json:"amount,omitempty"`
+	CreatedAt        time.Time                  `json:"created_at,omitempty"`
+	UpdatedAt        time.Time                  `json:"updated_at,omitempty"`
+	Extra            string                     `json:"extra,omitempty"`
+	Receivers        []*SafeTransactionReceiver `json:"receivers,omitempty"`
+	Senders          []string                   `json:"senders,omitempty"`
+	SendersHash      string                     `json:"senders_hash,omitempty"`
+	SendersThreshold uint8                      `json:"senders_threshold,omitempty"`
+	Signers          []string                   `json:"signers,omitempty"`
+	SnapshotHash     string                     `json:"snapshot_hash,omitempty"`
+	SnapshotAt       *time.Time                 `json:"snapshot_at,omitempty"`
+	State            SafeUtxoState              `json:"state,omitempty"`
+	RawTransaction   string                     `json:"raw_transaction"`
+	Views            []mixinnet.Key             `json:"views,omitempty"`
+	RevokedBy        string                     `json:"revoked_by"`
+
+	Asset mixinnet.Hash `json:"asset,omitempty"`
+}
+
+func (grp *Group) readTransactionUntilSufficientImpl(ctx context.Context, id string) (*SafeTransactionRequest, error) {
 	if CheckTestEnvironment(ctx) {
 		tx, err := grp.store.ReadTransactionByTraceId(ctx, id)
 		if err != nil {
 			return nil, err
 		}
-		return &mixin.SafeTransactionRequest{
+		return &SafeTransactionRequest{
 			RequestID:       tx.TraceId,
 			RawTransaction:  hex.EncodeToString(tx.Raw),
 			TransactionHash: tx.Hash.String(),
@@ -243,7 +278,8 @@ func (grp *Group) readTransactionUntilSufficientImpl(ctx context.Context, id str
 		}, nil
 	}
 	for {
-		req, err := grp.mixin.SafeReadTransactionRequest(ctx, id)
+		var req SafeTransactionRequest
+		err := grp.mixin.Get(ctx, "/safe/transactions/"+id, nil, &req)
 		logger.Verbosef("Group.SafeReadTransactionRequest(%s) => %v %v\n", id, req, err)
 		if err != nil {
 			if CheckRetryableError(err) {
@@ -254,7 +290,7 @@ func (grp *Group) readTransactionUntilSufficientImpl(ctx context.Context, id str
 				return nil, nil
 			}
 		}
-		return req, err
+		return &req, err
 	}
 }
 

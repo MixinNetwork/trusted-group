@@ -376,7 +376,7 @@ func (grp *Group) snapshotTransaction(ctx context.Context, tx *Transaction) (boo
 	if req.TransactionHash != tx.Hash.String() {
 		panic(tx.TraceId)
 	}
-	return req.State == mixin.SafeUtxoStateSpent, nil
+	return req.State == SafeUtxoStateSpent, nil
 }
 
 func (grp *Group) confirmWithdrawalTransactions(ctx context.Context) error {
@@ -385,9 +385,18 @@ func (grp *Group) confirmWithdrawalTransactions(ctx context.Context) error {
 		return err
 	}
 	for _, tx := range txs {
-		// TODO get withdrawal hash from api
-		hash := ""
-		err = grp.store.ConfirmWithdrawalTransaction(ctx, tx.TraceId, hash)
+		req, err := grp.readTransactionUntilSufficient(ctx, tx.RequestID())
+		logger.Verbosef("group.readTransactionUntilSufficient(%s, %s) => %v", tx.TraceId, tx.RequestID(), err)
+		if err != nil {
+			return err
+		}
+		if req.TransactionHash != tx.Hash.String() || req.Receivers[0].Destination != tx.Destination.String {
+			panic(tx.TraceId)
+		}
+		if req.Receivers[0].WithdrawalHash == "" {
+			continue
+		}
+		err = grp.store.ConfirmWithdrawalTransaction(ctx, tx.TraceId, req.Receivers[0].WithdrawalHash)
 		if err != nil {
 			return err
 		}
