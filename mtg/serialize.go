@@ -180,10 +180,6 @@ func Deserialize(rb []byte) (*Transaction, error) {
 	if err != nil {
 		return nil, err
 	}
-	var rs []string
-	if receivers != "" {
-		rs = strings.Split(receivers, ",")
-	}
 	threshold, err := dec.ReadInt()
 	if err != nil {
 		return nil, err
@@ -243,7 +239,7 @@ func Deserialize(rb []byte) (*Transaction, error) {
 		ActionId:      actionId,
 		State:         state,
 		AssetId:       assetId,
-		Receivers:     rs,
+		Receivers:     SplitIds(receivers),
 		Threshold:     threshold,
 		Amount:        amount,
 		Memo:          memo,

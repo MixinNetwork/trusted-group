@@ -43,6 +43,22 @@ func UniqueId(a, b string) string {
 	return mixin.UniqueConversationID(a, b)
 }
 
+func SplitIds(s string) []string {
+	if strings.TrimSpace(s) != s {
+		panic(s)
+	}
+	if s == "" {
+		return make([]string, 0)
+	}
+	a := strings.Split(s, ",")
+	for _, e := range a {
+		if strings.TrimSpace(e) == "" {
+			panic(s)
+		}
+	}
+	return a
+}
+
 func CheckRetryableError(err error) bool {
 	if err == nil {
 		return false

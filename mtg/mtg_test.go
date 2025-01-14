@@ -56,7 +56,7 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 		return []*Transaction{}, ""
 	}
 	memo := string(b)
-	items := strings.Split(memo, ",")
+	items := SplitIds(memo)
 
 	var txs []*Transaction
 	var storageTraceId string

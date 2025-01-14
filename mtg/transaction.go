@@ -127,17 +127,13 @@ func transactionFromRow(row Row) (*Transaction, error) {
 		t.Raw = r
 	}
 
-	if rs != "" {
-		t.Receivers = strings.Split(rs, ",")
-	}
-	if refs != "" {
-		for _, r := range strings.Split(refs, ",") {
-			ref, err := crypto.HashFromString(r)
-			if err != nil {
-				return nil, err
-			}
-			t.references = append(t.references, ref)
+	t.Receivers = SplitIds(rs)
+	for _, r := range SplitIds(refs) {
+		ref, err := crypto.HashFromString(r)
+		if err != nil {
+			return nil, err
 		}
+		t.references = append(t.references, ref)
 	}
 	return &t, nil
 }

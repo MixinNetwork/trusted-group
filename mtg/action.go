@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
@@ -52,8 +51,8 @@ func actionJoinFromRow(row Row) (*Action, error) {
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
-	a.Senders = strings.Split(senders, ",")
-	a.Signers = strings.Split(signers, ",")
+	a.Senders = SplitIds(senders)
+	a.Signers = SplitIds(signers)
 	return &a, err
 }
 

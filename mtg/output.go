@@ -62,8 +62,8 @@ func outputFromRow(row Row) (*UnifiedOutput, error) {
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
-	o.Senders = strings.Split(senders, ",")
-	o.Signers = strings.Split(signers, ",")
+	o.Senders = SplitIds(senders)
+	o.Signers = SplitIds(signers)
 	return &o, err
 }
 
