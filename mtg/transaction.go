@@ -21,10 +21,9 @@ import (
 )
 
 const (
-	TransactionStateInitial    = 10
-	TransactionStateSigned     = 12
-	TransactionStateSnapshot   = 13
-	TransactionStateWithdrawed = 14
+	TransactionStateInitial  = 10
+	TransactionStateSigned   = 12
+	TransactionStateSnapshot = 13
 
 	OutputsBatchSize = 36
 	StorageAssetId   = "c94ac88f-4671-3976-b60a-09064f1811e8"

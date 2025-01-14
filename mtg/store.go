@@ -378,8 +378,8 @@ func (s *SQLite3Store) ConfirmWithdrawalTransaction(ctx context.Context, traceId
 	}
 	defer rollBack(tx)
 
-	err = s.execOne(ctx, tx, "UPDATE transactions SET state=?, withdrawal_hash=?, updated_at=? WHERE trace_id=? AND state=? AND destination IS NOT NULL AND withdrawal_hash IS NULL",
-		TransactionStateWithdrawed, hash, time.Now(), traceId, TransactionStateSnapshot)
+	err = s.execOne(ctx, tx, "UPDATE transactions SET withdrawal_hash=?, updated_at=? WHERE trace_id=? AND state=? AND destination IS NOT NULL AND withdrawal_hash IS NULL",
+		hash, time.Now(), traceId, TransactionStateSnapshot)
 	if err != nil {
 		return fmt.Errorf("UPDATE transactions %v", err)
 	}
@@ -515,7 +515,7 @@ func (s *SQLite3Store) ListConfirmedWithdrawalTransactionsAfter(ctx context.Cont
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
-	rows, err := s.db.QueryContext(ctx, query, TransactionStateWithdrawed, offset)
+	rows, err := s.db.QueryContext(ctx, query, TransactionStateSnapshot, offset)
 	if err != nil {
 		return nil, err
 	}
