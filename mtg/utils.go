@@ -17,6 +17,7 @@ import (
 	"github.com/fox-one/mixin-sdk-go/v2"
 	"github.com/fox-one/mixin-sdk-go/v2/mixinnet"
 	"github.com/gofrs/uuid/v5"
+	"github.com/shopspring/decimal"
 )
 
 type contextKeyTyp string
@@ -42,6 +43,22 @@ func UniqueId(a, b string) string {
 	return mixin.UniqueConversationID(a, b)
 }
 
+func SplitIds(s string) []string {
+	if strings.TrimSpace(s) != s {
+		panic(s)
+	}
+	if s == "" {
+		return make([]string, 0)
+	}
+	a := strings.Split(s, ",")
+	for _, e := range a {
+		if strings.TrimSpace(e) == "" {
+			panic(s)
+		}
+	}
+	return a
+}
+
 func CheckRetryableError(err error) bool {
 	if err == nil {
 		return false
@@ -59,6 +76,9 @@ func CheckRetryableError(err error) bool {
 }
 
 func NewMixAddress(ctx context.Context, members []string, threshold byte) (*mixin.MixAddress, bool, error) {
+	if len(members) == 0 || threshold == 0 {
+		panic(len(members))
+	}
 	if CheckTestEnvironment(ctx) {
 		for i, m := range members {
 			_, err := mixinnet.AddressFromString(m)
@@ -200,14 +220,14 @@ func (grp *Group) readKernelTransactionUntilSufficientImpl(ctx context.Context, 
 	}
 }
 
-func (grp *Group) readTransactionUntilSufficient(ctx context.Context, id string) (*mixin.SafeTransactionRequest, error) {
+func (grp *Group) readTransactionUntilSufficient(ctx context.Context, id string) (*SafeTransactionRequest, error) {
 	key := fmt.Sprintf("readTransactionUntilSufficient(%s)", id)
 	val, err := grp.store.ReadCache(ctx, key)
 	if err != nil {
 		panic(err)
 	}
 	if val != "" {
-		var r mixin.SafeTransactionRequest
+		var r SafeTransactionRequest
 		err = json.Unmarshal([]byte(val), &r)
 		if err != nil {
 			panic(err)
@@ -215,7 +235,7 @@ func (grp *Group) readTransactionUntilSufficient(ctx context.Context, id string)
 		return &r, nil
 	}
 	r, err := grp.readTransactionUntilSufficientImpl(ctx, id)
-	if err != nil || r == nil || r.State != mixin.SafeUtxoStateSpent {
+	if err != nil || r == nil || r.State != SafeUtxoStateSpent {
 		return r, err
 	}
 	b, err := json.Marshal(r)
@@ -229,13 +249,47 @@ func (grp *Group) readTransactionUntilSufficient(ctx context.Context, id string)
 	return r, nil
 }
 
-func (grp *Group) readTransactionUntilSufficientImpl(ctx context.Context, id string) (*mixin.SafeTransactionRequest, error) {
+type SafeTransactionReceiver struct {
+	Members        []string `json:"members,omitempty"`
+	MemberHash     string   `json:"members_hash,omitempty"`
+	Threshold      uint8    `json:"threshold,omitempty"`
+	Destination    string   `json:"destination,omitempty"`
+	Tag            string   `json:"Tag,omitempty"`
+	WithdrawalHash string   `json:"withdrawal_hash,omitempty"`
+}
+
+type SafeTransactionRequest struct {
+	RequestID        string                     `json:"request_id,omitempty"`
+	TransactionHash  string                     `json:"transaction_hash,omitempty"`
+	UserID           string                     `json:"user_id,omitempty"`
+	KernelAssetID    mixinnet.Hash              `json:"kernel_asset_id,omitempty"`
+	AssetID          mixinnet.Hash              `json:"asset_id,omitempty"`
+	Amount           decimal.Decimal            `json:"amount,omitempty"`
+	CreatedAt        time.Time                  `json:"created_at,omitempty"`
+	UpdatedAt        time.Time                  `json:"updated_at,omitempty"`
+	Extra            string                     `json:"extra,omitempty"`
+	Receivers        []*SafeTransactionReceiver `json:"receivers,omitempty"`
+	Senders          []string                   `json:"senders,omitempty"`
+	SendersHash      string                     `json:"senders_hash,omitempty"`
+	SendersThreshold uint8                      `json:"senders_threshold,omitempty"`
+	Signers          []string                   `json:"signers,omitempty"`
+	SnapshotHash     string                     `json:"snapshot_hash,omitempty"`
+	SnapshotAt       *time.Time                 `json:"snapshot_at,omitempty"`
+	State            SafeUtxoState              `json:"state,omitempty"`
+	RawTransaction   string                     `json:"raw_transaction"`
+	Views            []mixinnet.Key             `json:"views,omitempty"`
+	RevokedBy        string                     `json:"revoked_by"`
+
+	Asset mixinnet.Hash `json:"asset,omitempty"`
+}
+
+func (grp *Group) readTransactionUntilSufficientImpl(ctx context.Context, id string) (*SafeTransactionRequest, error) {
 	if CheckTestEnvironment(ctx) {
 		tx, err := grp.store.ReadTransactionByTraceId(ctx, id)
 		if err != nil {
 			return nil, err
 		}
-		return &mixin.SafeTransactionRequest{
+		return &SafeTransactionRequest{
 			RequestID:       tx.TraceId,
 			RawTransaction:  hex.EncodeToString(tx.Raw),
 			TransactionHash: tx.Hash.String(),
@@ -243,32 +297,43 @@ func (grp *Group) readTransactionUntilSufficientImpl(ctx context.Context, id str
 		}, nil
 	}
 	for {
-		req, err := grp.mixin.SafeReadTransactionRequest(ctx, id)
+		var req SafeTransactionRequest
+		err := grp.mixin.Get(ctx, "/safe/transactions/"+id, nil, &req)
 		logger.Verbosef("Group.SafeReadTransactionRequest(%s) => %v %v\n", id, req, err)
-		if err != nil {
-			if CheckRetryableError(err) {
-				time.Sleep(time.Second)
-				continue
-			}
-			if strings.Contains(err.Error(), "not found") {
-				return nil, nil
-			}
+		if err == nil {
+			return &req, nil
 		}
-		return req, err
+		if CheckRetryableError(err) {
+			time.Sleep(time.Second)
+			continue
+		}
+		if strings.Contains(err.Error(), "not found") {
+			return nil, nil
+		}
+		return nil, err
 	}
 }
 
 func (grp *Group) getTransactionInputsAndRecipients(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput) ([]*UnifiedOutput, []*TransactionRecipient, error) {
-	ma, uuidMember, err := NewMixAddress(ctx, tx.Receivers, byte(tx.Threshold))
-	if err != nil {
-		return nil, nil, err
-	}
-	tr := []*TransactionRecipient{
-		{
+	var tr []*TransactionRecipient
+	if tx.IsWithdrawal() {
+		tr = []*TransactionRecipient{{
+			Amount:      tx.Amount,
+			Destination: tx.Destination.String,
+		}}
+		if tx.Tag.Valid {
+			tr[0].Tag = tx.Tag.String
+		}
+	} else {
+		ma, uuidMember, err := NewMixAddress(ctx, tx.Receivers, byte(tx.Threshold))
+		if err != nil {
+			return nil, nil, err
+		}
+		tr = []*TransactionRecipient{{
 			MixAddress: ma,
 			Amount:     tx.Amount,
 			UuidMember: uuidMember,
-		},
+		}}
 	}
 
 	target := common.NewIntegerFromString(tx.Amount)
@@ -302,6 +367,17 @@ func (grp *Group) getTransactionInputsAndRecipients(ctx context.Context, tx *Tra
 func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transaction, tr []*TransactionRecipient) (map[int]*mixin.GhostKeys, error) {
 	gkm := make(map[int]*mixin.GhostKeys, len(tr))
 	if CheckTestEnvironment(ctx) {
+		if tx.TraceId == "cf0564ba-bf51-4e8c-b504-3beb6c5c65e3" {
+			tr[1].MixAddress.Threshold = 2
+			mask, _ := mixinnet.KeyFromString("f18e0e276648b1d42063f8bcf9d5a57252f4048c9939ded0999a0e263716976e")
+			key1, _ := mixinnet.KeyFromString("f5c8b3dbb7a5b2f7e1e4640d9f61c142cda547917f227ba21ebc5d554651c50d")
+			key2, _ := mixinnet.KeyFromString("18f71fbe1b5055f3d882a4ae2813fad315bf0dcb5a0e60f091121db882baff77")
+			gkm[1] = &mixin.GhostKeys{
+				Mask: mask,
+				Keys: []mixinnet.Key{key1, key2},
+			}
+			return gkm, nil
+		}
 		key1, err := testGetGhostKeys(tx, 0)
 		if err != nil {
 			return nil, err
@@ -317,6 +393,9 @@ func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transa
 
 	var uuidGkrs []*mixin.GhostInput
 	for i, r := range tr {
+		if r.MixAddress == nil {
+			continue
+		}
 		members := r.MixAddress.Members()
 		if r.UuidMember {
 			sort.Strings(members)

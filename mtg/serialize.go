@@ -1,6 +1,7 @@
 package mtg
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 
@@ -9,9 +10,23 @@ import (
 	"github.com/gofrs/uuid/v5"
 )
 
+var (
+	null  = []byte{0x00, 0x00}
+	magic = []byte{0x77, 0x77}
+)
+
+func writeByte(enc *common.Encoder, b int) {
+	if b > 200 {
+		panic(b)
+	}
+	err := enc.WriteByte(byte(b))
+	if err != nil {
+		panic(err)
+	}
+}
+
 func writeUuid(enc *common.Encoder, id string) {
 	uid := uuid.FromStringOrNil(id)
-	enc.WriteInt(16)
 	enc.Write(uid.Bytes())
 }
 
@@ -22,19 +37,15 @@ func writeString(enc *common.Encoder, str string) {
 }
 
 func writeBool(enc *common.Encoder, f bool) {
-	data := byte(0)
+	data := 0
 	if f {
 		data = 1
 	}
-	err := enc.WriteByte(data)
-	if err != nil {
-		panic(err)
-	}
+	writeByte(enc, data)
 }
 
 func writeReferences(enc *common.Encoder, refs []crypto.Hash) {
-	rl := len(refs)
-	enc.WriteInt(rl)
+	writeByte(enc, len(refs))
 	for _, r := range refs {
 		if !r.HasValue() {
 			panic(fmt.Errorf("invalid ref %s", r.String()))
@@ -47,8 +58,7 @@ func writeConsumed(enc *common.Encoder, consumed []*UnifiedOutput, consumedIds [
 	if len(consumed) > 0 && len(consumed) != len(consumedIds) {
 		panic(len(consumedIds))
 	}
-	cl := len(consumedIds)
-	enc.WriteInt(cl)
+	writeByte(enc, len(consumedIds))
 	for _, id := range consumedIds {
 		writeUuid(enc, id)
 	}
@@ -59,10 +69,9 @@ func (tx *Transaction) Serialize() []byte {
 	writeUuid(enc, tx.TraceId)
 	writeUuid(enc, tx.AppId)
 	writeUuid(enc, tx.OpponentAppId)
-	enc.WriteInt(tx.State)
+	writeUuid(enc, tx.ActionId)
+	writeByte(enc, tx.State)
 	writeUuid(enc, tx.AssetId)
-	writeString(enc, strings.Join(tx.Receivers, ","))
-	enc.WriteInt(tx.Threshold)
 	writeString(enc, tx.Amount)
 	writeString(enc, tx.Memo)
 	enc.WriteUint64(tx.Sequence)
@@ -71,15 +80,25 @@ func (tx *Transaction) Serialize() []byte {
 	writeReferences(enc, tx.references)
 	writeUuid(enc, tx.storageTraceId)
 	writeConsumed(enc, tx.consumed, tx.consumedIds)
+	if tx.IsWithdrawal() {
+		enc.Write(magic)
+		writeString(enc, tx.Destination.String)
+		writeString(enc, tx.Tag.String)
+	} else {
+		enc.Write(null)
+		writeString(enc, strings.Join(tx.Receivers, ","))
+		writeByte(enc, tx.Threshold)
+	}
 	return enc.Bytes()
 }
 
 func readUuid(dec *common.Decoder) (string, error) {
-	data, err := dec.ReadBytes()
+	b := make([]byte, 16)
+	err := dec.Read(b)
 	if err != nil {
 		return "", err
 	}
-	id, err := uuid.FromBytes(data)
+	id, err := uuid.FromBytes(b)
 	if err != nil {
 		return "", err
 	}
@@ -103,7 +122,7 @@ func readBool(dec *common.Decoder) (bool, error) {
 }
 
 func readReferences(dec *common.Decoder) ([]crypto.Hash, error) {
-	rl, err := dec.ReadInt()
+	rl, err := dec.ReadByte()
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +139,7 @@ func readReferences(dec *common.Decoder) ([]crypto.Hash, error) {
 }
 
 func readConsumed(dec *common.Decoder) ([]string, error) {
-	cl, err := dec.ReadInt()
+	cl, err := dec.ReadByte()
 	if err != nil {
 		return nil, err
 	}
@@ -150,19 +169,15 @@ func Deserialize(rb []byte) (*Transaction, error) {
 	if err != nil {
 		return nil, err
 	}
-	state, err := dec.ReadInt()
+	actionId, err := readUuid(dec)
+	if err != nil {
+		return nil, err
+	}
+	state, err := dec.ReadByte()
 	if err != nil {
 		return nil, err
 	}
 	assetId, err := readUuid(dec)
-	if err != nil {
-		return nil, err
-	}
-	receivers, err := readString(dec)
-	if err != nil {
-		return nil, err
-	}
-	treshold, err := dec.ReadInt()
 	if err != nil {
 		return nil, err
 	}
@@ -198,15 +213,13 @@ func Deserialize(rb []byte) (*Transaction, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	tx := &Transaction{
 		TraceId:       traceId,
 		AppId:         appId,
 		OpponentAppId: opponentAppId,
-		State:         state,
+		ActionId:      actionId,
+		State:         int(state),
 		AssetId:       assetId,
-		Receivers:     strings.Split(receivers, ","),
-		Threshold:     treshold,
 		Amount:        amount,
 		Memo:          memo,
 		Sequence:      sequence,
@@ -219,12 +232,39 @@ func Deserialize(rb []byte) (*Transaction, error) {
 		tx.storageTraceId = storageTraceId
 	}
 
+	magic, err := dec.ReadMagic()
+	if err != nil {
+		return nil, err
+	}
+	if magic {
+		destination, err := readString(dec)
+		if err != nil {
+			return nil, err
+		}
+		tag, err := readString(dec)
+		if err != nil {
+			return nil, err
+		}
+		tx.Destination = sql.NullString{Valid: true, String: destination}
+		tx.Tag = sql.NullString{Valid: true, String: tag}
+	} else {
+		receivers, err := readString(dec)
+		if err != nil {
+			return nil, err
+		}
+		threshold, err := dec.ReadByte()
+		if err != nil {
+			return nil, err
+		}
+		tx.Receivers = SplitIds(receivers)
+		tx.Threshold = int(threshold)
+	}
 	return tx, nil
 }
 
 func SerializeTransactions(txs []*Transaction) []byte {
 	enc := common.NewEncoder()
-	enc.WriteInt(len(txs))
+	writeByte(enc, len(txs))
 	for _, tx := range txs {
 		b := tx.Serialize()
 		enc.WriteInt(len(b))
@@ -235,12 +275,12 @@ func SerializeTransactions(txs []*Transaction) []byte {
 
 func DeserializeTransactions(tb []byte) ([]*Transaction, error) {
 	dec := common.NewDecoder(tb)
-	count, err := dec.ReadInt()
+	count, err := dec.ReadByte()
 	if err != nil || count == 0 {
 		return nil, err
 	}
 	txs := make([]*Transaction, count)
-	for i := 0; i < count; i++ {
+	for i := 0; i < int(count); i++ {
 		b, err := dec.ReadBytes()
 		if err != nil {
 			return nil, err

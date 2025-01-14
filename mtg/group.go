@@ -245,6 +245,13 @@ func (grp *Group) Run(ctx context.Context) {
 		if err != nil {
 			panic(err)
 		}
+
+		// verify all withdrawal transactions
+		logger.Verbosef("Group.Run(confirmWithdrawalTransactions)\n")
+		err = grp.confirmWithdrawalTransactions(ctx)
+		if err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -262,6 +269,30 @@ func (grp *Group) ListOutputsForTransaction(ctx context.Context, traceId string,
 		panic(err)
 	}
 	return outputs
+}
+
+func (grp *Group) ListOutputsByTransactionHash(ctx context.Context, hash string, sequence uint64) []*UnifiedOutput {
+	outputs, err := grp.store.ListOutputsByTransactionHash(ctx, hash, sequence)
+	if err != nil {
+		panic(err)
+	}
+	return outputs
+}
+
+func (grp *Group) ListUnconfirmedWithdrawalTransactions(ctx context.Context, limit int) []*Transaction {
+	txs, err := grp.store.ListUnconfirmedWithdrawalTransactions(ctx, limit)
+	if err != nil {
+		panic(err)
+	}
+	return txs
+}
+
+func (grp *Group) ListConfirmedWithdrawalTransactionsAfter(ctx context.Context, offset time.Time, limit int) []*Transaction {
+	txs, err := grp.store.ListConfirmedWithdrawalTransactionsAfter(ctx, offset, limit)
+	if err != nil {
+		panic(err)
+	}
+	return txs
 }
 
 // this function or rpc should be used only in ProcessOutput
@@ -345,7 +376,32 @@ func (grp *Group) snapshotTransaction(ctx context.Context, tx *Transaction) (boo
 	if req.TransactionHash != tx.Hash.String() {
 		panic(tx.TraceId)
 	}
-	return req.State == mixin.SafeUtxoStateSpent, nil
+	return req.State == SafeUtxoStateSpent, nil
+}
+
+func (grp *Group) confirmWithdrawalTransactions(ctx context.Context) error {
+	txs, err := grp.store.ListUnconfirmedWithdrawalTransactions(ctx, 100)
+	if err != nil || len(txs) == 0 {
+		return err
+	}
+	for _, tx := range txs {
+		req, err := grp.readTransactionUntilSufficient(ctx, tx.RequestID())
+		logger.Verbosef("group.readTransactionUntilSufficient(%s, %s) => %v", tx.TraceId, tx.RequestID(), err)
+		if err != nil {
+			return err
+		}
+		if req.TransactionHash != tx.Hash.String() || req.Receivers[0].Destination != tx.Destination.String {
+			panic(tx.TraceId)
+		}
+		if req.Receivers[0].WithdrawalHash == "" {
+			continue
+		}
+		err = grp.store.ConfirmWithdrawalTransaction(ctx, tx.TraceId, req.Receivers[0].WithdrawalHash)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func generateGenesisId(conf *Configuration) string {

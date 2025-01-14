@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS outputs (
 
 CREATE UNIQUE INDEX IF NOT EXISTS outputs_by_sequence ON outputs(sequence);
 CREATE INDEX IF NOT EXISTS outputs_by_trace_sequence ON outputs(trace_id, sequence);
+CREATE INDEX IF NOT EXISTS outputs_by_hash_sequence ON outputs(transaction_hash, sequence);
 CREATE INDEX IF NOT EXISTS outputs_by_app_asset_state_sequence ON outputs(app_id, asset_id, state, sequence);
 
 
@@ -78,6 +79,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   trace_id             VARCHAR NOT NULL,
   app_id               VARCHAR NOT NULL,
   opponent_app_id      VARCHAR NOT NULL,
+  action_id            VARCHAR NOT NULL,
   state                INTEGER NOT NULL,
   asset_id             VARCHAR NOT NULL,
   receivers            VARCHAR NOT NULL,
@@ -91,6 +93,9 @@ CREATE TABLE IF NOT EXISTS transactions (
   compaction           BOOLEAN NOT NULL,
   storage              BOOLEAN NOT NULL,
   storage_trace_id     VARCHAR,
+  destination          VARCHAR,
+  tag                  VARCHAR,
+  withdrawal_hash      VARCHAR,
   request_id           VARCHAR,
   updated_at           TIMESTAMP NOT NULL,
   PRIMARY KEY ('trace_id')
@@ -98,4 +103,6 @@ CREATE TABLE IF NOT EXISTS transactions (
 
 CREATE UNIQUE INDEX IF NOT EXISTS transactions_by_hash ON transactions(hash) WHERE hash IS NOT NULL;
 CREATE INDEX IF NOT EXISTS transactions_by_state_sequence ON transactions(state, sequence);
+CREATE INDEX IF NOT EXISTS transactions_by_state_sequence_hash ON transactions(state, sequence, hash);
 CREATE INDEX IF NOT EXISTS transactions_by_asset_state_sequence ON transactions(asset_id, state, sequence);
+CREATE INDEX IF NOT EXISTS withdrawal_transactions_by_state_hash_updated ON transactions(state, withdrawal_hash,updated_at);
