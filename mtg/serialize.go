@@ -15,9 +15,18 @@ var (
 	magic = []byte{0x77, 0x77}
 )
 
+func writeByte(enc *common.Encoder, b int) {
+	if b > 200 {
+		panic(b)
+	}
+	err := enc.WriteByte(byte(b))
+	if err != nil {
+		panic(err)
+	}
+}
+
 func writeUuid(enc *common.Encoder, id string) {
 	uid := uuid.FromStringOrNil(id)
-	enc.WriteInt(16)
 	enc.Write(uid.Bytes())
 }
 
@@ -28,19 +37,15 @@ func writeString(enc *common.Encoder, str string) {
 }
 
 func writeBool(enc *common.Encoder, f bool) {
-	data := byte(0)
+	data := 0
 	if f {
 		data = 1
 	}
-	err := enc.WriteByte(data)
-	if err != nil {
-		panic(err)
-	}
+	writeByte(enc, data)
 }
 
 func writeReferences(enc *common.Encoder, refs []crypto.Hash) {
-	rl := len(refs)
-	enc.WriteInt(rl)
+	writeByte(enc, len(refs))
 	for _, r := range refs {
 		if !r.HasValue() {
 			panic(fmt.Errorf("invalid ref %s", r.String()))
@@ -53,8 +58,7 @@ func writeConsumed(enc *common.Encoder, consumed []*UnifiedOutput, consumedIds [
 	if len(consumed) > 0 && len(consumed) != len(consumedIds) {
 		panic(len(consumedIds))
 	}
-	cl := len(consumedIds)
-	enc.WriteInt(cl)
+	writeByte(enc, len(consumedIds))
 	for _, id := range consumedIds {
 		writeUuid(enc, id)
 	}
@@ -66,10 +70,10 @@ func (tx *Transaction) Serialize() []byte {
 	writeUuid(enc, tx.AppId)
 	writeUuid(enc, tx.OpponentAppId)
 	writeUuid(enc, tx.ActionId)
-	enc.WriteInt(tx.State)
+	writeByte(enc, tx.State)
 	writeUuid(enc, tx.AssetId)
 	writeString(enc, strings.Join(tx.Receivers, ","))
-	enc.WriteInt(tx.Threshold)
+	writeByte(enc, tx.Threshold)
 	writeString(enc, tx.Amount)
 	writeString(enc, tx.Memo)
 	enc.WriteUint64(tx.Sequence)
@@ -89,11 +93,12 @@ func (tx *Transaction) Serialize() []byte {
 }
 
 func readUuid(dec *common.Decoder) (string, error) {
-	data, err := dec.ReadBytes()
+	b := make([]byte, 16)
+	err := dec.Read(b)
 	if err != nil {
 		return "", err
 	}
-	id, err := uuid.FromBytes(data)
+	id, err := uuid.FromBytes(b)
 	if err != nil {
 		return "", err
 	}
@@ -117,7 +122,7 @@ func readBool(dec *common.Decoder) (bool, error) {
 }
 
 func readReferences(dec *common.Decoder) ([]crypto.Hash, error) {
-	rl, err := dec.ReadInt()
+	rl, err := dec.ReadByte()
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +139,7 @@ func readReferences(dec *common.Decoder) ([]crypto.Hash, error) {
 }
 
 func readConsumed(dec *common.Decoder) ([]string, error) {
-	cl, err := dec.ReadInt()
+	cl, err := dec.ReadByte()
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +173,7 @@ func Deserialize(rb []byte) (*Transaction, error) {
 	if err != nil {
 		return nil, err
 	}
-	state, err := dec.ReadInt()
+	state, err := dec.ReadByte()
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +185,7 @@ func Deserialize(rb []byte) (*Transaction, error) {
 	if err != nil {
 		return nil, err
 	}
-	threshold, err := dec.ReadInt()
+	threshold, err := dec.ReadByte()
 	if err != nil {
 		return nil, err
 	}
@@ -237,10 +242,10 @@ func Deserialize(rb []byte) (*Transaction, error) {
 		AppId:         appId,
 		OpponentAppId: opponentAppId,
 		ActionId:      actionId,
-		State:         state,
+		State:         int(state),
 		AssetId:       assetId,
 		Receivers:     SplitIds(receivers),
-		Threshold:     threshold,
+		Threshold:     int(threshold),
 		Amount:        amount,
 		Memo:          memo,
 		Sequence:      sequence,
