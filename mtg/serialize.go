@@ -72,8 +72,6 @@ func (tx *Transaction) Serialize() []byte {
 	writeUuid(enc, tx.ActionId)
 	writeByte(enc, tx.State)
 	writeUuid(enc, tx.AssetId)
-	writeString(enc, strings.Join(tx.Receivers, ","))
-	writeByte(enc, tx.Threshold)
 	writeString(enc, tx.Amount)
 	writeString(enc, tx.Memo)
 	enc.WriteUint64(tx.Sequence)
@@ -88,6 +86,8 @@ func (tx *Transaction) Serialize() []byte {
 		writeString(enc, tx.Tag.String)
 	} else {
 		enc.Write(null)
+		writeString(enc, strings.Join(tx.Receivers, ","))
+		writeByte(enc, tx.Threshold)
 	}
 	return enc.Bytes()
 }
@@ -181,14 +181,6 @@ func Deserialize(rb []byte) (*Transaction, error) {
 	if err != nil {
 		return nil, err
 	}
-	receivers, err := readString(dec)
-	if err != nil {
-		return nil, err
-	}
-	threshold, err := dec.ReadByte()
-	if err != nil {
-		return nil, err
-	}
 	amount, err := readString(dec)
 	if err != nil {
 		return nil, err
@@ -221,22 +213,6 @@ func Deserialize(rb []byte) (*Transaction, error) {
 	if err != nil {
 		return nil, err
 	}
-	magic, err := dec.ReadMagic()
-	if err != nil {
-		return nil, err
-	}
-	var destination, tag string
-	if magic {
-		destination, err = readString(dec)
-		if err != nil {
-			return nil, err
-		}
-		tag, err = readString(dec)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	tx := &Transaction{
 		TraceId:       traceId,
 		AppId:         appId,
@@ -244,8 +220,6 @@ func Deserialize(rb []byte) (*Transaction, error) {
 		ActionId:      actionId,
 		State:         int(state),
 		AssetId:       assetId,
-		Receivers:     SplitIds(receivers),
-		Threshold:     int(threshold),
 		Amount:        amount,
 		Memo:          memo,
 		Sequence:      sequence,
@@ -257,17 +231,40 @@ func Deserialize(rb []byte) (*Transaction, error) {
 	if storageTraceId != uuid.Nil.String() {
 		tx.storageTraceId = storageTraceId
 	}
-	if destination != "" {
+
+	magic, err := dec.ReadMagic()
+	if err != nil {
+		return nil, err
+	}
+	if magic {
+		destination, err := readString(dec)
+		if err != nil {
+			return nil, err
+		}
+		tag, err := readString(dec)
+		if err != nil {
+			return nil, err
+		}
 		tx.Destination = sql.NullString{Valid: true, String: destination}
 		tx.Tag = sql.NullString{Valid: true, String: tag}
+	} else {
+		receivers, err := readString(dec)
+		if err != nil {
+			return nil, err
+		}
+		threshold, err := dec.ReadByte()
+		if err != nil {
+			return nil, err
+		}
+		tx.Receivers = SplitIds(receivers)
+		tx.Threshold = int(threshold)
 	}
-
 	return tx, nil
 }
 
 func SerializeTransactions(txs []*Transaction) []byte {
 	enc := common.NewEncoder()
-	enc.WriteInt(len(txs))
+	writeByte(enc, len(txs))
 	for _, tx := range txs {
 		b := tx.Serialize()
 		enc.WriteInt(len(b))
@@ -278,12 +275,12 @@ func SerializeTransactions(txs []*Transaction) []byte {
 
 func DeserializeTransactions(tb []byte) ([]*Transaction, error) {
 	dec := common.NewDecoder(tb)
-	count, err := dec.ReadInt()
+	count, err := dec.ReadByte()
 	if err != nil || count == 0 {
 		return nil, err
 	}
 	txs := make([]*Transaction, count)
-	for i := 0; i < count; i++ {
+	for i := 0; i < int(count); i++ {
 		b, err := dec.ReadBytes()
 		if err != nil {
 			return nil, err
