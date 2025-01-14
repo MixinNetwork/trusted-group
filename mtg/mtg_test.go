@@ -24,7 +24,7 @@ const (
 	testSender  = "e14c1573-3aca-48b1-b437-766b4757b50d"
 
 	testWithdrawalDestination = "73yoz7kK3zgh2ScD9aTJpXCrKHETi1xyEKfMTH95ugff"
-	testWithdrawalAmouint     = "0.0049"
+	testWithdrawalAmount      = "0.0049"
 	testWithdrawalMemo        = "withdrawal-test"
 )
 
@@ -73,7 +73,7 @@ func (n *Node) ProcessOutput(ctx context.Context, a *Action) ([]*Transaction, st
 			txs = append(txs, t)
 		case "withdrawal":
 			tid := "cf0564ba-bf51-4e8c-b504-3beb6c5c65e3"
-			t := a.BuildWithdrawTransaction(ctx, tid, SOLAssetId, testWithdrawalAmouint, testWithdrawalMemo, testWithdrawalDestination, "")
+			t := a.BuildWithdrawTransaction(ctx, tid, SOLAssetId, testWithdrawalAmount, testWithdrawalMemo, testWithdrawalDestination, "")
 			txs = append(txs, t)
 		default:
 			amt := decimal.RequireFromString(tx)
@@ -269,7 +269,7 @@ func TestMTGWithdrawal(t *testing.T) {
 	require.Nil(err)
 	require.Len(txs, 1)
 	tx := txs[0]
-	require.Equal(testWithdrawalAmouint, tx.Amount)
+	require.Equal(testWithdrawalAmount, tx.Amount)
 	require.Equal(testWithdrawalMemo, tx.Memo)
 	require.Equal(SOLAssetId, tx.AssetId)
 	require.Equal(testWithdrawalDestination, tx.Destination.String)

@@ -127,7 +127,9 @@ func transactionFromRow(row Row) (*Transaction, error) {
 		t.Raw = r
 	}
 
-	t.Receivers = strings.Split(rs, ",")
+	if rs != "" {
+		t.Receivers = strings.Split(rs, ",")
+	}
 	if refs != "" {
 		for _, r := range strings.Split(refs, ",") {
 			ref, err := crypto.HashFromString(r)
@@ -336,13 +338,11 @@ func (t *Transaction) check(_ context.Context, act *Action) error {
 	}
 
 	limit := common.ExtraSizeGeneralLimit
-	s := t.Memo
 	if t.IsStorage() {
 		limit = common.ExtraSizeStorageCapacity
 	}
-	if t.IsNormal() {
-		s = encodeMixinExtra(t.OpponentAppId, []byte(t.Memo))
-	}
+	s := encodeMixinExtra(t.OpponentAppId, []byte(t.Memo))
+
 	if len(s) >= limit {
 		return fmt.Errorf("invalid extra length: %d", len(s))
 	}
