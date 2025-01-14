@@ -287,8 +287,8 @@ func (grp *Group) ListUnconfirmedWithdrawalTransactions(ctx context.Context, lim
 	return txs
 }
 
-func (grp *Group) ListConfirmedWithdrawalTransactionsBySequence(ctx context.Context, sequence uint64, limit int) []*Transaction {
-	txs, err := grp.store.ListConfirmedWithdrawalTransactionsBySequence(ctx, sequence, limit)
+func (grp *Group) ListConfirmedWithdrawalTransactionsAfter(ctx context.Context, offset time.Time, limit int) []*Transaction {
+	txs, err := grp.store.ListConfirmedWithdrawalTransactionsAfter(ctx, offset, limit)
 	if err != nil {
 		panic(err)
 	}

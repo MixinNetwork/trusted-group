@@ -296,8 +296,7 @@ func (grp *Group) readTransactionUntilSufficientImpl(ctx context.Context, id str
 
 func (grp *Group) getTransactionInputsAndRecipients(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput) ([]*UnifiedOutput, []*TransactionRecipient, error) {
 	var tr []*TransactionRecipient
-	receivers := strings.Join(tx.Receivers, ",")
-	if receivers == "" && tx.Threshold == 0 && tx.IsWithdrawal() {
+	if len(tx.Receivers) == 0 && tx.Threshold == 0 && tx.IsWithdrawal() {
 		tr = []*TransactionRecipient{
 			{
 				Amount:      tx.Amount,

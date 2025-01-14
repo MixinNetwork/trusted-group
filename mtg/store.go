@@ -510,12 +510,12 @@ func (s *SQLite3Store) ListUnconfirmedWithdrawalTransactions(ctx context.Context
 	return ts, nil
 }
 
-func (s *SQLite3Store) ListConfirmedWithdrawalTransactionsBySequence(ctx context.Context, sequence uint64, limit int) ([]*Transaction, error) {
-	query := fmt.Sprintf("SELECT %s FROM transactions where state=? AND sequence>? AND withdrawal_hash IS NOT NULL ORDER BY state,sequence,trace_id ASC", strings.Join(transactionCols, ","))
+func (s *SQLite3Store) ListConfirmedWithdrawalTransactionsAfter(ctx context.Context, offset time.Time, limit int) ([]*Transaction, error) {
+	query := fmt.Sprintf("SELECT %s FROM transactions where state=? AND withdrawal_hash IS NOT NULL AND updated_at>? ORDER BY updated_at ASC", strings.Join(transactionCols, ","))
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
-	rows, err := s.db.QueryContext(ctx, query, TransactionStateWithdrawed, sequence)
+	rows, err := s.db.QueryContext(ctx, query, TransactionStateWithdrawed, offset)
 	if err != nil {
 		return nil, err
 	}
