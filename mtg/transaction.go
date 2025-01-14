@@ -158,10 +158,6 @@ func (act *Action) BuildTransaction(ctx context.Context, traceId, opponentAppId,
 	}
 	outputs := act.group.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, act.consumed[assetId], tx.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
 	if len(outputs) == 0 {
-		// FIXME remove this, and the application test should create some utxos
-		if CheckTestEnvironment(ctx) {
-			return tx
-		}
 		panic(tx.TraceId)
 	}
 	if ids := safeTransactionSequenceOrderHack[tx.TraceId]; len(ids) > 0 {
@@ -236,13 +232,6 @@ func (act *Action) BuildWithdrawTransaction(ctx context.Context, traceId, assetI
 	outputs := act.group.ListOutputsForAsset(ctx, tx.AppId, tx.AssetId, act.consumed[assetId], tx.Sequence, SafeUtxoStateUnspent, OutputsBatchSize)
 	if len(outputs) == 0 {
 		panic(tx.TraceId)
-	}
-	if ids := safeTransactionSequenceOrderHack[tx.TraceId]; len(ids) > 0 {
-		hack, err := act.group.store.listOutputs(ctx, ids)
-		if err != nil {
-			panic(err)
-		}
-		outputs = hack
 	}
 	inputs, _, err := act.group.getTransactionInputsAndRecipients(ctx, tx, outputs)
 	if err != nil {

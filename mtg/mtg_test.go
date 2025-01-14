@@ -280,7 +280,8 @@ func TestMTGWithdrawal(t *testing.T) {
 	txs, _, err := node.Group.store.ListTransactions(ctx, TransactionStateInitial, 0)
 	require.Nil(err)
 	require.Len(txs, 1)
-	tx := txs[0]
+	tx, err := Deserialize(txs[0].Serialize())
+	require.Nil(err)
 	require.Equal(testWithdrawalAmount, tx.Amount)
 	require.Equal(testWithdrawalMemo, tx.Memo)
 	require.Equal(SOLAssetId, tx.AssetId)
