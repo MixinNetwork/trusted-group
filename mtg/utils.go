@@ -76,6 +76,9 @@ func CheckRetryableError(err error) bool {
 }
 
 func NewMixAddress(ctx context.Context, members []string, threshold byte) (*mixin.MixAddress, bool, error) {
+	if len(members) == 0 || threshold == 0 {
+		panic(len(members))
+	}
 	if CheckTestEnvironment(ctx) {
 		for i, m := range members {
 			_, err := mixinnet.AddressFromString(m)
@@ -297,28 +300,27 @@ func (grp *Group) readTransactionUntilSufficientImpl(ctx context.Context, id str
 		var req SafeTransactionRequest
 		err := grp.mixin.Get(ctx, "/safe/transactions/"+id, nil, &req)
 		logger.Verbosef("Group.SafeReadTransactionRequest(%s) => %v %v\n", id, req, err)
-		if err != nil {
-			if CheckRetryableError(err) {
-				time.Sleep(time.Second)
-				continue
-			}
-			if strings.Contains(err.Error(), "not found") {
-				return nil, nil
-			}
+		if err == nil {
+			return &req, nil
 		}
-		return &req, err
+		if CheckRetryableError(err) {
+			time.Sleep(time.Second)
+			continue
+		}
+		if strings.Contains(err.Error(), "not found") {
+			return nil, nil
+		}
+		return nil, err
 	}
 }
 
 func (grp *Group) getTransactionInputsAndRecipients(ctx context.Context, tx *Transaction, outputs []*UnifiedOutput) ([]*UnifiedOutput, []*TransactionRecipient, error) {
 	var tr []*TransactionRecipient
-	if len(tx.Receivers) == 0 && tx.Threshold == 0 && tx.IsWithdrawal() {
-		tr = []*TransactionRecipient{
-			{
-				Amount:      tx.Amount,
-				Destination: tx.Destination.String,
-			},
-		}
+	if tx.IsWithdrawal() {
+		tr = []*TransactionRecipient{{
+			Amount:      tx.Amount,
+			Destination: tx.Destination.String,
+		}}
 		if tx.Tag.Valid {
 			tr[0].Tag = tx.Tag.String
 		}
@@ -327,13 +329,11 @@ func (grp *Group) getTransactionInputsAndRecipients(ctx context.Context, tx *Tra
 		if err != nil {
 			return nil, nil, err
 		}
-		tr = []*TransactionRecipient{
-			{
-				MixAddress: ma,
-				Amount:     tx.Amount,
-				UuidMember: uuidMember,
-			},
-		}
+		tr = []*TransactionRecipient{{
+			MixAddress: ma,
+			Amount:     tx.Amount,
+			UuidMember: uuidMember,
+		}}
 	}
 
 	target := common.NewIntegerFromString(tx.Amount)
