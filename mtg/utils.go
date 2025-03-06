@@ -220,19 +220,21 @@ func (grp *Group) readKernelTransactionUntilSufficientImpl(ctx context.Context, 
 	}
 }
 
-func (grp *Group) readTransactionUntilSufficient(ctx context.Context, id string) (*SafeTransactionRequest, error) {
+func (grp *Group) readTransactionUntilSufficient(ctx context.Context, id string, fromCache bool) (*SafeTransactionRequest, error) {
 	key := fmt.Sprintf("readTransactionUntilSufficient(%s)", id)
-	val, err := grp.store.ReadCache(ctx, key)
-	if err != nil {
-		panic(err)
-	}
-	if val != "" {
-		var r SafeTransactionRequest
-		err = json.Unmarshal([]byte(val), &r)
+	if fromCache {
+		val, err := grp.store.ReadCache(ctx, key)
 		if err != nil {
 			panic(err)
 		}
-		return &r, nil
+		if val != "" {
+			var r SafeTransactionRequest
+			err = json.Unmarshal([]byte(val), &r)
+			if err != nil {
+				panic(err)
+			}
+			return &r, nil
+		}
 	}
 	r, err := grp.readTransactionUntilSufficientImpl(ctx, id)
 	if err != nil || r == nil || r.State != SafeUtxoStateSpent {
