@@ -383,7 +383,7 @@ func (grp *Group) signTransaction(ctx context.Context, tx *Transaction) *common.
 		if storageTx.State != TransactionStateSnapshot {
 			return nil
 		}
-		t, err := grp.readTransactionUntilSufficient(ctx, tx.storageTraceId, true)
+		t, err := grp.readTransactionUntilSufficient(ctx, tx.storageTraceId)
 		if err != nil {
 			panic(err)
 		}

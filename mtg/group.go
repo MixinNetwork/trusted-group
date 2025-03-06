@@ -368,7 +368,7 @@ func (grp *Group) publishTransactions(ctx context.Context) error {
 }
 
 func (grp *Group) snapshotTransaction(ctx context.Context, tx *Transaction) (bool, error) {
-	req, err := grp.readTransactionUntilSufficient(ctx, tx.RequestID(), true)
+	req, err := grp.readTransactionUntilSufficient(ctx, tx.RequestID())
 	logger.Verbosef("group.readTransactionUntilSufficient(%s, %s) => %v", tx.TraceId, tx.RequestID(), err)
 	if err != nil || req == nil {
 		return false, err
@@ -385,7 +385,7 @@ func (grp *Group) confirmWithdrawalTransactions(ctx context.Context) error {
 		return err
 	}
 	for _, tx := range txs {
-		req, err := grp.readTransactionUntilSufficient(ctx, tx.RequestID(), false)
+		req, err := grp.readTransactionUntilSufficient(ctx, tx.RequestID())
 		logger.Verbosef("group.readTransactionUntilSufficient(%s, %s) => %v", tx.TraceId, tx.RequestID(), err)
 		if err != nil {
 			return err
