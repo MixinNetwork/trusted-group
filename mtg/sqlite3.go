@@ -19,7 +19,7 @@ var SCHEMA string
 
 type SQLite3Store struct {
 	db    *sql.DB
-	mutex *sync.Mutex
+	mutex *sync.RWMutex
 }
 
 func ExpandTilde(path string) string {
@@ -51,7 +51,7 @@ func OpenSQLite3Store(path string) (*SQLite3Store, error) {
 	}
 	return &SQLite3Store{
 		db:    db,
-		mutex: new(sync.Mutex),
+		mutex: new(sync.RWMutex),
 	}, nil
 }
 
@@ -92,6 +92,9 @@ func (s *SQLite3Store) checkExistence(ctx context.Context, tx *sql.Tx, sql strin
 }
 
 func (s *SQLite3Store) ReadProperty(ctx context.Context, k string) (string, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
 	row := s.db.QueryRowContext(ctx, "SELECT value FROM properties WHERE key=?", k)
 	var value string
 	err := row.Scan(&value)

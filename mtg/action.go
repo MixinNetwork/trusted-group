@@ -8,6 +8,7 @@ import (
 
 	"github.com/MixinNetwork/mixin/common"
 	"github.com/MixinNetwork/mixin/crypto"
+	"github.com/MixinNetwork/mixin/logger"
 )
 
 const (
@@ -125,6 +126,7 @@ func (grp *Group) checkCompactionTransaction(ctx context.Context, action *Action
 // actions queue is all the utxos ordered by their sequence
 func (grp *Group) handleActionsQueue(ctx context.Context) error {
 	as, err := grp.store.ListActions(ctx, ActionStateInitial, 16)
+	logger.Verbosef("Group.ListActions() => %d %v", len(as), err)
 	if err != nil {
 		return fmt.Errorf("store.ListInitialActions() => %v", err)
 	}

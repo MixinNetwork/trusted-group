@@ -58,6 +58,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS outputs_by_sequence ON outputs(sequence);
 CREATE INDEX IF NOT EXISTS outputs_by_trace_sequence ON outputs(trace_id, sequence);
 CREATE INDEX IF NOT EXISTS outputs_by_hash_sequence ON outputs(transaction_hash, sequence);
 CREATE INDEX IF NOT EXISTS outputs_by_app_asset_state_sequence ON outputs(app_id, asset_id, state, sequence);
+CREATE INDEX IF NOT EXISTS outputs_by_transaction_hash_output_index ON outputs(transaction_hash, output_index);
 
 
 

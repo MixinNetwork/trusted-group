@@ -10,6 +10,9 @@ import (
 const cacheTTL = 24 * time.Hour
 
 func (s *SQLite3Store) ReadCache(ctx context.Context, k string) (string, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
 	row := s.db.QueryRowContext(ctx, "SELECT value,created_at FROM caches WHERE key=?", k)
 	var value string
 	var createdAt time.Time

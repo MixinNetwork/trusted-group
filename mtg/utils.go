@@ -156,7 +156,7 @@ func (grp *Group) getSpendPublicKeyUntilSufficient(ctx context.Context) (string,
 	for {
 		me, err := grp.mixin.UserMe(ctx)
 		logger.Verbosef("Group.UserMe() => %v\n", err)
-		if err != nil && CheckRetryableError(err) {
+		if CheckRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
 		}
@@ -181,9 +181,9 @@ func (grp *Group) ReadKernelTransactionUntilSufficient(ctx context.Context, txHa
 		}
 		return ver, nil
 	}
-	ver, snapshot, err := grp.readKernelTransactionUntilSufficientImpl(ctx, txHash)
-	if err != nil || snapshot == "" {
-		return ver, err
+	ver, err := grp.readKernelTransactionUntilSufficientImpl(ctx, txHash)
+	if err != nil {
+		return nil, err
 	}
 	val = base64.RawURLEncoding.EncodeToString(ver.Marshal())
 	err = grp.store.WriteCache(ctx, key, val)
@@ -193,30 +193,30 @@ func (grp *Group) ReadKernelTransactionUntilSufficient(ctx context.Context, txHa
 	return ver, nil
 }
 
-func (grp *Group) readKernelTransactionUntilSufficientImpl(ctx context.Context, txHash string) (*common.VersionedTransaction, string, error) {
+func (grp *Group) readKernelTransactionUntilSufficientImpl(ctx context.Context, txHash string) (*common.VersionedTransaction, error) {
 	if CheckTestEnvironment(ctx) {
 		hash, err := crypto.HashFromString(txHash)
 		if err != nil {
-			return nil, "", err
+			return nil, err
 		}
 		tx, err := grp.store.ReadTransactionByHash(ctx, hash)
 		if err != nil {
-			return nil, "", err
+			return nil, err
 		}
 		if tx == nil {
 			ver := common.NewTransactionV5(common.XINAssetId).AsVersioned()
-			return ver, "", nil
+			return ver, nil
 		}
 		ver, err := common.UnmarshalVersionedTransaction(tx.Raw)
-		return ver, "", err
+		return ver, err
 	}
 	for {
 		ver, snapshot, err := GetKernelTransaction(grp.kernelRPC, txHash)
-		if err != nil && CheckRetryableError(err) {
+		if CheckRetryableError(err) || snapshot == "" {
 			time.Sleep(time.Second)
 			continue
 		}
-		return ver, snapshot, err
+		return ver, err
 	}
 }
 
@@ -440,7 +440,7 @@ func (grp *Group) createGhostKeysUntilSufficient(ctx context.Context, tx *Transa
 	for {
 		keys, err := grp.mixin.SafeCreateGhostKeys(ctx, uuidGkrs, grp.GetMembers()...)
 		logger.Verbosef("Group.SafeCreateGhostKeys(%s) => %v %v\n", tx.TraceId, keys, err)
-		if err != nil && CheckRetryableError(err) {
+		if CheckRetryableError(err) {
 			time.Sleep(3 * time.Second)
 			continue
 		}
